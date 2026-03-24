@@ -1,9 +1,16 @@
 {
   "name": "@xapps/openapi-import",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "license": "MIT",
   "author": "Daniel Vladescu <daniel.vladescu@gmail.com>",
   "description": "OpenAPI to xApp manifest importer",
+  "keywords": [
+    "openapi",
+    "swagger",
+    "xapps",
+    "manifest",
+    "import"
+  ],
   "type": "module",
   "exports": {
     ".": {
