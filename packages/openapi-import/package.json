@@ -1,0 +1,37 @@
+{
+  "name": "@xapps/openapi-import",
+  "version": "0.1.0",
+  "license": "MIT",
+  "author": "Daniel Vladescu <daniel.vladescu@gmail.com>",
+  "description": "OpenAPI to xApp manifest importer",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/0x730/xapps-sdk-js.git",
+    "directory": "packages/openapi-import"
+  },
+  "homepage": "https://gateway.0x730.com",
+  "bugs": {
+    "url": "https://github.com/0x730/xapps-sdk-js/issues"
+  },
+  "sideEffects": false,
+  "scripts": {
+    "build": "node ../../scripts/build-openapi-import.mjs",
+    "smoke": "npm run build && node examples/smoke/smoke.mjs"
+  },
+  "dependencies": {
+    "js-yaml": "^4.1.1"
+  }
+}

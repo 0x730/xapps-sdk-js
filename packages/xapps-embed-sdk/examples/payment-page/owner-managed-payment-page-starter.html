@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Owner-Managed Payment Starter</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 24px;
+        font-family: system-ui, sans-serif;
+        background: #f8fafc;
+        color: #0f172a;
+      }
+      .card {
+        max-width: 640px;
+        margin: 0 auto;
+        border: 1px solid #e2e8f0;
+        border-radius: 14px;
+        background: #fff;
+        padding: 18px;
+        display: grid;
+        gap: 10px;
+      }
+      .title {
+        font-size: 20px;
+        font-weight: 800;
+      }
+      .muted {
+        color: #64748b;
+        font-size: 13px;
+      }
+      .row {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      button,
+      select {
+        border-radius: 10px;
+        font: inherit;
+      }
+      button {
+        border: 1px solid #0f766e;
+        background: #0f766e;
+        color: #fff;
+        padding: 10px 14px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      button.ghost {
+        border-color: #cbd5e1;
+        background: #fff;
+        color: #0f172a;
+      }
+      button:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+      }
+      select {
+        border: 1px solid #cbd5e1;
+        background: #fff;
+        color: #0f172a;
+        padding: 8px 10px;
+      }
+      code {
+        background: #f1f5f9;
+        border-radius: 6px;
+        padding: 1px 6px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card" aria-busy="true" id="card">
+      <div class="title">Owner-Managed Payment Starter</div>
+      <div class="muted">
+        Advanced reference page. Replace the `/api/payment/*` endpoints with your tenant or
+        publisher backend routes.
+      </div>
+      <div><strong>xapp</strong>: <code id="xappId">unknown</code></div>
+      <div><strong>tool</strong>: <code id="toolName">unknown</code></div>
+      <div><strong>amount</strong>: <code id="amount">0</code></div>
+      <div><strong>session</strong>: <code id="sessionId">-</code></div>
+      <div><strong>return</strong>: <code id="returnUrl">-</code></div>
+      <div id="methodRow" style="display: none">
+        <strong>method</strong>:
+        <select id="methodSelect"></select>
+      </div>
+      <div class="row">
+        <button id="payBtn" type="button">Pay and Return</button>
+        <button id="cancelBtn" type="button" class="ghost">Cancel</button>
+      </div>
+      <div id="msg" class="muted" aria-live="polite"></div>
+    </div>
+    <script type="module">
+      import { createOwnerManagedPaymentPageController } from "/embed/sdk/xapps-embed-sdk.esm.js";
+
+      const controller = createOwnerManagedPaymentPageController(window.location.href);
+      const paymentSessionId = String(controller.paymentSessionId || "").trim();
+      const queryReturnUrl = String(controller.queryReturnUrl || "").trim();
+      const queryCancelUrl = String(controller.queryCancelUrl || "").trim();
+      const queryResume = String(controller.resumeToken || "").trim();
+      const cardEl = document.getElementById("card");
+      const msgEl = document.getElementById("msg");
+      const payBtn = document.getElementById("payBtn");
+      const cancelBtn = document.getElementById("cancelBtn");
+      const methodRow = document.getElementById("methodRow");
+      const methodSelect = document.getElementById("methodSelect");
+      let session = null;
+      let selectedScheme = "";
+
+      function setText(id, value) {
+        document.getElementById(id).textContent = value;
+      }
+
+      function renderSession(s) {
+        setText("xappId", s.xapp_id || "unknown");
+        setText("toolName", s.tool_name || "unknown");
+        setText("amount", `${s.amount || "0"} ${(s.currency || "USD").toUpperCase()}`);
+        setText("sessionId", s.payment_session_id || paymentSessionId || "-");
+        setText("returnUrl", controller.resolveReturnUrl(s) || "-");
+      }
+
+      function renderAccepts(s) {
+        const accepts = Array.isArray(s?.accepts) ? s.accepts : [];
+        methodSelect.innerHTML = "";
+        if (accepts.length <= 1) {
+          methodRow.style.display = "none";
+          selectedScheme = String(accepts[0]?.scheme || "")
+            .trim()
+            .toLowerCase();
+          return;
+        }
+        for (const item of accepts) {
+          const option = document.createElement("option");
+          option.value = String(item?.scheme || "")
+            .trim()
+            .toLowerCase();
+          option.textContent = String(item?.label || item?.scheme || "unknown");
+          methodSelect.appendChild(option);
+        }
+        selectedScheme = methodSelect.value;
+        methodSelect.onchange = () => {
+          selectedScheme = String(methodSelect.value || "")
+            .trim()
+            .toLowerCase();
+        };
+        methodRow.style.display = "";
+      }
+
+      async function loadSession() {
+        if (!paymentSessionId) throw new Error("Missing payment_session_id");
+        const qs = new URLSearchParams({ payment_session_id: paymentSessionId });
+        if (queryReturnUrl) qs.set("return_url", queryReturnUrl);
+        if (queryCancelUrl) qs.set("cancel_url", queryCancelUrl);
+        if (queryResume) qs.set("xapps_resume", queryResume);
+        const res = await fetch("/api/payment/session?" + qs.toString());
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.message || "Failed to load payment session");
+        return data?.result || null;
+      }
+
+      function goBack() {
+        const cancelUrl = controller.resolveCancelUrl({
+          session,
+          referrer: document.referrer,
+        });
+        if (cancelUrl) window.location.href = cancelUrl;
+        else history.back();
+      }
+
+      async function finalizeClientCollect(result) {
+        const flow = String(result?.flow || "")
+          .trim()
+          .toLowerCase();
+        const clientSettleUrl = String(result?.client_settle_url || "").trim();
+        if (flow !== "client_collect" || !clientSettleUrl) {
+          throw new Error("Invalid client_collect response");
+        }
+        const res = await fetch("/api/payment/client-settle", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            payment_session_id: session.payment_session_id,
+            status: "paid",
+            ...(queryReturnUrl ? { return_url: queryReturnUrl } : {}),
+            ...(queryResume ? { xapps_resume: queryResume } : {}),
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.message || "Failed to finalize client-settle");
+        const redirectUrl = String(data?.result?.redirect_url || "");
+        if (!redirectUrl) throw new Error("Missing redirect URL");
+        window.location.href = redirectUrl;
+      }
+
+      cancelBtn.addEventListener("click", goBack);
+      payBtn.addEventListener("click", async () => {
+        try {
+          if (!session) throw new Error("Payment session not loaded");
+          msgEl.textContent = "Finalizing payment...";
+          payBtn.disabled = true;
+          const res = await fetch("/api/payment/complete", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              payment_session_id: session.payment_session_id,
+              ...(selectedScheme ? { scheme: selectedScheme } : {}),
+              ...(queryReturnUrl ? { return_url: queryReturnUrl } : {}),
+              ...(queryCancelUrl ? { cancel_url: queryCancelUrl } : {}),
+              ...(queryResume ? { xapps_resume: queryResume } : {}),
+            }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.message || "Failed to finalize payment");
+          const result = data?.result || {};
+          if (
+            String(result.flow || "")
+              .trim()
+              .toLowerCase() === "client_collect"
+          ) {
+            await finalizeClientCollect(result);
+            return;
+          }
+          const redirectUrl = String(result.redirect_url || "");
+          if (!redirectUrl) throw new Error("Missing redirect URL");
+          window.location.href = redirectUrl;
+        } catch (error) {
+          payBtn.disabled = false;
+          msgEl.textContent = error?.message || String(error);
+        }
+      });
+
+      (async () => {
+        try {
+          if (controller.hasReturnedPaymentEvidence && controller.redirectReturnedPaymentToHost()) {
+            return;
+          }
+          msgEl.textContent = "Loading payment session...";
+          payBtn.disabled = true;
+          session = await loadSession();
+          if (!session) throw new Error("Payment session unavailable");
+          renderSession(session);
+          renderAccepts(session);
+          msgEl.textContent = "";
+          payBtn.disabled = false;
+          cardEl.setAttribute("aria-busy", "false");
+        } catch (error) {
+          cardEl.setAttribute("aria-busy", "false");
+          msgEl.textContent = error?.message || String(error);
+        }
+      })();
+    </script>
+  </body>
+</html>

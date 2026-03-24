@@ -1,0 +1,45 @@
+{
+  "name": "@xapps/widget-sdk",
+  "version": "0.1.0",
+  "license": "MIT",
+  "author": "Daniel Vladescu <daniel.vladescu@gmail.com>",
+  "description": "Typed browser bridge SDK for Xapps publisher widgets",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./react": {
+      "types": "./dist/react.d.ts",
+      "default": "./dist/react.js"
+    },
+    "./adapter": {
+      "types": "./dist/adapter.d.ts",
+      "default": "./dist/adapter.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/0x730/xapps-sdk-js.git",
+    "directory": "packages/widget-sdk"
+  },
+  "homepage": "https://gateway.0x730.com",
+  "bugs": {
+    "url": "https://github.com/0x730/xapps-sdk-js/issues"
+  },
+  "sideEffects": false,
+  "scripts": {
+    "build": "node ../../scripts/build-widget-sdk.mjs",
+    "smoke": "npm run build && node examples/smoke/smoke.mjs"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0"
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "name": "xapps-embed-sdk",
+  "version": "0.1.0",
+  "license": "MIT",
+  "author": "Daniel Vladescu <daniel.vladescu@gmail.com>",
+  "description": "Host-side browser embed SDK for Xapps catalog/widget integration",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/xapps-embed-sdk.esm.js",
+      "default": "./dist/xapps-embed-sdk.esm.js"
+    },
+    "./umd": {
+      "default": "./dist/xapps-embed-sdk.umd.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "node ../../scripts/build-embed-sdk.mjs && npm run build:types && node ../../scripts/prepare-embed-sdk-package.mjs",
+    "build:types": "tsc -p tsconfig.build.json",
+    "prepack": "npm run build:types && node ../../scripts/prepare-embed-sdk-package.mjs",
+    "smoke": "npm run build && node examples/smoke/smoke.mjs"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/0x730/xapps-sdk-js.git",
+    "directory": "packages/xapps-embed-sdk"
+  },
+  "homepage": "https://gateway.0x730.com",
+  "bugs": {
+    "url": "https://github.com/0x730/xapps-sdk-js/issues"
+  }
+}
