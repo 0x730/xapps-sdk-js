@@ -1,0 +1,36 @@
+{
+  "name": "@xapps/server-sdk",
+  "version": "0.1.0",
+  "license": "MIT",
+  "author": "Daniel Vladescu <daniel.vladescu@gmail.com>",
+  "description": "Node SDK for Xapps publisher server integrations",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/0x730/xapps-sdk-js.git",
+    "directory": "packages/server-sdk"
+  },
+  "homepage": "https://gateway.0x730.com",
+  "bugs": {
+    "url": "https://github.com/0x730/xapps-sdk-js/issues"
+  },
+  "scripts": {
+    "build": "node ../../scripts/build-server-sdk.mjs",
+    "smoke": "npm run build && node examples/smoke/smoke.mjs"
+  },
+  "dependencies": {
+    "@noble/curves": "^2.0.1"
+  }
+}

@@ -1,0 +1,39 @@
+{
+  "name": "@xapps/browser-host",
+  "version": "0.1.0",
+  "license": "MIT",
+  "author": "Daniel Vladescu <daniel.vladescu@gmail.com>",
+  "type": "module",
+  "description": "Browser host runtime and bootstrap helpers for marketplace and single-xapp surfaces",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js",
+    "./backend-base": "./dist/backend-base.js",
+    "./host-shell": "./dist/host-shell.js",
+    "./marketplace-runtime": "./dist/marketplace-runtime.js",
+    "./reference-runtime": "./dist/reference-runtime.js",
+    "./marketplace-host": "./dist/marketplace-host.js",
+    "./single-xapp-host": "./dist/single-xapp-host.js",
+    "./host-status": "./dist/host-status.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/0x730/xapps-sdk-js.git",
+    "directory": "packages/browser-host"
+  },
+  "homepage": "https://gateway.0x730.com",
+  "bugs": {
+    "url": "https://github.com/0x730/xapps-sdk-js/issues"
+  },
+  "scripts": {
+    "build": "node ../../scripts/build-browser-host.mjs",
+    "smoke": "npm run build && node examples/smoke/smoke.mjs"
+  }
+}

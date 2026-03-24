@@ -1,0 +1,42 @@
+{
+  "name": "@xapps/backend-kit",
+  "version": "0.1.0",
+  "license": "MIT",
+  "author": "Daniel Vladescu <daniel.vladescu@gmail.com>",
+  "description": "Modular Node backend kit for the current Xapps backend contract (tenant surface today, shared actor-adapter direction later)",
+  "type": "module",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js",
+    "./backend/modes": "./dist/backend/modes/index.js",
+    "./backend/policies/common": "./dist/backend/policies/common.js",
+    "./backend/routes/health": "./dist/backend/routes/health.js",
+    "./backend/routes/reference": "./dist/backend/routes/reference.js",
+    "./backend/routes/gateway/*": "./dist/backend/routes/gateway/*.js",
+    "./backend/modes/*/*": "./dist/backend/modes/*/*.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/0x730/xapps-sdk-js.git",
+    "directory": "packages/backend-kit"
+  },
+  "homepage": "https://gateway.0x730.com",
+  "bugs": {
+    "url": "https://github.com/0x730/xapps-sdk-js/issues"
+  },
+  "scripts": {
+    "build": "node ../../scripts/build-backend-kit.mjs",
+    "smoke": "npm run build && node examples/smoke/smoke.mjs"
+  },
+  "dependencies": {
+    "@xapps/server-sdk": "^0.1.0"
+  }
+}

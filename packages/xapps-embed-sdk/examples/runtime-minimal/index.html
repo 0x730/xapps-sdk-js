@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Standard Marketplace Runtime Starter</title>
+    <style>
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: system-ui, sans-serif;
+        background: #f8fafc;
+        color: #0f172a;
+      }
+      .page {
+        display: grid;
+        gap: 16px;
+        min-height: 100vh;
+        padding: 16px;
+        box-sizing: border-box;
+      }
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+      .modes {
+        display: flex;
+        gap: 8px;
+      }
+      button {
+        border: 1px solid #cbd5e1;
+        background: #fff;
+        color: #0f172a;
+        border-radius: 999px;
+        padding: 10px 14px;
+        font: inherit;
+        cursor: pointer;
+      }
+      .shell {
+        min-height: 0;
+        display: grid;
+        gap: 16px;
+      }
+      .shell[data-mode="single-panel"] {
+        grid-template-columns: 1fr;
+      }
+      .shell[data-mode="split-panel"] {
+        grid-template-columns: minmax(320px, 1fr) minmax(320px, 1fr);
+      }
+      .panel {
+        min-height: 70vh;
+        border: 1px solid #e2e8f0;
+        border-radius: 16px;
+        background: #fff;
+        overflow: hidden;
+      }
+      .widget-placeholder {
+        display: grid;
+        place-items: center;
+        min-height: 100%;
+        color: #64748b;
+        text-align: center;
+        padding: 24px;
+        box-sizing: border-box;
+      }
+      #toast-root {
+        position: fixed;
+        right: 16px;
+        bottom: 16px;
+        display: grid;
+        gap: 8px;
+        z-index: 2147482000;
+      }
+      #host-modal[aria-hidden="true"] {
+        display: none;
+      }
+      #host-modal {
+        position: fixed;
+        inset: 0;
+        background: rgba(15, 23, 42, 0.45);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 16px;
+        z-index: 2147482100;
+      }
+      .modal-card {
+        width: min(560px, 92vw);
+        background: #fff;
+        border-radius: 16px;
+        padding: 20px;
+        box-shadow: 0 20px 50px rgba(15, 23, 42, 0.2);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <div class="topbar">
+        <div>
+          <strong>Marketplace Runtime Starter</strong>
+        </div>
+        <div class="modes">
+          <button type="button" data-mode="single-panel">Single panel</button>
+          <button type="button" data-mode="split-panel">Split panel</button>
+        </div>
+      </div>
+      <div class="shell" id="shell" data-mode="single-panel">
+        <div class="panel" id="catalog"></div>
+        <div class="panel" id="widget" hidden>
+          <div class="widget-placeholder" id="widget-placeholder">
+            Select an app from the marketplace to open its widget in this panel.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="toast-root"></div>
+
+    <div id="host-modal" aria-hidden="true">
+      <div class="modal-card">
+        <h2 id="host-modal-title">Host modal</h2>
+        <p id="host-modal-message"></p>
+        <button type="button" id="host-modal-close">Close</button>
+      </div>
+    </div>
+
+    <script type="module">
+      import {
+        createHostDomUiController,
+        createHostPaymentResumeState,
+        createStandardMarketplaceRuntime,
+      } from "/embed/sdk/xapps-embed-sdk.esm.js";
+
+      const gatewayBaseUrl = "http://localhost:3000";
+      const subjectId = "subject_demo";
+      const shell = document.getElementById("shell");
+      const widgetPanel = document.getElementById("widget");
+      const widgetPlaceholder = document.getElementById("widget-placeholder");
+
+      function setWidgetPlaceholder(title, message) {
+        if (!widgetPanel || !widgetPlaceholder) return;
+        widgetPanel.hidden = false;
+        widgetPlaceholder.textContent = [title, message].filter(Boolean).join(" ").trim();
+      }
+
+      const hostUi = createHostDomUiController({
+        toastRootId: "toast-root",
+        modalBackdropId: "host-modal",
+        modalTitleId: "host-modal-title",
+        modalMessageId: "host-modal-message",
+        modalCloseId: "host-modal-close",
+      });
+
+      const runtime = createStandardMarketplaceRuntime({
+        baseUrl: gatewayBaseUrl,
+        subjectId,
+        apiBasePath: "/api",
+        paymentResumeState: createHostPaymentResumeState(window.location.href, {
+          autoCleanUrl: true,
+        }),
+        hostUi,
+        getCatalogMount: () => document.getElementById("catalog"),
+        getWidgetMount: () => document.getElementById("widget"),
+        singlePanel: {
+          resumeDelayMs: 220,
+        },
+        splitPanel: {
+          setWidgetPlaceholder,
+        },
+      });
+
+      async function mount(mode) {
+        const resolvedMode = mode === "split-panel" ? "split-panel" : "single-panel";
+        shell.dataset.mode = resolvedMode;
+        if (widgetPanel) widgetPanel.hidden = resolvedMode !== "split-panel";
+        await runtime.mount(resolvedMode);
+      }
+
+      document.querySelectorAll("[data-mode]").forEach((button) => {
+        button.addEventListener("click", () => {
+          void mount(button.getAttribute("data-mode") || "single-panel");
+        });
+      });
+
+      window.addEventListener("beforeunload", () => {
+        runtime.destroy();
+        hostUi.destroy();
+      });
+
+      void mount("single-panel");
+    </script>
+  </body>
+</html>

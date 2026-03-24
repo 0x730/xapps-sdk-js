@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Marketplace Host Starter</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f7f8fb;
+        --card: #ffffff;
+        --border: #d9deea;
+        --text: #132033;
+        --muted: #61708a;
+        --accent: #2257f2;
+        --accent-soft: #e8efff;
+        --radius: 18px;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background: radial-gradient(circle at top, #ffffff 0, #eef3ff 38%, var(--bg) 100%);
+        color: var(--text);
+        font:
+          16px/1.45 "Segoe UI",
+          system-ui,
+          sans-serif;
+      }
+      .page {
+        display: grid;
+        gap: 16px;
+        min-height: 100vh;
+        padding: 18px;
+      }
+      .topbar,
+      .hero,
+      .panel {
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        background: color-mix(in srgb, var(--card) 92%, #ffffff 8%);
+        box-shadow: 0 12px 30px rgba(19, 32, 51, 0.08);
+      }
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 14px 18px;
+      }
+      .brand {
+        display: grid;
+        gap: 2px;
+      }
+      .brand strong {
+        font-size: 18px;
+      }
+      .brand span {
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .identity {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+      .identity-chip,
+      .mode-btn {
+        border: 1px solid var(--border);
+        background: #fff;
+        color: var(--text);
+        border-radius: 999px;
+        padding: 8px 12px;
+        font: inherit;
+      }
+      .mode-btn {
+        cursor: pointer;
+      }
+      .mode-btn.is-active {
+        border-color: var(--accent);
+        background: var(--accent);
+        color: #fff;
+      }
+      .hero {
+        padding: 18px;
+      }
+      .hero h1 {
+        margin: 0 0 6px;
+        font-size: clamp(28px, 4vw, 44px);
+        line-height: 1.02;
+        letter-spacing: -0.03em;
+      }
+      .hero p {
+        margin: 0;
+        color: var(--muted);
+        max-width: 880px;
+      }
+      #mode-shell {
+        min-height: 0;
+      }
+      .main-content {
+        min-height: 70vh;
+      }
+      .main-layout {
+        display: grid;
+        gap: 16px;
+        min-height: 70vh;
+        grid-template-columns: minmax(320px, 1fr) minmax(320px, 1fr);
+      }
+      .sidebar,
+      .content,
+      .main-content .panel {
+        min-height: 0;
+      }
+      .sidebar,
+      .content,
+      .main-content .panel {
+        display: flex;
+        flex-direction: column;
+      }
+      .panel-title {
+        padding: 14px 16px 0;
+        font-size: 13px;
+        font-weight: 700;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+      }
+      .panel-body {
+        min-height: 0;
+        flex: 1 1 auto;
+        padding: 14px;
+      }
+      #catalog,
+      #widget {
+        width: 100%;
+        height: 100%;
+        min-height: 100%;
+      }
+      .placeholder {
+        min-height: 100%;
+        display: grid;
+        place-items: center;
+        padding: 28px;
+        text-align: center;
+        color: var(--muted);
+        border: 1px dashed var(--border);
+        border-radius: 14px;
+        background: #fcfdff;
+      }
+      #toast-root {
+        position: fixed;
+        right: 16px;
+        bottom: 16px;
+        display: grid;
+        gap: 8px;
+        z-index: 2147482000;
+      }
+      #host-modal[aria-hidden="true"] {
+        display: none;
+      }
+      #host-modal {
+        position: fixed;
+        inset: 0;
+        background: rgba(10, 20, 37, 0.46);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 16px;
+        z-index: 2147482100;
+      }
+      .modal-card {
+        width: min(560px, 92vw);
+        border-radius: 18px;
+        background: #fff;
+        padding: 22px;
+        box-shadow: 0 22px 50px rgba(19, 32, 51, 0.24);
+      }
+      .modal-card h2 {
+        margin: 0 0 8px;
+      }
+      .modal-card p {
+        margin: 0 0 16px;
+        color: var(--muted);
+      }
+      .modal-card button {
+        border: 1px solid var(--accent);
+        background: var(--accent);
+        color: #fff;
+        border-radius: 12px;
+        padding: 10px 14px;
+        font: inherit;
+        cursor: pointer;
+      }
+      @media (max-width: 920px) {
+        .topbar {
+          align-items: flex-start;
+          flex-direction: column;
+        }
+        .main-layout {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <header class="topbar">
+        <div class="brand">
+          <strong>Marketplace Host Starter</strong>
+          <span>Reference split: bootstrap, runtime, shell</span>
+        </div>
+        <div class="identity">
+          <span class="identity-chip" id="identity-name">Starter User</span>
+          <span class="identity-chip" id="identity-email">starter@example.com</span>
+          <span class="identity-chip" id="identity-subject">subject_demo</span>
+          <button class="mode-btn is-active" type="button" data-mode="single-panel">
+            Single panel
+          </button>
+          <button class="mode-btn" type="button" data-mode="split-panel">Split panel</button>
+        </div>
+      </header>
+
+      <section class="hero">
+        <h1 id="mode-title">Single-panel marketplace host</h1>
+        <p id="mode-subtitle">
+          Catalog and widget navigation stay in one embedded surface. Replace the static subject and
+          `/api` backend with your real host backend.
+        </p>
+      </section>
+
+      <div id="mode-shell"></div>
+    </div>
+
+    <div id="toast-root"></div>
+
+    <div id="host-modal" aria-hidden="true">
+      <div class="modal-card">
+        <h2 id="host-modal-title">Host modal</h2>
+        <p id="host-modal-message"></p>
+        <button type="button" id="host-modal-close">Close</button>
+      </div>
+    </div>
+
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>

@@ -1,0 +1,41 @@
+{
+  "name": "@xapps/signing-client",
+  "version": "0.1.0",
+  "license": "MIT",
+  "author": "Daniel Vladescu <daniel.vladescu@gmail.com>",
+  "description": "Browser-side signing SDK for Xapps platform",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/0x730/xapps-sdk-js.git",
+    "directory": "packages/signing-client"
+  },
+  "homepage": "https://gateway.0x730.com",
+  "bugs": {
+    "url": "https://github.com/0x730/xapps-sdk-js/issues"
+  },
+  "sideEffects": false,
+  "type": "module",
+  "scripts": {
+    "build": "tsup src/index.ts --format cjs,esm --dts --clean",
+    "dev": "tsup src/index.ts --format cjs,esm --watch --dts",
+    "test": "vitest run",
+    "smoke": "npm run build && node examples/smoke/smoke.mjs"
+  },
+  "devDependencies": {
+    "tsup": "^8.5.1",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.18"
+  },
+  "dependencies": {
+    "json-canonicalize": "^1.0.4"
+  }
+}
