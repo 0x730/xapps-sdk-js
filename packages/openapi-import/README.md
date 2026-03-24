@@ -31,5 +31,6 @@ const manifest = buildManifestFromOpenApiText(openApiText, {
 ## Notes
 
 - Supports JSON and YAML OpenAPI input.
+- Publishes independently from the other first-wave JS packages; a metadata/docs-only change here should not force a full wave republish.
 - Used by CLI import and publisher OpenAPI import routes.
 - See package/runtime ownership: `docs/guides/12-package-usage-and-ownership.md`.
