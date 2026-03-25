@@ -1,23 +1,23 @@
-# `@xapps/widget-sdk`
+# `@xapps-platform/widget-sdk`
 
 Browser bridge SDK for publisher widgets running inside Xapps iframes.
 
 ## Install
 
 ```bash
-npm install @xapps/widget-sdk
+npm install @xapps-platform/widget-sdk
 ```
 
 ## Exports
 
-- `createBridge` from `@xapps/widget-sdk`
-- `useXappsBridge`, `useToolRequest` from `@xapps/widget-sdk/react`
-- `XappsAdapter`/`init` from `@xapps/widget-sdk/adapter`
+- `createBridge` from `@xapps-platform/widget-sdk`
+- `useXappsBridge`, `useToolRequest` from `@xapps-platform/widget-sdk/react`
+- `XappsAdapter`/`init` from `@xapps-platform/widget-sdk/adapter`
 
 ## Minimal usage
 
 ```ts
-import { createBridge } from "@xapps/widget-sdk";
+import { createBridge } from "@xapps-platform/widget-sdk";
 
 const bridge = createBridge();
 const context = await bridge.getContext();
@@ -84,7 +84,7 @@ Operational surfaces:
 Widgets can request a larger host-managed presentation mode (for example overlay/focus mode, then fullscreen).
 
 ```ts
-import { createBridge } from "@xapps/widget-sdk";
+import { createBridge } from "@xapps-platform/widget-sdk";
 
 const bridge = createBridge();
 
@@ -125,7 +125,7 @@ Notes:
 Widgets can ask the host to open user-facing operational surfaces for the current xapp context.
 
 ```ts
-import { createBridge } from "@xapps/widget-sdk";
+import { createBridge } from "@xapps-platform/widget-sdk";
 
 const bridge = createBridge();
 
@@ -163,7 +163,7 @@ hosts can evolve later without changing widget-side API usage.
 Publisher-rendered widget shell helper (recommended):
 
 ```ts
-import { createBridge, createExpandController } from "@xapps/widget-sdk";
+import { createBridge, createExpandController } from "@xapps-platform/widget-sdk";
 
 const bridge = createBridge();
 const expand = createExpandController(bridge, {
@@ -191,7 +191,7 @@ import {
   getPaymentGuardRefResolution,
   isGuardBlockedError,
   isPaymentGuardGovernanceReason,
-} from "@xapps/widget-sdk";
+} from "@xapps-platform/widget-sdk";
 
 try {
   await bridge.createRequest({ toolName: "generate_report", payload: {} });
@@ -216,7 +216,7 @@ import {
   attachPaymentEvidenceToGuardOrchestration,
   resolveGuardPrimaryActionLabel,
   reconcilePaymentEvidenceFromGuardBlocked,
-} from "@xapps/widget-sdk";
+} from "@xapps-platform/widget-sdk";
 
 try {
   await bridge.createRequest({ toolName: "submit_wizard_application", payload });
@@ -235,13 +235,13 @@ const ctaLabel = resolveGuardPrimaryActionLabel({
 Integration note:
 
 - Host pages should use `xapps-embed-sdk` payment return helpers (`resolvePaymentReturnContext` preferred) and pass payment params once on resume.
-- Widget pages should use `@xapps/widget-sdk` helpers above to avoid stale submit state after replay-rejected evidence.
+- Widget pages should use `@xapps-platform/widget-sdk` helpers above to avoid stale submit state after replay-rejected evidence.
 - `@xapps/marketplace-ui` can carry host/payment context across marketplace routes; widget-sdk remains the widget-side API surface.
 - Canonical payment evidence requires `xapps_payment_issuer` to be present in forwarded `xapps_payment_*` params.
 
 ## Notes
 
 - Runtime: browser iframe context.
-- React hooks are provided via `@xapps/widget-sdk/react`.
+- React hooks are provided via `@xapps-platform/widget-sdk/react`.
 - Guard bridge helpers: `requestGuard(...)` and `onGuardStatus(...)`.
 - See package/runtime ownership: `docs/guides/12-package-usage-and-ownership.md`.
