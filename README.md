@@ -4,13 +4,13 @@ Public JavaScript SDK distribution repo for Xapps.
 
 Current first-wave packages:
 
-- `@xapps/server-sdk`
-- `@xapps/widget-sdk`
-- `@xapps/signing-client`
-- `@xapps/openapi-import`
-- `@xapps/embed-sdk`
-- `@xapps/browser-host`
-- `@xapps/backend-kit`
+- `@xapps-platform/server-sdk`
+- `@xapps-platform/widget-sdk`
+- `@xapps-platform/signing-client`
+- `@xapps-platform/openapi-import`
+- `@xapps-platform/embed-sdk`
+- `@xapps-platform/browser-host`
+- `@xapps-platform/backend-kit`
 
 Canonical engineering source remains private. This repo is the public distribution surface under:
 

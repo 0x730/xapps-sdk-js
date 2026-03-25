@@ -1,11 +1,11 @@
-# `@xapps/server-sdk`
+# `@xapps-platform/server-sdk`
 
 Node.js helper SDK for publisher server/executor integrations.
 
 ## Install
 
 ```bash
-npm install @xapps/server-sdk
+npm install @xapps-platform/server-sdk
 ```
 
 ## Exports
@@ -56,12 +56,12 @@ For tenant/publisher integrators, the safe default path is:
 
 Practical rule:
 
-- stay at `@xapps/server-sdk` level for managed/delegated lanes
+- stay at `@xapps-platform/server-sdk` level for managed/delegated lanes
 - only drop to `@xapps/payment-providers` when you are implementing provider execution yourself
 
 ## Enterprise host contract
 
-`@xapps/server-sdk` supports host-style integrations through the gateway client and
+`@xapps-platform/server-sdk` supports host-style integrations through the gateway client and
 the framework-neutral embed host proxy service:
 
 - `createGatewayApiClient(...)`
@@ -125,7 +125,7 @@ The browser-side consumer of these routes should be `xapps-embed-sdk`, not custo
 ## Minimal host proxy example
 
 ```ts
-import { createEmbedHostProxyService, createGatewayApiClient } from "@xapps/server-sdk";
+import { createEmbedHostProxyService, createGatewayApiClient } from "@xapps-platform/server-sdk";
 
 const gateway = createGatewayApiClient({
   baseUrl: process.env.XAPPS_BASE_URL ?? "http://localhost:3000",
@@ -179,7 +179,7 @@ import {
   parseDispatchRequest,
   verifyPaymentReturnEvidence,
   verifyXappsSignature,
-} from "@xapps/server-sdk";
+} from "@xapps-platform/server-sdk";
 
 const dispatch = parseDispatchRequest(req.body);
 const signature = verifyXappsSignature({
@@ -326,7 +326,7 @@ import {
   resolveSecretFromRefAsync,
   resolveSecret,
   createPaymentHandler,
-} from "@xapps/server-sdk";
+} from "@xapps-platform/server-sdk";
 
 // Sync — env: and file: only
 const secret = resolveSecretFromRef("env:MY_PAYMENT_SECRET");
@@ -356,7 +356,7 @@ The `createPaymentHandler` factory accepts either `secret` (raw string) or
 precedence.
 
 ```ts
-import { createPaymentHandler } from "@xapps/server-sdk";
+import { createPaymentHandler } from "@xapps-platform/server-sdk";
 
 const handler = createPaymentHandler({
   secret: process.env.PAYMENT_SECRET || undefined,
@@ -374,7 +374,7 @@ const handler = createPaymentHandler({
 For async `secretRef` schemes, use `createPaymentHandlerAsync(...)`:
 
 ```ts
-import { createPaymentHandlerAsync } from "@xapps/server-sdk";
+import { createPaymentHandlerAsync } from "@xapps-platform/server-sdk";
 
 const handler = await createPaymentHandlerAsync({
   secretRef: "platform://tenant-payment?scope=client&scope_id=CL001",
@@ -426,7 +426,7 @@ Use SDK helpers to keep provider credential shapes canonical across guard config
 import {
   buildPaymentProviderCredentialRefsByProvider,
   buildPaymentProviderCredentialsBundle,
-} from "@xapps/server-sdk";
+} from "@xapps-platform/server-sdk";
 
 const guardCredentialRefs = buildPaymentProviderCredentialRefsByProvider({
   stripe: {
@@ -490,6 +490,6 @@ Notes:
 - Complements host/frontend packages:
   - `xapps-embed-sdk` forwards browser payment return params.
   - `@xapps/marketplace-ui` can render payment-aware marketplace flows in React hosts.
-  - `@xapps/server-sdk` verifies/signs payment evidence and callback contracts server-side.
+  - `@xapps-platform/server-sdk` verifies/signs payment evidence and callback contracts server-side.
 - Scope is baseline helper primitives; language parity SDKs are tracked in OPEN-014.
 - See package/runtime ownership: `docs/guides/12-package-usage-and-ownership.md`.
