@@ -13,9 +13,9 @@
     "packages/backend-kit"
   ],
   "scripts": {
-    "build": "npm --workspace @xapps/server-sdk run build && npm --workspace @xapps/widget-sdk run build && npm --workspace @xapps/signing-client run build && npm --workspace @xapps/openapi-import run build && npm --workspace xapps-embed-sdk run build && npm --workspace @xapps/browser-host run build && npm --workspace @xapps/backend-kit run build",
-    "smoke": "npm --workspace @xapps/server-sdk run smoke && npm --workspace @xapps/widget-sdk run smoke && npm --workspace @xapps/signing-client run smoke && npm --workspace @xapps/openapi-import run smoke && npm --workspace xapps-embed-sdk run smoke && npm --workspace @xapps/browser-host run smoke && npm --workspace @xapps/backend-kit run smoke",
-    "pack:dry-run": "npm pack --dry-run --workspace @xapps/server-sdk && npm pack --dry-run --workspace @xapps/widget-sdk && npm pack --dry-run --workspace @xapps/signing-client && npm pack --dry-run --workspace @xapps/openapi-import && npm pack --dry-run --workspace xapps-embed-sdk && npm pack --dry-run --workspace @xapps/browser-host && npm pack --dry-run --workspace @xapps/backend-kit",
+    "build": "npm --workspace packages/server-sdk run build && npm --workspace packages/widget-sdk run build && npm --workspace packages/signing-client run build && npm --workspace packages/openapi-import run build && npm --workspace packages/xapps-embed-sdk run build && npm --workspace packages/browser-host run build && npm --workspace packages/backend-kit run build",
+    "smoke": "npm --workspace packages/server-sdk run smoke && npm --workspace packages/widget-sdk run smoke && npm --workspace packages/signing-client run smoke && npm --workspace packages/openapi-import run smoke && npm --workspace packages/xapps-embed-sdk run smoke && npm --workspace packages/browser-host run smoke && npm --workspace packages/backend-kit run smoke",
+    "pack:dry-run": "npm pack --dry-run --workspace packages/server-sdk && npm pack --dry-run --workspace packages/widget-sdk && npm pack --dry-run --workspace packages/signing-client && npm pack --dry-run --workspace packages/openapi-import && npm pack --dry-run --workspace packages/xapps-embed-sdk && npm pack --dry-run --workspace packages/browser-host && npm pack --dry-run --workspace packages/backend-kit",
     "changeset": "changeset",
     "changeset:status": "changeset status --verbose",
     "changeset:version": "changeset version"
