@@ -1,4 +1,4 @@
-# `@xapps/browser-host`
+# `@xapps-platform/browser-host`
 
 Browser-side host/runtime helpers for marketplace and single-xapp reference surfaces.
 
@@ -59,7 +59,7 @@ backend-kit `host.allowedOrigins` list.
 For secure hosted-integrator bootstrap, do not put raw platform API keys in the
 browser. Have the integrator backend obtain a short-lived bootstrap token from
 the tenant backend, then pass that token into the browser host identity state.
-When present, `@xapps/browser-host` forwards it automatically in
+When present, `@xapps-platform/browser-host` forwards it automatically in
 `X-Xapps-Host-Bootstrap` for the standard host/session routes.
 
 That bootstrap token is intentionally short-lived. Consumers should treat it as
