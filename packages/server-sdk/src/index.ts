@@ -2081,14 +2081,21 @@ async function resolveSubjectProofVerifierModule(
     return cachedSubjectProofVerifierModule;
   }
   let mod: unknown;
-  try {
-    const moduleName = "@xapps/publisher-verifier";
-    mod = await import(moduleName);
-  } catch (err) {
+  const moduleNames = ["@xapps-platform/publisher-verifier", "@xapps/publisher-verifier"];
+  let lastError: unknown;
+  for (const moduleName of moduleNames) {
+    try {
+      mod = await import(moduleName);
+      break;
+    } catch (err) {
+      lastError = err;
+    }
+  }
+  if (!mod) {
     fail(
       "VERIFIER_UNAVAILABLE",
-      "Subject proof verifier module is unavailable. Install/provide @xapps/publisher-verifier.",
-      { cause: err },
+      "Subject proof verifier module is unavailable. Install/provide @xapps-platform/publisher-verifier.",
+      { cause: lastError },
     );
   }
   if (
