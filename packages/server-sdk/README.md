@@ -481,15 +481,15 @@ Payment guard composition provenance is exposed via:
 
 Notes:
 
-- These APIs compose `@xapps/publisher-verifier` capabilities.
-- You can inject a custom verifier module via `{ verifierModule }` options, or rely on auto-loading when `@xapps/publisher-verifier` is available.
+- These APIs compose `@xapps-platform/publisher-verifier` capabilities.
+- You can inject a custom verifier module via `{ verifierModule }` options, or rely on auto-loading when `@xapps-platform/publisher-verifier` is available.
 
 ## Notes
 
 - Runtime: Node.js server side.
 - Complements host/frontend packages:
-  - `xapps-embed-sdk` forwards browser payment return params.
-  - `@xapps/marketplace-ui` can render payment-aware marketplace flows in React hosts.
+  - `@xapps-platform/embed-sdk` forwards browser payment return params.
+  - `@xapps-platform/marketplace-ui` can render payment-aware marketplace flows in React hosts.
   - `@xapps-platform/server-sdk` verifies/signs payment evidence and callback contracts server-side.
 - Scope is baseline helper primitives; language parity SDKs are tracked in OPEN-014.
 - See package/runtime ownership: `docs/guides/12-package-usage-and-ownership.md`.

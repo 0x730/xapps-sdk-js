@@ -641,7 +641,7 @@ Behavior:
 
 - Consumers typically load built artifacts from `/embed/sdk/*` endpoints.
 - Current baseline contract: gateway-served artifacts are the supported integration path.
-- `@xapps/marketplace-ui` can use these host-side primitives and now includes xapp-scoped
+- `@xapps-platform/marketplace-ui` can use these host-side primitives and now includes xapp-scoped
   `requests`, `payments`, `invoices`, and `notifications` surfaces in addition to catalog, detail,
   and widget routes, but embed-sdk is also valid for non-React/static hosts.
 - `@xapps-platform/widget-sdk` remains widget-iframe runtime API; embed-sdk remains host-side transport/orchestration.

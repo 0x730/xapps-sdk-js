@@ -1,22 +1,15 @@
 {
-  "name": "@xapps-platform/openapi-import",
-  "version": "0.1.1",
+  "name": "@xapps-platform/marketplace-ui",
+  "version": "0.1.0",
   "license": "MIT",
   "author": "Daniel Vladescu <daniel.vladescu@gmail.com>",
-  "description": "OpenAPI to xApp manifest importer",
-  "keywords": [
-    "openapi",
-    "swagger",
-    "xapps",
-    "manifest",
-    "import"
-  ],
   "type": "module",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
-    }
+    },
+    "./marketplace.css": "./dist/marketplace.css"
   },
   "files": [
     "dist"
@@ -27,18 +20,19 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/0x730/xapps-sdk-js.git",
-    "directory": "packages/openapi-import"
+    "directory": "packages/marketplace-ui"
   },
   "homepage": "https://gateway.0x730.com",
   "bugs": {
     "url": "https://github.com/0x730/xapps-sdk-js/issues"
   },
-  "sideEffects": false,
   "scripts": {
-    "build": "node ../../scripts/build-openapi-import.mjs",
+    "build": "node ../../scripts/build-marketplace-ui.mjs",
     "smoke": "npm run build && node examples/smoke/smoke.mjs"
   },
-  "dependencies": {
-    "js-yaml": "^4.1.1"
+  "peerDependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-router-dom": "^6.0.0 || ^7.0.0"
   }
 }

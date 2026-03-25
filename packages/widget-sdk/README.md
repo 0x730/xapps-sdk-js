@@ -234,9 +234,9 @@ const ctaLabel = resolveGuardPrimaryActionLabel({
 
 Integration note:
 
-- Host pages should use `xapps-embed-sdk` payment return helpers (`resolvePaymentReturnContext` preferred) and pass payment params once on resume.
+- Host pages should use `@xapps-platform/embed-sdk` payment return helpers (`resolvePaymentReturnContext` preferred) and pass payment params once on resume.
 - Widget pages should use `@xapps-platform/widget-sdk` helpers above to avoid stale submit state after replay-rejected evidence.
-- `@xapps/marketplace-ui` can carry host/payment context across marketplace routes; widget-sdk remains the widget-side API surface.
+- `@xapps-platform/marketplace-ui` can carry host/payment context across marketplace routes; widget-sdk remains the widget-side API surface.
 - Canonical payment evidence requires `xapps_payment_issuer` to be present in forwarded `xapps_payment_*` params.
 
 ## Notes

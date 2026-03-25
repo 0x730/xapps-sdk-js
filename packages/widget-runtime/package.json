@@ -1,16 +1,8 @@
 {
-  "name": "@xapps-platform/openapi-import",
-  "version": "0.1.1",
+  "name": "@xapps-platform/widget-runtime",
+  "version": "0.1.0",
   "license": "MIT",
   "author": "Daniel Vladescu <daniel.vladescu@gmail.com>",
-  "description": "OpenAPI to xApp manifest importer",
-  "keywords": [
-    "openapi",
-    "swagger",
-    "xapps",
-    "manifest",
-    "import"
-  ],
   "type": "module",
   "exports": {
     ".": {
@@ -27,18 +19,18 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/0x730/xapps-sdk-js.git",
-    "directory": "packages/openapi-import"
+    "directory": "packages/widget-runtime"
   },
   "homepage": "https://gateway.0x730.com",
   "bugs": {
     "url": "https://github.com/0x730/xapps-sdk-js/issues"
   },
-  "sideEffects": false,
   "scripts": {
-    "build": "node ../../scripts/build-openapi-import.mjs",
+    "build": "node ../../scripts/build-widget-runtime.mjs",
     "smoke": "npm run build && node examples/smoke/smoke.mjs"
   },
-  "dependencies": {
-    "js-yaml": "^4.1.1"
+  "peerDependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
   }
 }

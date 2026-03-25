@@ -1,0 +1,421 @@
+import { useEffect, useMemo, useState } from "react";
+import { Link, useLocation } from "react-router-dom";
+import { useMarketplace } from "../MarketplaceContext";
+import { MarketplaceActivityTabs } from "../components/MarketplaceActivityTabs";
+import { MarketplacePrimaryNav } from "../components/MarketplacePrimaryNav";
+import { asRecord, formatDateTime, readFirstString, readString } from "../utils/readers";
+import "../marketplace.css";
+
+function useQueryToken(): string {
+  const loc = useLocation();
+  const qs = new URLSearchParams(loc.search);
+  return qs.get("token") ?? "";
+}
+
+function useQuery(): URLSearchParams {
+  const loc = useLocation();
+  return useMemo(() => new URLSearchParams(loc.search), [loc.search]);
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const normalized = String(status || "")
+    .trim()
+    .toUpperCase();
+  const className =
+    normalized === "COMPLETED"
+      ? "mx-badge-success"
+      : normalized === "FAILED"
+        ? "mx-badge-danger"
+        : "mx-badge-warning";
+  return <span className={`mx-badge ${className}`}>{normalized || "—"}</span>;
+}
+
+type PaymentSessionRecord = Record<string, unknown>;
+
+export function PaymentsPage() {
+  const { client, host } = useMarketplace();
+  const token = useQueryToken();
+  const query = useQuery();
+
+  const xappIdFilter = query.get("xappId") ?? "";
+  const installationIdFilter = query.get("installationId") ?? "";
+  const focusedPaymentSessionId = query.get("paymentSessionId") ?? "";
+  const [items, setItems] = useState<PaymentSessionRecord[]>([]);
+  const [focusedSession, setFocusedSession] = useState<PaymentSessionRecord | null>(null);
+  const [focusedError, setFocusedError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(true);
+  const [xappTitle, setXappTitle] = useState("");
+
+  const isEmbedded = typeof window !== "undefined" && window.location.pathname.startsWith("/embed");
+
+  async function refresh() {
+    if (!client.listMyPaymentSessions) {
+      setError("Payments are unavailable in this host.");
+      setItems([]);
+      setBusy(false);
+      return;
+    }
+    setError(null);
+    setBusy(true);
+    try {
+      const res = await client.listMyPaymentSessions({
+        paymentSessionId: focusedPaymentSessionId || undefined,
+        xappId: xappIdFilter || undefined,
+        installationId: installationIdFilter || undefined,
+        limit: 50,
+      });
+      setItems(Array.isArray(res?.items) ? res.items.map((item) => asRecord(item)) : []);
+    } catch (e) {
+      setError(readFirstString(asRecord(e).message) || String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  useEffect(() => {
+    void refresh();
+    host.notifyNavigation?.({
+      path: typeof window !== "undefined" ? window.location.pathname : "",
+      page: "payments",
+      params: { xappId: xappIdFilter || null },
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusedPaymentSessionId, installationIdFilter, xappIdFilter]);
+
+  useEffect(() => {
+    if (!focusedPaymentSessionId || !client.getMyPaymentSession) {
+      setFocusedSession(null);
+      setFocusedError(null);
+      return;
+    }
+    let cancelled = false;
+    setFocusedError(null);
+    void (async () => {
+      try {
+        const res = await client.getMyPaymentSession!(focusedPaymentSessionId);
+        if (cancelled) return;
+        const session = asRecord(asRecord(res).session);
+        setFocusedSession(Object.keys(session).length > 0 ? session : null);
+      } catch (e) {
+        if (cancelled) return;
+        setFocusedSession(null);
+        setFocusedError(readFirstString(asRecord(e).message) || String(e));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [client, focusedPaymentSessionId]);
+
+  useEffect(() => {
+    if (!xappIdFilter) {
+      setXappTitle("");
+      return;
+    }
+    let alive = true;
+    void (async () => {
+      try {
+        const res = await client.getCatalogXapp(String(xappIdFilter));
+        if (!alive) return;
+        const manifest = asRecord(res?.manifest);
+        const xapp = asRecord(res?.xapp);
+        setXappTitle(readFirstString(manifest.title, xapp.name));
+      } catch {
+        if (!alive) return;
+        setXappTitle("");
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [client, xappIdFilter]);
+
+  const xappLink = xappIdFilter
+    ? ({
+        pathname: isEmbedded
+          ? `/xapps/${encodeURIComponent(String(xappIdFilter))}`
+          : `/marketplace/xapps/${encodeURIComponent(String(xappIdFilter))}`,
+        search: token ? `?token=${encodeURIComponent(token)}` : "",
+      } as any)
+    : null;
+
+  const clearHref = {
+    pathname: isEmbedded ? "/payments" : "/marketplace/payments",
+    search: token ? `?token=${encodeURIComponent(token)}` : "",
+  };
+  const listHref = {
+    pathname: isEmbedded ? "/payments" : "/marketplace/payments",
+    search: (() => {
+      const qs = new URLSearchParams();
+      if (token) qs.set("token", token);
+      if (xappIdFilter) qs.set("xappId", xappIdFilter);
+      if (installationIdFilter) qs.set("installationId", installationIdFilter);
+      const suffix = qs.toString();
+      return suffix ? `?${suffix}` : "";
+    })(),
+  };
+
+  const emptyState = error === "Subject required" || error === "Session token required";
+
+  return (
+    <div className={`mx-catalog-container ${isEmbedded ? "is-embedded" : ""}`}>
+      <div className="mx-breadcrumb">
+        <Link to={isEmbedded ? "/" : "/marketplace"}>Marketplace</Link>
+        {xappLink && (
+          <>
+            <span className="mx-breadcrumb-sep">/</span>
+            <Link to={xappLink}>{xappTitle || xappIdFilter}</Link>
+          </>
+        )}
+        <span className="mx-breadcrumb-sep">/</span>
+        <span>Payments</span>
+      </div>
+
+      <header className="mx-header">
+        <h1 className="mx-title">Payments</h1>
+        <div className="mx-header-actions">
+          <MarketplacePrimaryNav
+            active="activity"
+            isEmbedded={isEmbedded}
+            tokenSearch={token ? `?token=${encodeURIComponent(token)}` : ""}
+          />
+          {xappIdFilter && (
+            <Link to={clearHref as any} className="mx-btn mx-btn-ghost">
+              Clear Filter
+            </Link>
+          )}
+          <button
+            className={`mx-btn-icon ${busy ? "is-spinning" : ""}`}
+            onClick={() => void refresh()}
+            disabled={busy}
+            title="Refresh"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+            </svg>
+          </button>
+        </div>
+      </header>
+
+      <MarketplaceActivityTabs
+        active="payments"
+        isEmbedded={isEmbedded}
+        token={token}
+        xappId={xappIdFilter || undefined}
+        installationId={installationIdFilter || undefined}
+      />
+
+      {emptyState ? (
+        <div className="mx-table-container mx-alert mx-alert-info">
+          <div className="mx-alert-subject-title">Subject required</div>
+          <div className="mx-alert-subject-desc">
+            This host session is not associated with a user. Ask your host to create a catalog
+            session with a <code>subjectId</code>.
+          </div>
+        </div>
+      ) : error ? (
+        <div className="mx-table-container mx-alert mx-alert-error">{error}</div>
+      ) : null}
+
+      {xappIdFilter && (
+        <div className="mx-subtle-note">
+          Showing payment activity for{" "}
+          {xappLink ? (
+            <Link to={xappLink} className="mx-subtle-note-link">
+              {xappTitle || xappIdFilter}
+            </Link>
+          ) : (
+            <span className="mx-subtle-note-strong">{xappTitle || xappIdFilter}</span>
+          )}
+        </div>
+      )}
+
+      {focusedPaymentSessionId && (
+        <div className="mx-record-panel">
+          <div className="mx-record-panel-head">
+            <div>
+              <div className="mx-record-panel-kicker">Payment Detail</div>
+              <div className="mx-record-panel-id">{focusedPaymentSessionId}</div>
+            </div>
+            <Link to={listHref as any} className="mx-btn mx-btn-ghost">
+              Back to payment list
+            </Link>
+          </div>
+          {focusedError ? (
+            <div className="mx-alert mx-alert-error mx-alert-panel">{focusedError}</div>
+          ) : focusedSession ? (
+            <div className="mx-record-grid">
+              <div className="mx-record-field">
+                <div className="mx-record-label">Status</div>
+                <div className="mx-record-value">
+                  <StatusBadge status={readString(focusedSession.status)} />
+                </div>
+              </div>
+              <div className="mx-record-field">
+                <div className="mx-record-label">Amount</div>
+                <div className="mx-record-value is-strong">
+                  {readFirstString(focusedSession.amount, "—")}{" "}
+                  {readString(focusedSession.currency)}
+                </div>
+              </div>
+              <div className="mx-record-field">
+                <div className="mx-record-label">Tool</div>
+                <div className="mx-record-value is-strong">
+                  {readFirstString(focusedSession.tool_name, "—")}
+                </div>
+              </div>
+              <div className="mx-record-field">
+                <div className="mx-record-label">Provider</div>
+                <div className="mx-record-value is-strong">
+                  {readFirstString(focusedSession.provider_key, focusedSession.issuer, "—")}
+                </div>
+              </div>
+              <div className="mx-record-field">
+                <div className="mx-record-label">Request</div>
+                <div className="mx-record-value is-mono">
+                  {readFirstString(focusedSession.request_id, "—")}
+                </div>
+              </div>
+              <div className="mx-record-field">
+                <div className="mx-record-label">Created</div>
+                <div className="mx-record-value">
+                  {formatDateTime(focusedSession.created_at) || "—"}
+                </div>
+              </div>
+              {Array.isArray(focusedSession.invoices) && focusedSession.invoices.length > 0 && (
+                <div className="mx-record-field is-span-full">
+                  <div className="mx-record-label">Invoices</div>
+                  <div className="mx-record-pill-row">
+                    {focusedSession.invoices.map((invoice, index) => {
+                      const invoiceRecord = asRecord(invoice);
+                      return (
+                        <span
+                          key={readFirstString(invoiceRecord.id, index)}
+                          className="mx-badge mx-badge-outline"
+                        >
+                          {readFirstString(
+                            invoiceRecord.invoice_identifier,
+                            invoiceRecord.id,
+                            "Invoice",
+                          )}
+                        </span>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="mx-record-loading">
+              <div className="mx-spinner" />
+              <span>Loading payment details...</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="mx-table-container">
+        <table className="mx-table" data-responsive="cards">
+          <thead>
+            <tr>
+              {!xappIdFilter && <th scope="col">Xapp</th>}
+              <th scope="col">Session</th>
+              <th scope="col">Tool</th>
+              <th scope="col">Amount</th>
+              <th scope="col">Status</th>
+              <th scope="col">Created</th>
+              <th scope="col">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={xappIdFilter ? 6 : 7}
+                  className={busy ? "mx-table-loading-cell" : "mx-table-empty-cell"}
+                >
+                  {busy ? (
+                    <div className="mx-loading-center mx-loading-table">
+                      <div className="mx-spinner" />
+                      <span>Loading payments...</span>
+                    </div>
+                  ) : (
+                    "No payment activity found."
+                  )}
+                </td>
+              </tr>
+            ) : (
+              items.map((item, index) => (
+                <tr key={readFirstString(item.payment_session_id, item.id, index)}>
+                  {!xappIdFilter && (
+                    <td data-label="Xapp">{readFirstString(item.xapp_name, item.xapp_id, "—")}</td>
+                  )}
+                  <td className="mx-cell-mono" data-label="Session">
+                    {readFirstString(item.payment_session_id, "—")}
+                  </td>
+                  <td data-label="Tool">{readFirstString(item.tool_name, "—")}</td>
+                  <td className="mx-cell-bold" data-label="Amount">
+                    {readString(item.amount)} {readString(item.currency)}
+                  </td>
+                  <td data-label="Status">
+                    <StatusBadge status={readString(item.status)} />
+                  </td>
+                  <td className="mx-cell-date" data-label="Created">
+                    {formatDateTime(item.created_at) || "—"}
+                  </td>
+                  <td data-label="Action">
+                    <div className="mx-action-group">
+                      <Link
+                        to={
+                          {
+                            pathname: isEmbedded ? "/payments" : "/marketplace/payments",
+                            search: (() => {
+                              const qs = new URLSearchParams();
+                              if (token) qs.set("token", token);
+                              if (xappIdFilter || item.xapp_id)
+                                qs.set("xappId", xappIdFilter || String(item.xapp_id));
+                              if (installationIdFilter || item.installation_id) {
+                                qs.set(
+                                  "installationId",
+                                  installationIdFilter || String(item.installation_id),
+                                );
+                              }
+                              if (item.payment_session_id)
+                                qs.set("paymentSessionId", String(item.payment_session_id));
+                              return `?${qs.toString()}`;
+                            })(),
+                          } as any
+                        }
+                        className="mx-btn mx-btn-outline mx-btn-sm"
+                      >
+                        Details
+                      </Link>
+                      {item.resume_url ? (
+                        <a
+                          href={String(item.resume_url)}
+                          className="mx-btn mx-btn-outline mx-btn-sm"
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          Resume
+                        </a>
+                      ) : null}
+                    </div>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}

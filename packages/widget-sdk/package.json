@@ -1,6 +1,6 @@
 {
   "name": "@xapps-platform/widget-sdk",
-  "version": "0.1.1",
+  "version": "0.1.0",
   "license": "MIT",
   "author": "Daniel Vladescu <daniel.vladescu@gmail.com>",
   "description": "Typed browser bridge SDK for Xapps publisher widgets",

@@ -1,16 +1,9 @@
 {
-  "name": "@xapps-platform/openapi-import",
-  "version": "0.1.1",
+  "name": "@xapps-platform/payment-hosted-client",
+  "version": "0.1.0",
   "license": "MIT",
   "author": "Daniel Vladescu <daniel.vladescu@gmail.com>",
-  "description": "OpenAPI to xApp manifest importer",
-  "keywords": [
-    "openapi",
-    "swagger",
-    "xapps",
-    "manifest",
-    "import"
-  ],
+  "description": "Browser-safe hosted payment client for gateway payment page flows",
   "type": "module",
   "exports": {
     ".": {
@@ -21,24 +14,21 @@
   "files": [
     "dist"
   ],
+  "sideEffects": false,
   "publishConfig": {
     "access": "public"
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/0x730/xapps-sdk-js.git",
-    "directory": "packages/openapi-import"
+    "directory": "packages/payment-hosted-client"
   },
   "homepage": "https://gateway.0x730.com",
   "bugs": {
     "url": "https://github.com/0x730/xapps-sdk-js/issues"
   },
-  "sideEffects": false,
   "scripts": {
-    "build": "node ../../scripts/build-openapi-import.mjs",
+    "build": "node ../../scripts/build-payment-hosted-client.mjs",
     "smoke": "npm run build && node examples/smoke/smoke.mjs"
-  },
-  "dependencies": {
-    "js-yaml": "^4.1.1"
   }
 }

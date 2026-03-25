@@ -1,18 +1,19 @@
 {
-  "name": "@xapps-platform/server-sdk",
+  "name": "@xapps-platform/publisher-verifier",
   "version": "0.1.0",
   "license": "MIT",
   "author": "Daniel Vladescu <daniel.vladescu@gmail.com>",
-  "description": "Node SDK for Xapps publisher server integrations",
   "type": "module",
+  "main": "./src/index.js",
+  "types": "./src/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "default": "./dist/index.js"
+      "types": "./src/index.d.ts",
+      "default": "./src/index.js"
     }
   },
   "files": [
-    "dist"
+    "src"
   ],
   "publishConfig": {
     "access": "public"
@@ -20,17 +21,20 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/0x730/xapps-sdk-js.git",
-    "directory": "packages/server-sdk"
+    "directory": "packages/publisher-verifier"
   },
   "homepage": "https://gateway.0x730.com",
   "bugs": {
     "url": "https://github.com/0x730/xapps-sdk-js/issues"
   },
+  "xapps": {
+    "noBuildRequired": true
+  },
   "scripts": {
-    "build": "node ../../scripts/build-server-sdk.mjs",
-    "smoke": "npm run build && node examples/smoke/smoke.mjs"
+    "smoke": "node examples/smoke/smoke.mjs"
   },
   "dependencies": {
-    "@noble/curves": "^2.0.1"
+    "@simplewebauthn/server": "^13.2.0",
+    "jose": "^6.1.3"
   }
 }
