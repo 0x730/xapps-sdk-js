@@ -29,7 +29,7 @@ Package metadata:
 - Payment return/resume helper primitives for tenant checkout orchestration
 - Widget-driven operational surface opens for marketplace/embed flows
 
-## Relation To `@xapps/browser-host`
+## Relation To `@xapps-platform/browser-host`
 
 `xapps-embed-sdk` is the low-level browser SDK.
 
@@ -40,18 +40,18 @@ It owns:
 - payment resume helpers
 - owner-managed payment-page helpers
 
-`@xapps/browser-host` sits above it and composes those primitives into the standard marketplace and single-xapp host flow.
+`@xapps-platform/browser-host` sits above it and composes those primitives into the standard marketplace and single-xapp host flow.
 
 Use:
 
 - `xapps-embed-sdk` when you need low-level browser primitives or a custom host shape
-- `@xapps/browser-host` when you want the standard host bootstrap/runtime path and only need local pages, branding, and small callbacks
+- `@xapps-platform/browser-host` when you want the standard host bootstrap/runtime path and only need local pages, branding, and small callbacks
 
 Hosted-integrator note:
 
 - same-origin `/api/*` remains the default
 - low-level consumers can override host API and bridge-v2 endpoints explicitly
-- `@xapps/browser-host` now derives those remote endpoints from `backendBaseUrl` for the standard host flow
+- `@xapps-platform/browser-host` now derives those remote endpoints from `backendBaseUrl` for the standard host flow
 
 ## Integrator page requirements
 
@@ -151,7 +151,7 @@ Use these helpers to remove repeated host page logic:
 
 The intended enterprise split is:
 
-- `@xapps/server-sdk`
+- `@xapps-platform/server-sdk`
   - server-side privileged gateway work
   - subject resolution
   - catalog/widget session minting
@@ -161,7 +161,7 @@ The intended enterprise split is:
   - bridge handling
   - overlay and host UI handling
   - payment resume handling
-- `@xapps/browser-host`
+- `@xapps-platform/browser-host`
   - standard marketplace host bootstrap
   - standard single-xapp bootstrap
   - reference runtime/theme helpers
@@ -644,7 +644,7 @@ Behavior:
 - `@xapps/marketplace-ui` can use these host-side primitives and now includes xapp-scoped
   `requests`, `payments`, `invoices`, and `notifications` surfaces in addition to catalog, detail,
   and widget routes, but embed-sdk is also valid for non-React/static hosts.
-- `@xapps/widget-sdk` remains widget-iframe runtime API; embed-sdk remains host-side transport/orchestration.
+- `@xapps-platform/widget-sdk` remains widget-iframe runtime API; embed-sdk remains host-side transport/orchestration.
 - Distribution policy:
   - `Option A (Current default)`: artifact-first distribution (`dist/sdk/*`) served by gateway embed routes.
   - `Option B (Formalized)`: npm package distribution (`xapps-embed-sdk`) with semver contract and release policy.
