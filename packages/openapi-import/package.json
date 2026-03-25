@@ -1,5 +1,5 @@
 {
-  "name": "@xapps/openapi-import",
+  "name": "@xapps-platform/openapi-import",
   "version": "0.1.2",
   "license": "MIT",
   "author": "Daniel Vladescu <daniel.vladescu@gmail.com>",

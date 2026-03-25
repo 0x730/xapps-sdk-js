@@ -1,11 +1,11 @@
-# `@xapps/openapi-import`
+# `@xapps-platform/openapi-import`
 
 Reusable OpenAPI -> Xapps manifest transformer.
 
 ## Install
 
 ```bash
-npm install @xapps/openapi-import
+npm install @xapps-platform/openapi-import
 ```
 
 ## Exports
@@ -18,7 +18,7 @@ npm install @xapps/openapi-import
 ## Minimal usage
 
 ```ts
-import { buildManifestFromOpenApiText } from "@xapps/openapi-import";
+import { buildManifestFromOpenApiText } from "@xapps-platform/openapi-import";
 
 const manifest = buildManifestFromOpenApiText(openApiText, {
   name: "Imported API",
