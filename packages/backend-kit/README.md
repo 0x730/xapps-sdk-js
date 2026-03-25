@@ -1,4 +1,4 @@
-# @xapps/backend-kit
+# @xapps-platform/backend-kit
 
 Modular Node backend kit for the current Xapps backend contract.
 
@@ -14,7 +14,7 @@ Direction:
 
 This package sits above:
 
-- `@xapps/server-sdk`
+- `@xapps-platform/server-sdk`
 
 Use it when you want a working backend with default routes, default modes, and
 override seams, while keeping the later shared tenant/publisher direction
@@ -34,8 +34,8 @@ Current package shape:
 
 Consumer rule:
 
-- import `@xapps/backend-kit`
-- import package entry surfaces such as `@xapps/backend-kit/backend/...`
+- import `@xapps-platform/backend-kit`
+- import package entry surfaces such as `@xapps-platform/backend-kit/backend/...`
 - do not consume raw `src/...` files directly from apps
 
 ## What It Gives You
@@ -173,7 +173,7 @@ the package layout.
 
 ## When To Drop Lower
 
-Use `@xapps/server-sdk` directly only when the consumer needs a lower-level
+Use `@xapps-platform/server-sdk` directly only when the consumer needs a lower-level
 seam that the backend kit intentionally does not own.
 
 ## Rule
