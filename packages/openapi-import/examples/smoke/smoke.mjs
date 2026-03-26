@@ -1,4 +1,8 @@
-import { buildManifestFromOpenApiText, extractOpenApiInfoFromText, slugifyManifestName } from "../../dist/index.js";
+import {
+  buildManifestFromOpenApiText,
+  extractOpenApiInfoFromText,
+  slugifyManifestName,
+} from "../../dist/index.js";
 
 function assert(condition, message) {
   if (!condition) {
@@ -51,6 +55,9 @@ const manifest = buildManifestFromOpenApiText(openApiText, {
 });
 assert(manifest.slug === "certificates-api", "manifest slug mismatch");
 assert(Array.isArray(manifest.tools) && manifest.tools.length === 1, "manifest tools mismatch");
-assert(manifest.tools[0].tool_name === "issuecertificate", "tool operation id normalization mismatch");
+assert(
+  manifest.tools[0].tool_name === "issuecertificate",
+  "tool operation id normalization mismatch",
+);
 
 console.log("openapi-import smoke: ok");
