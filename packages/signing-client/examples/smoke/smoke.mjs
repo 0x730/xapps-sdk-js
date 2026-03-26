@@ -17,6 +17,9 @@ assert(typeof hash === "string" && hash.length === 64, "hashPayload should retur
 
 const encoded = bytesToBase64url(new Uint8Array([1, 2, 3, 4]));
 const decoded = base64urlToBytes(encoded);
-assert(decoded.length === 4 && decoded[0] === 1 && decoded[3] === 4, "base64url roundtrip mismatch");
+assert(
+  decoded.length === 4 && decoded[0] === 1 && decoded[3] === 4,
+  "base64url roundtrip mismatch",
+);
 
 console.log("signing-client smoke: ok");
