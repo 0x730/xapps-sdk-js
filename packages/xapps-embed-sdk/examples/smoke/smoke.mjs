@@ -1,4 +1,7 @@
-import { createHostApiClient, createHostPaymentResumeState } from "../../dist/xapps-embed-sdk.esm.js";
+import {
+  createHostApiClient,
+  createHostPaymentResumeState,
+} from "../../dist/xapps-embed-sdk.esm.js";
 
 function assert(condition, message) {
   if (!condition) {
@@ -16,7 +19,9 @@ const api = createHostApiClient({
     return {
       ok: true,
       status: 200,
-      headers: { get: (key) => (String(key).toLowerCase() === "content-type" ? "application/json" : null) },
+      headers: {
+        get: (key) => (String(key).toLowerCase() === "content-type" ? "application/json" : null),
+      },
       async json() {
         return { subjectId: "subject_123" };
       },
@@ -57,9 +62,9 @@ assert(
   "payment state should expose pending params",
 );
 assert(
-  paymentState.buildHostReturnUrl({ baseUrl: "https://host.example.test/catalog" }).includes(
-    "xapps_payment_session_id=ps_123",
-  ),
+  paymentState
+    .buildHostReturnUrl({ baseUrl: "https://host.example.test/catalog" })
+    .includes("xapps_payment_session_id=ps_123"),
   "payment state should rebuild host return url",
 );
 
