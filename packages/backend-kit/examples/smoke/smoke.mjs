@@ -96,6 +96,9 @@ assert(typeof healthRouteHandler === "function", "health route should register G
 const healthResponse = await healthRouteHandler();
 assert(healthResponse.ok === true, "health response should be ok");
 assert(healthResponse.service === "tenant-backend", "health service mismatch");
-assert(Array.isArray(healthResponse.tools) && healthResponse.tools.length === 2, "health tools mismatch");
+assert(
+  Array.isArray(healthResponse.tools) && healthResponse.tools.length === 2,
+  "health tools mismatch",
+);
 
 console.log("backend-kit smoke: ok");

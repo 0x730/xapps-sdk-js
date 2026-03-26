@@ -5,7 +5,7 @@ import {
   normalizePaymentAllowedIssuers as normalizePaymentAllowedIssuersFromSdk,
   resolveMergedPaymentGuardContext,
   resolvePaymentGuardPriceAmount,
-} from "@xapps/server-sdk";
+} from "@xapps-platform/server-sdk";
 
 function asObject(value) {
   return value && typeof value === "object" && !Array.isArray(value) ? value : {};

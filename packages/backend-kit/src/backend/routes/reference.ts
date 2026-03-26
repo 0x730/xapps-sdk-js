@@ -219,7 +219,7 @@ const OPTION_GROUPS = [
     ],
     notes: [
       "Current tenant backend is the reference seam for tenant-controlled payment evolution.",
-      "The tenant may keep the same contract in Node or reimplement it in PHP/Laravel via xapps/xapps-php.",
+      "The tenant may keep the same contract in Node or reimplement it in PHP/Laravel via xapps-platform/xapps-php.",
     ],
   },
   {
@@ -358,9 +358,9 @@ function readReferenceConfig(options = {}) {
       reference.sdkPaths && typeof reference.sdkPaths === "object"
         ? reference.sdkPaths
         : {
-            node: "@xapps/server-sdk",
-            php: "xapps/xapps-php",
-            browser: "@xapps/xapps-embed-sdk",
+            node: "@xapps-platform/server-sdk",
+            php: "xapps-platform/xapps-php",
+            browser: "@xapps-platform/embed-sdk",
           },
     hostSurfaces: Array.isArray(reference.hostSurfaces)
       ? reference.hostSurfaces

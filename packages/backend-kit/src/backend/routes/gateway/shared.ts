@@ -3,7 +3,7 @@ import {
   EmbedHostProxyInputError,
   EmbedHostProxyNotConfiguredError,
   GatewayApiClientError,
-} from "@xapps/server-sdk";
+} from "@xapps-platform/server-sdk";
 import crypto from "node:crypto";
 
 const HOST_BOOTSTRAP_HEADER = "x-xapps-host-bootstrap";

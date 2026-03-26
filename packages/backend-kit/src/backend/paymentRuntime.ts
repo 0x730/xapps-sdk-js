@@ -4,7 +4,7 @@ import {
   buildHostedGatewayPaymentUrlFromGuardContext,
   createPaymentHandlerAsync,
   extractHostedPaymentSessionId,
-} from "@xapps/server-sdk";
+} from "@xapps-platform/server-sdk";
 import { normalizeOwnerIssuer, readRecord, readString } from "./options.js";
 
 function mapHostedSessionResult(input = {}) {
