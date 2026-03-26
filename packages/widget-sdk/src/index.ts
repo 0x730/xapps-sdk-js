@@ -829,7 +829,7 @@ export function createExpandController(
 
 export function createBridge(options: XappsBridgeOptions = {}): XappsBridge {
   if (typeof window === "undefined") {
-    throw new Error("@xapps/widget-sdk requires a browser window");
+    throw new Error("@xapps-platform/widget-sdk requires a browser window");
   }
 
   const parentWindow = isWindowLike(options.parentWindow) ? options.parentWindow : window.parent;
