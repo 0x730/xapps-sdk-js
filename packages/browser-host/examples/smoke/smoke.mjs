@@ -17,10 +17,7 @@ const backendBaseUrl = resolveBackendBaseUrl({ backendBaseUrl: "https://tenant.e
 assert(backendBaseUrl === "https://tenant.example.test", "backend base url should trim slashes");
 
 const hostConfigUrl = resolveHostConfigUrl({ backendBaseUrl });
-assert(
-  hostConfigUrl === "https://tenant.example.test/api/host-config",
-  "host config url mismatch",
-);
+assert(hostConfigUrl === "https://tenant.example.test/api/host-config", "host config url mismatch");
 
 const apiBasePath = resolveHostApiBasePath({ backendBaseUrl });
 assert(apiBasePath === "https://tenant.example.test/api", "host api base path mismatch");

@@ -35,7 +35,7 @@ afterEach(() => {
   }
 });
 
-describe("@xapps/browser-host bootstrap helpers", () => {
+describe("@xapps-platform/browser-host bootstrap helpers", () => {
   it("redirects marketplace hosts back to entryHref when identity is missing", async () => {
     const { replace } = setMockWindow("http://localhost:8001/marketplace.html?mode=split-panel");
 
