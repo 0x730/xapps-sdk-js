@@ -60,7 +60,11 @@ console.log("server-sdk smoke: start");
 
 const subject = await gatewayClient.resolveSubject({
   type: "user",
-  identifier: { idType: "email", value: "daniel.vladescu@gmail.com", hint: "daniel.vladescu@gmail.com" },
+  identifier: {
+    idType: "email",
+    value: "daniel.vladescu@gmail.com",
+    hint: "daniel.vladescu@gmail.com",
+  },
   email: "daniel.vladescu@gmail.com",
 });
 assert(subject.subjectId === "subject_123", "resolveSubject should return subjectId");
