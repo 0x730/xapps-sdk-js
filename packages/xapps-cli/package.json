@@ -1,0 +1,35 @@
+{
+  "name": "@xapps-platform/cli",
+  "version": "0.1.1",
+  "license": "MIT",
+  "author": "Daniel Vladescu <daniel.vladescu@gmail.com>",
+  "description": "Xapps developer CLI",
+  "type": "module",
+  "bin": {
+    "xapps": "./dist/cli.cjs"
+  },
+  "scripts": {
+    "build": "node ../../scripts/build/build-xapps-cli.mjs",
+    "smoke": "npm run build && node examples/smoke/smoke.mjs",
+    "smoke:packed": "node examples/smoke/packed-smoke.mjs"
+  },
+  "dependencies": {
+    "@xapps-platform/openapi-import": "^0.1.1",
+    "@xapps-platform/server-sdk": "^0.1.0"
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/0x730/xapps-sdk-js.git",
+    "directory": "packages/xapps-cli"
+  },
+  "homepage": "https://gateway.0x730.com",
+  "bugs": {
+    "url": "https://github.com/0x730/xapps-sdk-js/issues"
+  }
+}
