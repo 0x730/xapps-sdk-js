@@ -12,6 +12,11 @@ fs.mkdirSync(tmpBase, { recursive: true });
 
 const tmpRoot = fs.mkdtempSync(path.join(tmpBase, "xapps-cli-packed-smoke-"));
 const extractedDir = path.join(tmpRoot, "package");
+const installedNodeModulesDir = path.join(tmpRoot, "node_modules");
+const installedScopeDir = path.join(installedNodeModulesDir, "@xapps-platform");
+const installedCliDir = path.join(installedScopeDir, "cli");
+const installedBinDir = path.join(installedNodeModulesDir, ".bin");
+const installedBinPath = path.join(installedBinDir, "xapps");
 const appDir = path.join(tmpRoot, "app");
 const manifestPath = path.join(appDir, "manifest.json");
 const vectorsPath = path.join(appDir, "vectors.json");
@@ -69,6 +74,20 @@ async function closeServer(server) {
   await new Promise((resolve) => server.close(() => resolve()));
 }
 
+function installPackedWorkspacePackage() {
+  fs.mkdirSync(installedScopeDir, { recursive: true });
+  fs.mkdirSync(installedBinDir, { recursive: true });
+  fs.cpSync(extractedDir, installedCliDir, { recursive: true });
+
+  for (const dependency of ["server-sdk", "openapi-import", "xapp-manifest"]) {
+    const target = path.resolve(repoRoot, "node_modules", "@xapps-platform", dependency);
+    const link = path.join(installedScopeDir, dependency);
+    fs.symlinkSync(target, link);
+  }
+
+  fs.symlinkSync("../@xapps-platform/cli/dist/cli.cjs", installedBinPath);
+}
+
 function packPackage(dir) {
   const packDestination = path.join(tmpRoot, "pack");
   fs.mkdirSync(packDestination, { recursive: true });
@@ -110,7 +129,10 @@ if (!fs.existsSync(cliPath)) {
   throw new Error(`missing packed CLI entrypoint: ${cliPath}`);
 }
 
-run(process.execPath, [cliPath, "init", "--out", appDir, "--name", "Packed Smoke CLI"], tmpRoot);
+installPackedWorkspacePackage();
+
+run(installedBinPath, ["--help"], tmpRoot);
+run(installedBinPath, ["init", "--out", appDir, "--name", "Packed Smoke CLI"], tmpRoot);
 
 if (!fs.existsSync(manifestPath)) {
   throw new Error(`expected manifest from packed smoke init: ${manifestPath}`);
@@ -134,14 +156,10 @@ fs.writeFileSync(
   ),
 );
 
-run(process.execPath, [cliPath, "validate", "--from", manifestPath], tmpRoot);
-run(process.execPath, [cliPath, "test", "--from", manifestPath, "--vectors", vectorsPath], tmpRoot);
-run(
-  process.execPath,
-  [cliPath, "publish", "--yes", "--from", manifestPath, "--out", bundlePath],
-  tmpRoot,
-);
-run(process.execPath, [cliPath, "logs", "--from", bundlePath, "--json"], tmpRoot);
+run(installedBinPath, ["validate", "--from", manifestPath], tmpRoot);
+run(installedBinPath, ["test", "--from", manifestPath, "--vectors", vectorsPath], tmpRoot);
+run(installedBinPath, ["publish", "--yes", "--from", manifestPath, "--out", bundlePath], tmpRoot);
+run(installedBinPath, ["logs", "--from", bundlePath, "--json"], tmpRoot);
 
 fs.writeFileSync(
   openApiPath,
@@ -166,20 +184,11 @@ paths:
 );
 
 run(
-  process.execPath,
-  [
-    cliPath,
-    "import",
-    "--from",
-    openApiPath,
-    "--out",
-    importedManifestPath,
-    "--endpoint",
-    "https://api.example.com",
-  ],
+  installedBinPath,
+  ["import", "--from", openApiPath, "--out", importedManifestPath, "--endpoint", "https://api.example.com"],
   tmpRoot,
 );
-run(process.execPath, [cliPath, "validate", "--from", importedManifestPath], tmpRoot);
+run(installedBinPath, ["validate", "--from", importedManifestPath], tmpRoot);
 
 const remoteFlow = {
   listedClients: false,
@@ -279,9 +288,8 @@ const server = http.createServer(async (req, res) => {
 const port = await listen(server);
 try {
   await runAsync(
-    process.execPath,
+    installedBinPath,
     [
-      cliPath,
       "publish",
       "--yes",
       "--from",
@@ -299,9 +307,8 @@ try {
   );
 
   await runAsync(
-    process.execPath,
+    installedBinPath,
     [
-      cliPath,
       "publisher",
       "endpoint",
       "credential",

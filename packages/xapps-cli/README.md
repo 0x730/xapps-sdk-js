@@ -63,6 +63,7 @@ npm install -D @xapps-platform/cli
 Note:
 
 - This package is now in first public release-candidate shape for the supported non-breaking publish subset.
+- First public release is cut as `@xapps-platform/cli@0.1.1` for that supported subset.
 - This README documents only that supported external contract; it does not claim the whole CLI surface is public/stable.
 
 ## Commands (baseline)

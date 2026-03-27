@@ -1,12 +1,12 @@
 {
   "name": "@xapps-platform/cli",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "license": "MIT",
   "author": "Daniel Vladescu <daniel.vladescu@gmail.com>",
   "description": "Xapps developer CLI",
   "type": "module",
   "bin": {
-    "xapps": "./dist/cli.cjs"
+    "xapps": "dist/cli.cjs"
   },
   "scripts": {
     "build": "node ../../scripts/build/build-xapps-cli.mjs",

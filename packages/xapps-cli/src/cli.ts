@@ -2670,7 +2670,11 @@ export async function runCli(argv: string[]) {
   }
 }
 
-if (/(?:^|[\\/])cli\.(?:cjs|mjs|js)$/.test(String(process.argv[1] || ""))) {
+function shouldAutoRunCliEntrypoint(filePath: string): boolean {
+  return /(?:^|[\\/])(?:xapps|cli(?:\.(?:cjs|mjs|js))?)$/.test(String(filePath || ""));
+}
+
+if (shouldAutoRunCliEntrypoint(String(process.argv[1] || ""))) {
   runCli(process.argv.slice(2)).catch((err) => {
     const code = typeof err?.code === "string" ? err.code : "CLI_RUNTIME_ERROR";
     const message = err?.message || String(err);
