@@ -8,6 +8,7 @@ import type {
 export * from "./publisherApiClient.js";
 export * from "./gatewayApiClient.js";
 export * from "./embedHostProxy.js";
+export * from "@xapps-platform/xapp-manifest";
 
 export type XappsSigningAlgorithm = "hmac-sha256" | "hmac-sha512" | "ed25519";
 

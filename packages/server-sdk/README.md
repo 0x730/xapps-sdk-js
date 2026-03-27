@@ -2,6 +2,9 @@
 
 Node.js helper SDK for publisher server/executor integrations.
 
+If you only need manifest schema/types/parsing, install `@xapps-platform/xapp-manifest` directly.
+`@xapps-platform/server-sdk` re-exports that manifest surface for backend consumers that already depend on the SDK.
+
 ## Install
 
 ```bash
@@ -26,6 +29,8 @@ npm install @xapps-platform/server-sdk
 - `verifySubjectProofEnvelope`
 - `verifyJwsSubjectProof`
 - `verifyWebauthnSubjectProof`
+- `parseXappManifest`
+- `xappManifestJsonSchema`
 - `resolveSecretFromRef` — sync secret ref resolution (`env:`, `file:`)
 - `resolveSecretFromRefAsync` — async secret ref resolution (`env:`, `file:`, `vault://`, `awssm://`, `platform://`)
 - `resolveSecret` / `resolveSecretAsync` — convenience wrappers (secret > secretRef > throws)
@@ -45,6 +50,11 @@ npm install @xapps-platform/server-sdk
 - `buildPaymentGuardAction` — canonical helper for `complete_payment` guard actions
 - `createPaymentHandler` — unified payment handler factory (supports `secretRef` config)
 - `createPaymentHandlerAsync` — async handler factory for external `secretRef` schemes
+
+For manifest-only use cases:
+
+- prefer `@xapps-platform/xapp-manifest`
+- use `@xapps-platform/server-sdk` when you also need backend protocol/client helpers
 
 ## Recommended lane / package split
 
