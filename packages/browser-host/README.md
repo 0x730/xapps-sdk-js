@@ -2,6 +2,23 @@
 
 Browser-side host/runtime helpers for marketplace and single-xapp reference surfaces.
 
+## Install
+
+```bash
+npm install @xapps-platform/browser-host
+```
+
+## When to use it
+
+Use `@xapps-platform/browser-host` when you want the standard browser host/runtime shape:
+
+- marketplace bootstrap
+- single-xapp bootstrap
+- host shell and status helpers
+- standard backend-base and bridge endpoint resolution
+
+Use `@xapps-platform/embed-sdk` instead when you want lower-level iframe/bridge/payment-resume primitives and intend to build a more custom browser host.
+
 ## Purpose
 
 This package owns the shared browser host logic that should not live in tenant or publisher apps:
@@ -34,6 +51,17 @@ Current package shape:
 - TypeScript source in `src/*`
 - ESM browser outputs in `dist/*`
 - local tenant/publisher apps keep only thin wrappers and page assets
+
+Entry points:
+
+- `@xapps-platform/browser-host`
+- `@xapps-platform/browser-host/backend-base`
+- `@xapps-platform/browser-host/host-shell`
+- `@xapps-platform/browser-host/marketplace-runtime`
+- `@xapps-platform/browser-host/reference-runtime`
+- `@xapps-platform/browser-host/marketplace-host`
+- `@xapps-platform/browser-host/single-xapp-host`
+- `@xapps-platform/browser-host/host-status`
 
 ## Backend Location
 
@@ -79,3 +107,26 @@ The package is intentionally actor-agnostic:
 - no actor-specific rights logic
 
 Those concerns stay in local config, backend APIs, and later actor adapters.
+
+## Minimal usage
+
+```ts
+import {
+  resolveBackendBaseUrl,
+  resolveBridgeEndpoints,
+  resolveHostConfigUrl,
+} from "@xapps-platform/browser-host";
+
+const backendBaseUrl = resolveBackendBaseUrl({
+  backendBaseUrl: "https://tenant.example.test/",
+});
+const hostConfigUrl = resolveHostConfigUrl({ backendBaseUrl });
+const endpoints = resolveBridgeEndpoints({ backendBaseUrl });
+```
+
+## Verify locally
+
+```bash
+npm run build --workspace packages/browser-host
+npm run smoke --workspace packages/browser-host
+```

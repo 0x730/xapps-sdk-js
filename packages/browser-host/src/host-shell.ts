@@ -1,5 +1,54 @@
-// @ts-nocheck
-export function createHostShellApi(config) {
+type HostMode = "single-panel" | "split-panel";
+
+type HostShellModeCopyEntry = {
+  title?: string | null;
+  subtitle?: string | null;
+};
+
+type StoredJsonRecord = Record<string, unknown>;
+
+type HostIdentity = {
+  name?: string | null;
+  email?: string | null;
+  subjectId?: string | null;
+};
+
+type ApplyThemePreferenceOptions = {
+  persist?: boolean;
+};
+
+export type HostShellConfig = {
+  modeCopy?: Record<string, HostShellModeCopyEntry> | null;
+  headerCollapseStorageKey?: string | null;
+  themeStorageKey?: string | null;
+  themeAliases?: Record<string, string> | null;
+  defaultTheme?: string | null;
+  validThemes?: string[] | null;
+};
+
+export type HostShellApi = {
+  applyThemePreference: (
+    themeKey: string | null | undefined,
+    options?: ApplyThemePreferenceOptions,
+  ) => string;
+  readHeaderCollapsedPreference: () => boolean;
+  readModeFromUrl: () => HostMode;
+  readStoredJson: (storageKey: string | null | undefined) => StoredJsonRecord | null;
+  readThemePreference: () => string;
+  renderIdentity: (identity: HostIdentity | null | undefined) => void;
+  renderMode: (mode: string | null | undefined) => void;
+  renderModeShell: (mode: HostMode) => void;
+  renderSingleXappShell: () => void;
+  setHeaderCollapsed: (collapsed: boolean) => void;
+  setModeInUrl: (mode: HostMode) => void;
+  setWidgetPlaceholder: (
+    title: string | null | undefined,
+    message: string | null | undefined,
+  ) => void;
+  toggleHeaderCollapsed: () => void;
+};
+
+export function createHostShellApi(config?: HostShellConfig | null): HostShellApi {
   const modeCopy = config?.modeCopy && typeof config.modeCopy === "object" ? config.modeCopy : {};
   const headerCollapseStorageKey = String(config?.headerCollapseStorageKey || "").trim();
   const themeStorageKey = String(config?.themeStorageKey || "").trim();
@@ -8,47 +57,47 @@ export function createHostShellApi(config) {
   const defaultTheme = String(config?.defaultTheme || "default").trim() || "default";
   const validThemes = new Set(Array.isArray(config?.validThemes) ? config.validThemes : []);
 
-  function normalizeThemeKey(themeKey) {
+  function normalizeThemeKey(themeKey: string | null | undefined): string {
     const raw = String(themeKey || "").trim();
     const aliased = legacyThemeAliases[raw] || raw;
     return validThemes.has(aliased) ? aliased : defaultTheme;
   }
 
-  function setText(id, value) {
+  function setText(id: string, value: string | null | undefined): void {
     const node = document.getElementById(id);
     if (node) node.textContent = String(value || "");
   }
 
-  function shortenSubjectId(value) {
+  function shortenSubjectId(value: string | null | undefined): string {
     const text = String(value || "").trim();
     if (!text) return "-";
     return text.length <= 14 ? text : `${text.slice(0, 8)}...${text.slice(-4)}`;
   }
 
-  function readStoredJson(storageKey) {
+  function readStoredJson(storageKey: string | null | undefined): StoredJsonRecord | null {
     try {
       const raw = window.localStorage.getItem(String(storageKey || "")) || "";
       if (!raw) return null;
       const parsed = JSON.parse(raw);
-      return parsed && typeof parsed === "object" ? parsed : null;
+      return parsed && typeof parsed === "object" ? (parsed as StoredJsonRecord) : null;
     } catch {
       return null;
     }
   }
 
-  function readModeFromUrl() {
+  function readModeFromUrl(): HostMode {
     const params = new URLSearchParams(window.location.search || "");
     const raw = String(params.get("mode") || "").trim();
     return raw === "split-panel" ? "split-panel" : "single-panel";
   }
 
-  function setModeInUrl(mode) {
+  function setModeInUrl(mode: HostMode): void {
     const next = new URL(window.location.href);
     next.searchParams.set("mode", mode);
     window.history.replaceState({ mode }, "", next.toString());
   }
 
-  function readThemePreference() {
+  function readThemePreference(): string {
     try {
       const stored = String(window.localStorage.getItem(themeStorageKey) || "").trim();
       return normalizeThemeKey(stored);
@@ -57,11 +106,14 @@ export function createHostShellApi(config) {
     }
   }
 
-  function applyThemePreference(themeKey, options = {}) {
+  function applyThemePreference(
+    themeKey: string | null | undefined,
+    options: ApplyThemePreferenceOptions = {},
+  ): string {
     const resolved = normalizeThemeKey(themeKey);
     document.body.dataset.theme = resolved;
     const select = document.getElementById("host-theme-select");
-    if (select) select.value = resolved;
+    if (select instanceof HTMLSelectElement) select.value = resolved;
     if (options.persist === false) return resolved;
     try {
       window.localStorage.setItem(themeStorageKey, resolved);
@@ -71,7 +123,7 @@ export function createHostShellApi(config) {
     return resolved;
   }
 
-  function readHeaderCollapsedPreference() {
+  function readHeaderCollapsedPreference(): boolean {
     const isNarrow = window.matchMedia?.("(max-width: 900px)")?.matches ?? false;
     try {
       const stored = window.localStorage.getItem(headerCollapseStorageKey);
@@ -82,7 +134,7 @@ export function createHostShellApi(config) {
     }
   }
 
-  function setHeaderCollapsed(collapsed) {
+  function setHeaderCollapsed(collapsed: boolean): void {
     const isCollapsed = Boolean(collapsed);
     document.body.dataset.hostHeaderCollapsed = isCollapsed ? "true" : "false";
     const toggle = document.getElementById("host-header-toggle");
@@ -97,28 +149,28 @@ export function createHostShellApi(config) {
     }
   }
 
-  function toggleHeaderCollapsed() {
+  function toggleHeaderCollapsed(): void {
     const current = document.body.dataset.hostHeaderCollapsed === "true";
     setHeaderCollapsed(!current);
   }
 
-  function renderIdentity(identity) {
+  function renderIdentity(identity: HostIdentity | null | undefined): void {
     setText("identity-name", identity?.name || "Unknown");
     setText("identity-email", identity?.email || "-");
     setText("identity-subject", shortenSubjectId(identity?.subjectId));
   }
 
-  function renderMode(mode) {
-    const resolved = modeCopy[mode] ? mode : "single-panel";
+  function renderMode(mode: string | null | undefined): void {
+    const resolved = modeCopy[mode || ""] ? String(mode) : "single-panel";
     document.body.dataset.mode = resolved;
     setText("mode-title", modeCopy[resolved]?.title || "");
     setText("mode-subtitle", modeCopy[resolved]?.subtitle || "");
-    document.querySelectorAll(".mode-btn").forEach((node) => {
+    document.querySelectorAll<HTMLElement>(".mode-btn").forEach((node) => {
       node.classList.toggle("is-active", String(node.dataset.mode || "") === resolved);
     });
   }
 
-  function renderModeShell(mode) {
+  function renderModeShell(mode: HostMode): void {
     const root = document.getElementById("mode-shell");
     if (!root) return;
     if (mode === "split-panel") {
@@ -151,7 +203,7 @@ export function createHostShellApi(config) {
     `;
   }
 
-  function renderSingleXappShell() {
+  function renderSingleXappShell(): void {
     const root = document.getElementById("mode-shell");
     if (!root) return;
     root.innerHTML = `
@@ -163,7 +215,10 @@ export function createHostShellApi(config) {
     `;
   }
 
-  function setWidgetPlaceholder(title, message) {
+  function setWidgetPlaceholder(
+    title: string | null | undefined,
+    message: string | null | undefined,
+  ): void {
     const widget = document.getElementById("widget");
     if (!widget) return;
     const safeTitle = String(title || "").trim();

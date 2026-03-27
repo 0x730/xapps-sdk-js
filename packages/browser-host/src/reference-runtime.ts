@@ -1,12 +1,15 @@
-// @ts-nocheck
-import { createMarketplaceRuntime, resolveTheme } from "./marketplace-runtime.js";
+import {
+  createMarketplaceRuntime,
+  resolveTheme,
+  type ReferenceTheme,
+} from "./marketplace-runtime.js";
 
-export const REFERENCE_THEME_ALIASES = {
+export const REFERENCE_THEME_ALIASES: Record<string, string> = {
   slate: "harbor",
   graphite: "atlas",
 };
 
-export const REFERENCE_THEMES = {
+export const REFERENCE_THEMES: Record<string, ReferenceTheme> = {
   harbor: {
     primary: "#0f7284",
     primaryDark: "#0a5663",
@@ -111,7 +114,46 @@ export const REFERENCE_THEMES = {
 
 export const REFERENCE_THEME_KEYS = Object.keys(REFERENCE_THEMES);
 
-export function resolveReferenceTheme(themeKey, options = {}) {
+type ResolveReferenceThemeOptions = {
+  defaultThemeKey?: string | null;
+};
+
+type CreateReferenceMarketplaceRuntimeOptions = {
+  createStandardMarketplaceRuntime: (input: {
+    baseUrl: string;
+    subjectId: string;
+    paymentResumeState: unknown;
+    hostUi: unknown;
+    theme: ReferenceTheme;
+    apiBasePath: string;
+    bridgeV2: Record<string, unknown>;
+    getCatalogMount: () => HTMLElement | null;
+    getWidgetMount: () => HTMLElement | null;
+    onStatePatch?: ((patch: unknown) => void) | undefined;
+    singlePanel: Record<string, unknown>;
+    splitPanel: Record<string, unknown>;
+  }) => unknown;
+  gatewayBaseUrl: string;
+  currentSubjectId: string;
+  paymentResumeState: unknown;
+  hostDomUi: unknown;
+  themeKey?: string | null;
+  defaultThemeKey?: string | null;
+  apiBasePath?: string | null;
+  bridgeV2?: Record<string, unknown> | null;
+  getCatalogMount?: (() => HTMLElement | null) | null;
+  getWidgetMount?: (() => HTMLElement | null) | null;
+  onStatePatch?: ((patch: unknown) => void) | undefined;
+  singlePanel?: Record<string, unknown> | null;
+  splitPanel?: Record<string, unknown> | null;
+  setWidgetPlaceholder?: unknown;
+  onExpandError?: unknown;
+};
+
+export function resolveReferenceTheme(
+  themeKey: string | null | undefined,
+  options: ResolveReferenceThemeOptions = {},
+): ReferenceTheme | undefined {
   return resolveTheme(themeKey, {
     aliases: REFERENCE_THEME_ALIASES,
     themes: REFERENCE_THEMES,
@@ -119,16 +161,19 @@ export function resolveReferenceTheme(themeKey, options = {}) {
   });
 }
 
-export function createReferenceMarketplaceRuntime(options) {
+export function createReferenceMarketplaceRuntime(
+  options: CreateReferenceMarketplaceRuntimeOptions,
+): unknown {
   return createMarketplaceRuntime({
     createStandardMarketplaceRuntime: options.createStandardMarketplaceRuntime,
     gatewayBaseUrl: options.gatewayBaseUrl,
     currentSubjectId: options.currentSubjectId,
     paymentResumeState: options.paymentResumeState,
     hostDomUi: options.hostDomUi,
-    theme: resolveReferenceTheme(options.themeKey, {
-      defaultThemeKey: options.defaultThemeKey,
-    }),
+    theme:
+      resolveReferenceTheme(options.themeKey, {
+        defaultThemeKey: options.defaultThemeKey,
+      }) || REFERENCE_THEMES.harbor,
     apiBasePath: options.apiBasePath || "/api",
     bridgeV2: {
       ...(options.bridgeV2 || {}),

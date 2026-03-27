@@ -1,29 +1,43 @@
-// @ts-nocheck
-function trimTrailingSlash(value) {
+export type BrowserHostBridgeEndpoints = {
+  tokenRefresh: string;
+  sign: string;
+  vendorAssertion: string;
+};
+
+export type BrowserHostBackendBaseInput = {
+  backendBaseUrl?: string | null;
+  hostConfigPath?: string | null;
+  apiBasePath?: string | null;
+  bridgeEndpoints?: Partial<BrowserHostBridgeEndpoints> | null;
+};
+
+function trimTrailingSlash(value: string | null | undefined): string {
   const raw = String(value || "").trim();
   if (!raw) return "";
   return raw.replace(/\/+$/, "");
 }
 
-export function resolveBackendBaseUrl(input) {
+export function resolveBackendBaseUrl(input?: BrowserHostBackendBaseInput | null): string {
   return trimTrailingSlash(input?.backendBaseUrl);
 }
 
-export function resolveHostConfigUrl(input) {
+export function resolveHostConfigUrl(input?: BrowserHostBackendBaseInput | null): string {
   const explicit = String(input?.hostConfigPath || "").trim();
   if (explicit) return explicit;
   const backendBaseUrl = resolveBackendBaseUrl(input);
   return backendBaseUrl ? `${backendBaseUrl}/api/host-config` : "/api/host-config";
 }
 
-export function resolveHostApiBasePath(input) {
+export function resolveHostApiBasePath(input?: BrowserHostBackendBaseInput | null): string {
   const explicit = String(input?.apiBasePath || "").trim();
   if (explicit) return explicit;
   const backendBaseUrl = resolveBackendBaseUrl(input);
   return backendBaseUrl ? `${backendBaseUrl}/api` : "/api";
 }
 
-export function resolveBridgeEndpoints(input) {
+export function resolveBridgeEndpoints(
+  input?: BrowserHostBackendBaseInput | null,
+): BrowserHostBridgeEndpoints {
   const apiBasePath = resolveHostApiBasePath(input);
   const explicit =
     input?.bridgeEndpoints && typeof input.bridgeEndpoints === "object"

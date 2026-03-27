@@ -1,5 +1,64 @@
-// @ts-nocheck
-function escapeHtml(value) {
+type HostStatusSurface = "single-panel" | "split-panel" | "single-xapp";
+
+type HostStatusIdentity = {
+  subjectId?: string | null;
+};
+
+type HostStatusHostConfig = {
+  gatewayUrl?: string | null;
+};
+
+type HostStatusReferenceItem = {
+  key?: string | null;
+  label?: string | null;
+};
+
+type HostStatusReferencePayload = {
+  workspace?: string | null;
+  tenant?: string | null;
+  stack?: string | null;
+  gateway_url?: string | null;
+  payment_modes?: Array<string | HostStatusReferenceItem> | null;
+  tenant_policy_slugs?: string[] | null;
+};
+
+type HostStatusInstallationsPayload = {
+  items?: Array<{
+    xapp_id?: string | null;
+  }> | null;
+};
+
+export type RenderHostStatusConfig = {
+  rootId?: string | null;
+  identity?: HostStatusIdentity | null;
+  hostConfig?: HostStatusHostConfig | null;
+  referencePath?: string | null;
+  installationsPath?: string | null;
+  currentXappId?: string | null;
+  surface?: HostStatusSurface | null;
+  workspaceKey?: string | null;
+  stackLabel?: string | null;
+  gatewayUrl?: string | null;
+};
+
+export type RenderHostStatusHandle = {
+  update: (next?: { surface?: HostStatusSurface | null; currentXappId?: string | null }) => void;
+};
+
+type HostStatusState = {
+  currentXappId: string;
+  open: boolean;
+  hostConfig: HostStatusHostConfig;
+  identity: HostStatusIdentity;
+  installations: HostStatusInstallationsPayload | null;
+  installationsError: string;
+  reference: HostStatusReferencePayload | null;
+  referenceError: string;
+  surface: HostStatusSurface;
+  workspaceKey: string;
+};
+
+function escapeHtml(value: string | null | undefined): string {
   return String(value || "")
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
@@ -8,21 +67,21 @@ function escapeHtml(value) {
     .replaceAll("'", "&#39;");
 }
 
-function shortenId(value, prefix = 8, suffix = 4) {
+function shortenId(value: string | null | undefined, prefix = 8, suffix = 4): string {
   const text = String(value || "").trim();
   if (!text) return "-";
   if (text.length <= prefix + suffix + 3) return text;
   return `${text.slice(0, prefix)}...${text.slice(-suffix)}`;
 }
 
-function normalizeSurfaceLabel(surface) {
+function normalizeSurfaceLabel(surface: string | null | undefined): string {
   const key = String(surface || "").trim();
   if (key === "split-panel") return "Split panel";
   if (key === "single-xapp") return "Single xapp";
   return "Single panel";
 }
 
-function normalizeStackLabel(stack) {
+function normalizeStackLabel(stack: string | null | undefined): string {
   const key = String(stack || "")
     .trim()
     .toLowerCase();
@@ -31,7 +90,7 @@ function normalizeStackLabel(stack) {
   return String(stack || "").trim() || "-";
 }
 
-function normalizePaymentModeLabels(reference) {
+function normalizePaymentModeLabels(reference: HostStatusReferencePayload | null): string[] {
   const rawModes = Array.isArray(reference?.payment_modes) ? reference.payment_modes : [];
   return rawModes
     .map((item) => {
@@ -43,17 +102,19 @@ function normalizePaymentModeLabels(reference) {
     .filter(Boolean);
 }
 
-function normalizeGuardSlugs(reference) {
+function normalizeGuardSlugs(reference: HostStatusReferencePayload | null): string[] {
   const values = Array.isArray(reference?.tenant_policy_slugs) ? reference.tenant_policy_slugs : [];
   return values.map((value) => String(value || "").trim()).filter(Boolean);
 }
 
-function normalizeInstalledXappIds(installationsPayload) {
+function normalizeInstalledXappIds(
+  installationsPayload: HostStatusInstallationsPayload | null,
+): string[] {
   const items = Array.isArray(installationsPayload?.items) ? installationsPayload.items : [];
   return [...new Set(items.map((item) => String(item?.xapp_id || "").trim()).filter(Boolean))];
 }
 
-async function fetchJson(path) {
+async function fetchJson<T>(path: string): Promise<T> {
   const response = await fetch(path, {
     method: "GET",
     headers: { Accept: "application/json" },
@@ -61,12 +122,16 @@ async function fetchJson(path) {
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error(String(payload?.message || `${path} failed`));
+    const message =
+      payload && typeof payload === "object" && "message" in payload
+        ? String((payload as { message?: unknown }).message || `${path} failed`)
+        : `${path} failed`;
+    throw new Error(message);
   }
-  return payload;
+  return payload as T;
 }
 
-function renderChips(items, emptyLabel) {
+function renderChips(items: string[] | null | undefined, emptyLabel: string): string {
   const safeItems = Array.isArray(items) ? items.filter(Boolean) : [];
   if (!safeItems.length) {
     return `<span class="proof-empty">${escapeHtml(emptyLabel)}</span>`;
@@ -79,16 +144,18 @@ function renderChips(items, emptyLabel) {
     .join("");
 }
 
-function setText(id, value) {
+function setText(id: string, value: string | null | undefined): void {
   const node = document.getElementById(id);
   if (node) node.textContent = String(value || "");
 }
 
-function setReferenceWorkspace(workspace) {
+function setReferenceWorkspace(workspace: string | null | undefined): void {
   document.body.dataset.referenceTenant = String(workspace || "").trim() || "reference";
 }
 
-export async function renderHostStatus(config) {
+export async function renderHostStatus(
+  config: RenderHostStatusConfig,
+): Promise<RenderHostStatusHandle> {
   const rootId = String(config?.rootId || "host-proof-panel").trim();
   const root = document.getElementById(rootId);
   const identity = config?.identity && typeof config.identity === "object" ? config.identity : {};
@@ -96,7 +163,7 @@ export async function renderHostStatus(config) {
     config?.hostConfig && typeof config.hostConfig === "object" ? config.hostConfig : {};
   const referencePath = String(config?.referencePath || "/api/reference").trim();
   const installationsPath = String(config?.installationsPath || "/api/installations").trim();
-  const state = {
+  const state: HostStatusState = {
     currentXappId: String(config?.currentXappId || "").trim(),
     open: false,
     hostConfig,
@@ -105,7 +172,8 @@ export async function renderHostStatus(config) {
     installationsError: "",
     reference: null,
     referenceError: "",
-    surface: String(config?.surface || "single-panel").trim() || "single-panel",
+    surface: (String(config?.surface || "single-panel").trim() ||
+      "single-panel") as HostStatusSurface,
     workspaceKey: String(config?.workspaceKey || "").trim() || "reference",
   };
   const openStorageKey = `reference_host_proof_open_v1_${state.workspaceKey}`;
@@ -121,7 +189,7 @@ export async function renderHostStatus(config) {
     state.open = false;
   }
 
-  function persistOpenPreference() {
+  function persistOpenPreference(): void {
     try {
       window.localStorage.setItem(openStorageKey, state.open ? "1" : "0");
     } catch {
@@ -129,7 +197,7 @@ export async function renderHostStatus(config) {
     }
   }
 
-  function render() {
+  function render(): void {
     const reference = state.reference || {};
     const workspace =
       String(reference.workspace || reference.tenant || state.workspaceKey || "-").trim() || "-";
@@ -234,18 +302,19 @@ export async function renderHostStatus(config) {
   });
 
   try {
-    state.reference = await fetchJson(referencePath);
+    state.reference = await fetchJson<HostStatusReferencePayload>(referencePath);
   } catch (error) {
-    state.referenceError = String(error?.message || "reference unavailable");
+    state.referenceError = error instanceof Error ? error.message : "reference unavailable";
   }
 
   if (String(identity?.subjectId || "").trim()) {
     try {
-      state.installations = await fetchJson(
+      state.installations = await fetchJson<HostStatusInstallationsPayload>(
         `${installationsPath}?subjectId=${encodeURIComponent(String(identity.subjectId || "").trim())}`,
       );
     } catch (error) {
-      state.installationsError = String(error?.message || "installations unavailable");
+      state.installationsError =
+        error instanceof Error ? error.message : "installations unavailable";
     }
   }
 
@@ -254,8 +323,12 @@ export async function renderHostStatus(config) {
   return {
     update(next = {}) {
       if (next && typeof next === "object") {
-        if ("surface" in next) state.surface = String(next.surface || "").trim() || state.surface;
-        if ("currentXappId" in next) state.currentXappId = String(next.currentXappId || "").trim();
+        if ("surface" in next) {
+          state.surface = (String(next.surface || "").trim() as HostStatusSurface) || state.surface;
+        }
+        if ("currentXappId" in next) {
+          state.currentXappId = String(next.currentXappId || "").trim();
+        }
       }
       render();
     },
