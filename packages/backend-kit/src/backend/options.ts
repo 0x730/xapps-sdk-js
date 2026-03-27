@@ -1,17 +1,95 @@
-// @ts-nocheck
-export function readRecord(value) {
-  return value && typeof value === "object" ? value : {};
+export type StringRecord = Record<string, unknown>;
+
+export type HostSurface = {
+  key: string;
+  label: string;
+};
+
+export type BackendKitNormalizedOptions = {
+  host: {
+    enableReference: boolean;
+    enableLifecycle: boolean;
+    enableBridge: boolean;
+    allowedOrigins: string[];
+    bootstrap: {
+      apiKeys: string[];
+      signingSecret: string;
+      ttlSeconds: number;
+    };
+  };
+  payments: {
+    enabledModes: string[];
+    ownerIssuer: "tenant" | "publisher";
+    paymentUrl: string;
+    returnSecret: string;
+    returnSecretRef: string;
+    returnUrlAllowlist: string;
+  };
+  assets: {
+    seedLogo: {
+      filePath: string;
+      routePath: string;
+      contentType: string;
+    };
+    paymentPage: {
+      filePath: string;
+    };
+  };
+  gateway: {
+    baseUrl: string;
+    apiKey: string;
+  };
+  branding: {
+    tenantName: string;
+    serviceName: string;
+    stackLabel: string;
+  };
+  reference: {
+    tenant: string;
+    workspace: string;
+    stack: string;
+    mode: string;
+    tenantPolicySlugs: unknown[];
+    proofSources: unknown[];
+    sdkPaths: StringRecord;
+    hostSurfaces: unknown[];
+    notes: unknown[];
+    embedSdkCandidateFiles: unknown[];
+    referenceAssets: StringRecord;
+  };
+  subjectProfiles: {
+    workspace: string;
+    source: string;
+    catalogJson: string;
+    defaultProfiles: unknown[];
+    resolveCandidates: ((...args: unknown[]) => unknown) | null;
+  };
+  overrides: {
+    hostProxyService: StringRecord | null;
+    gatewayClient: StringRecord | null;
+    paymentHandler: StringRecord | null;
+    resolvePolicyRequest: ((...args: unknown[]) => unknown) | null;
+  };
+};
+
+type NormalizeOptionsDeps = {
+  defaults?: StringRecord;
+  normalizeEnabledModes?: (value: unknown) => string[];
+};
+
+export function readRecord(value: unknown): StringRecord {
+  return value && typeof value === "object" ? (value as StringRecord) : {};
 }
 
-export function readString(value, fallback = "") {
+export function readString(value: unknown, fallback = ""): string {
   return typeof value === "string" ? value : fallback;
 }
 
-export function readList(value) {
+export function readList(value: unknown): unknown[] {
   return Array.isArray(value) ? value : [];
 }
 
-export function normalizeAllowedOrigins(value) {
+export function normalizeAllowedOrigins(value: unknown): string[] {
   if (Array.isArray(value)) {
     return value.map((entry) => readString(entry).trim().replace(/\/+$/, "")).filter(Boolean);
   }
@@ -23,7 +101,7 @@ export function normalizeAllowedOrigins(value) {
     .filter(Boolean);
 }
 
-export function normalizeApiKeys(value) {
+export function normalizeApiKeys(value: unknown): string[] {
   if (Array.isArray(value)) {
     return value.map((entry) => readString(entry).trim()).filter(Boolean);
   }
@@ -35,25 +113,30 @@ export function normalizeApiKeys(value) {
     .filter(Boolean);
 }
 
-export function normalizeOwnerIssuer(value, fallback = "tenant") {
+export function normalizeOwnerIssuer(
+  value: unknown,
+  fallback: "tenant" | "publisher" = "tenant",
+): "tenant" | "publisher" {
   const normalized = readString(value, fallback).trim().toLowerCase();
   return normalized === "publisher" ? "publisher" : "tenant";
 }
 
-export function normalizeHostModes(hostSurfaces) {
+export function normalizeHostModes(hostSurfaces: unknown): HostSurface[] {
   return readList(hostSurfaces)
     .map((entry) =>
       entry && typeof entry === "object"
         ? {
-            key: readString(entry.key).trim(),
-            label: readString(entry.label).trim(),
+            key: readString((entry as StringRecord).key).trim(),
+            label: readString((entry as StringRecord).label).trim(),
           }
         : null,
     )
-    .filter((entry) => entry && entry.key && entry.label);
+    .filter((entry): entry is HostSurface => Boolean(entry && entry.key && entry.label));
 }
 
-export function resolvePlatformSecretRefFromEnv(input = {}) {
+export function resolvePlatformSecretRefFromEnv(
+  input: { name?: string | null; scope?: string | null; scopeId?: string | null } = {},
+): string {
   const name = String(input?.name || "")
     .trim()
     .replace(/[^A-Za-z0-9_]+/g, "_")
@@ -78,7 +161,10 @@ export function resolvePlatformSecretRefFromEnv(input = {}) {
   return "";
 }
 
-export function normalizeBackendKitOptions(input = {}, deps = {}) {
+export function normalizeBackendKitOptions(
+  input: StringRecord = {},
+  deps: NormalizeOptionsDeps = {},
+): BackendKitNormalizedOptions {
   const defaults = readRecord(deps.defaults);
   const normalizeEnabledModes =
     typeof deps.normalizeEnabledModes === "function" ? deps.normalizeEnabledModes : null;
@@ -90,6 +176,7 @@ export function normalizeBackendKitOptions(input = {}, deps = {}) {
   const payments = readRecord(input.payments);
   const assets = readRecord(input.assets);
   const seedLogo = readRecord(assets.seedLogo);
+  const paymentPage = readRecord(assets.paymentPage);
   const gateway = readRecord(input.gateway);
   const branding = readRecord(input.branding);
   const reference = readRecord(input.reference);
@@ -98,6 +185,8 @@ export function normalizeBackendKitOptions(input = {}, deps = {}) {
   const defaultHost = readRecord(defaults.host);
   const defaultPayments = readRecord(defaults.payments);
   const defaultGateway = readRecord(defaults.gateway);
+  const hostBootstrap = readRecord(host.bootstrap);
+  const defaultHostBootstrap = readRecord(defaultHost.bootstrap);
 
   return {
     host: {
@@ -106,23 +195,22 @@ export function normalizeBackendKitOptions(input = {}, deps = {}) {
       enableBridge: host.enableBridge !== false && defaultHost.enableBridge !== false,
       allowedOrigins: normalizeAllowedOrigins(host.allowedOrigins ?? defaultHost.allowedOrigins),
       bootstrap: {
-        apiKeys: normalizeApiKeys(
-          readRecord(host.bootstrap).apiKeys ?? defaultHost.bootstrap?.apiKeys,
-        ),
+        apiKeys: normalizeApiKeys(hostBootstrap.apiKeys ?? defaultHostBootstrap.apiKeys),
         signingSecret:
-          readString(readRecord(host.bootstrap).signingSecret).trim() ||
-          readString(defaultHost.bootstrap?.signingSecret).trim(),
+          readString(hostBootstrap.signingSecret).trim() ||
+          readString(defaultHostBootstrap.signingSecret).trim(),
         ttlSeconds:
-          Number(readRecord(host.bootstrap).ttlSeconds ?? defaultHost.bootstrap?.ttlSeconds) > 0
-            ? Math.floor(
-                Number(readRecord(host.bootstrap).ttlSeconds ?? defaultHost.bootstrap?.ttlSeconds),
-              )
+          Number(hostBootstrap.ttlSeconds ?? defaultHostBootstrap.ttlSeconds) > 0
+            ? Math.floor(Number(hostBootstrap.ttlSeconds ?? defaultHostBootstrap.ttlSeconds))
             : 300,
       },
     },
     payments: {
       enabledModes: normalizeEnabledModes(payments.enabledModes),
-      ownerIssuer: normalizeOwnerIssuer(payments.ownerIssuer, defaultPayments.ownerIssuer),
+      ownerIssuer: normalizeOwnerIssuer(
+        payments.ownerIssuer,
+        normalizeOwnerIssuer(defaultPayments.ownerIssuer),
+      ),
       paymentUrl: readString(payments.paymentUrl).trim() || readString(defaultPayments.paymentUrl),
       returnSecret:
         typeof payments.returnSecret === "string"
@@ -144,7 +232,7 @@ export function normalizeBackendKitOptions(input = {}, deps = {}) {
         contentType: readString(seedLogo.contentType, "image/svg+xml").trim() || "image/svg+xml",
       },
       paymentPage: {
-        filePath: readString(readRecord(assets.paymentPage).filePath),
+        filePath: readString(paymentPage.filePath),
       },
     },
     gateway: {
@@ -176,25 +264,27 @@ export function normalizeBackendKitOptions(input = {}, deps = {}) {
       defaultProfiles: readList(subjectProfiles.defaultProfiles),
       resolveCandidates:
         typeof subjectProfiles.resolveCandidates === "function"
-          ? subjectProfiles.resolveCandidates
+          ? (...args: unknown[]) =>
+              (subjectProfiles.resolveCandidates as (...args: unknown[]) => unknown)(...args)
           : null,
     },
     overrides: {
       hostProxyService:
         overrides.hostProxyService && typeof overrides.hostProxyService === "object"
-          ? overrides.hostProxyService
+          ? (overrides.hostProxyService as StringRecord)
           : null,
       gatewayClient:
         overrides.gatewayClient && typeof overrides.gatewayClient === "object"
-          ? overrides.gatewayClient
+          ? (overrides.gatewayClient as StringRecord)
           : null,
       paymentHandler:
         overrides.paymentHandler && typeof overrides.paymentHandler === "object"
-          ? overrides.paymentHandler
+          ? (overrides.paymentHandler as StringRecord)
           : null,
       resolvePolicyRequest:
         typeof overrides.resolvePolicyRequest === "function"
-          ? overrides.resolvePolicyRequest
+          ? (...args: unknown[]) =>
+              (overrides.resolvePolicyRequest as (...args: unknown[]) => unknown)(...args)
           : null,
     },
   };

@@ -1,4 +1,3 @@
-// @ts-nocheck
 import {
   createGatewayExecutionModule,
   createHostReferenceModule,
@@ -14,26 +13,84 @@ import {
   registerPaymentPageApiRoutes,
   registerPaymentPageAssetRoute,
 } from "./backend/paymentRuntime.js";
-import { normalizeBackendKitOptions, resolvePlatformSecretRefFromEnv } from "./backend/options.js";
+import {
+  normalizeBackendKitOptions,
+  resolvePlatformSecretRefFromEnv,
+  type BackendKitNormalizedOptions,
+  type StringRecord,
+} from "./backend/options.js";
 
-export async function createBackendKit(input = {}, deps = {}) {
+type ReplyLike = {
+  code: (statusCode: number) => {
+    send: (payload: unknown) => unknown;
+  };
+};
+
+type RegisterableApp = {
+  setNotFoundHandler: (
+    handler: (request: unknown, reply: ReplyLike) => Promise<unknown> | unknown,
+  ) => void;
+};
+
+type RouteModule = {
+  registerRoutes: (app: RegisterableApp) => Promise<void> | void;
+};
+
+type BackendKitDeps = {
+  normalizeOptions?: (input: StringRecord) => BackendKitNormalizedOptions;
+  createReferenceSurfaceModule?: (input: {
+    gateway: BackendKitNormalizedOptions["gateway"];
+    branding: BackendKitNormalizedOptions["branding"];
+    enableReference: boolean;
+    enableLifecycle: boolean;
+    enableBridge: boolean;
+    enabledModes: string[];
+    reference: BackendKitNormalizedOptions["reference"];
+  }) => RouteModule;
+  createHostReferenceModule?: (input: {
+    gateway: BackendKitNormalizedOptions["gateway"];
+    branding: BackendKitNormalizedOptions["branding"];
+    reference: BackendKitNormalizedOptions["reference"];
+    enableLifecycle: boolean;
+    enableBridge: boolean;
+    allowedOrigins: string[];
+    bootstrap: BackendKitNormalizedOptions["host"]["bootstrap"];
+    hostProxyService: unknown;
+  }) => RouteModule;
+  createGatewayExecutionModule?: (input: {
+    enabledModes: string[];
+    subjectProfiles: BackendKitNormalizedOptions["subjectProfiles"];
+    paymentRuntime: unknown;
+  }) => RouteModule;
+};
+
+export type BackendKit = {
+  options: BackendKitNormalizedOptions;
+  registerRoutes: (app: RegisterableApp) => Promise<void>;
+  applyNotFoundHandler: (app: RegisterableApp) => void;
+};
+
+export async function createBackendKit(
+  input: StringRecord = {},
+  deps: BackendKitDeps = {},
+): Promise<BackendKit> {
   const normalizeOptions =
     typeof deps.normalizeOptions === "function" ? deps.normalizeOptions : null;
-  const createReferenceSurfaceModule =
+  const createReferenceSurfaceModuleDep =
     typeof deps.createReferenceSurfaceModule === "function"
       ? deps.createReferenceSurfaceModule
       : null;
-  const createHostReferenceModule =
+  const createHostReferenceModuleDep =
     typeof deps.createHostReferenceModule === "function" ? deps.createHostReferenceModule : null;
-  const createGatewayExecutionModule =
+  const createGatewayExecutionModuleDep =
     typeof deps.createGatewayExecutionModule === "function"
       ? deps.createGatewayExecutionModule
       : null;
   if (
     !normalizeOptions ||
-    !createReferenceSurfaceModule ||
-    !createHostReferenceModule ||
-    !createGatewayExecutionModule
+    !createReferenceSurfaceModuleDep ||
+    !createHostReferenceModuleDep ||
+    !createGatewayExecutionModuleDep
   ) {
     throw new TypeError("backend kit dependencies are incomplete");
   }
@@ -41,7 +98,7 @@ export async function createBackendKit(input = {}, deps = {}) {
   const options = normalizeOptions(input);
   const paymentRuntime = await createPaymentRuntime(options, deps);
 
-  const referenceSurfaceModule = createReferenceSurfaceModule({
+  const referenceSurfaceModule = createReferenceSurfaceModuleDep({
     gateway: options.gateway,
     branding: options.branding,
     enableReference: options.host.enableReference,
@@ -50,7 +107,7 @@ export async function createBackendKit(input = {}, deps = {}) {
     enabledModes: options.payments.enabledModes,
     reference: options.reference,
   });
-  const hostReferenceModule = createHostReferenceModule({
+  const hostReferenceModule = createHostReferenceModuleDep({
     gateway: options.gateway,
     branding: options.branding,
     reference: options.reference,
@@ -60,7 +117,7 @@ export async function createBackendKit(input = {}, deps = {}) {
     bootstrap: options.host.bootstrap,
     hostProxyService: options.overrides.hostProxyService,
   });
-  const gatewayExecutionModule = createGatewayExecutionModule({
+  const gatewayExecutionModule = createGatewayExecutionModuleDep({
     enabledModes: options.payments.enabledModes,
     subjectProfiles: options.subjectProfiles,
     paymentRuntime,

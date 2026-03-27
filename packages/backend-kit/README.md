@@ -2,6 +2,18 @@
 
 Modular Node backend kit for the current Xapps backend contract.
 
+## Install
+
+```bash
+npm install @xapps-platform/backend-kit
+```
+
+## When to use it
+
+Use `@xapps-platform/backend-kit` when you want a higher-level backend assembly with default routes, payment runtime composition, and override seams.
+
+Use `@xapps-platform/server-sdk` directly only when you need lower-level primitives that the backend kit intentionally does not own.
+
 Current public surface:
 
 - backend composition for the shipped integrator contract
@@ -37,6 +49,22 @@ Consumer rule:
 - import `@xapps-platform/backend-kit`
 - import package entry surfaces such as `@xapps-platform/backend-kit/backend/...`
 - do not consume raw `src/...` files directly from apps
+
+## Minimal usage
+
+```ts
+import { createBackendKit } from "@xapps-platform/backend-kit";
+
+const backendKit = await createBackendKit(
+  {
+    gateway: { baseUrl: "https://gateway.example.test", apiKey: "gateway_key" },
+    host: { allowedOrigins: ["https://tenant.example.test"] },
+    payments: { enabledModes: ["gateway_managed"] },
+    reference: { hostSurfaces: [{ key: "single-panel", label: "Single Panel" }] },
+  },
+  deps,
+);
+```
 
 ## What It Gives You
 
@@ -194,3 +222,10 @@ Keep internals:
 
 Node and PHP should keep the same backend behavior in the end. Differences
 should be runtime-adapter concerns, not separate platform feature lines.
+
+## Verify locally
+
+```bash
+npm run build --workspace packages/backend-kit
+npm run smoke --workspace packages/backend-kit
+```

@@ -1,9 +1,35 @@
-// @ts-nocheck
-function nowIso() {
+type HealthRouteOptions = {
+  branding?: {
+    serviceName?: string | null;
+    stackLabel?: string | null;
+  } | null;
+  reference?: {
+    mode?: string | null;
+  } | null;
+  tools?: unknown[] | null;
+};
+
+type HealthRouteResponse = {
+  ok: true;
+  service: string;
+  mode: string;
+  stack?: string;
+  tools?: unknown[];
+  time: string;
+};
+
+type FastifyLike = {
+  get: (path: string, handler: () => Promise<HealthRouteResponse> | HealthRouteResponse) => void;
+};
+
+function nowIso(): string {
   return new Date().toISOString();
 }
 
-export default async function healthRoutes(fastify, options = {}) {
+export default async function healthRoutes(
+  fastify: FastifyLike,
+  options: HealthRouteOptions = {},
+): Promise<void> {
   const branding = options.branding && typeof options.branding === "object" ? options.branding : {};
   const reference =
     options.reference && typeof options.reference === "object" ? options.reference : {};

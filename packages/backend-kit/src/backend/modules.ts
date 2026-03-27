@@ -1,5 +1,80 @@
-// @ts-nocheck
+import type { BackendKitNormalizedOptions, HostSurface, StringRecord } from "./options.js";
 import { normalizeHostModes, readString } from "./options.js";
+
+type RegisterableApp = unknown;
+
+type RouteModule = {
+  registerRoutes: (app: RegisterableApp) => Promise<void> | void;
+};
+
+type HostReferenceModuleInput = {
+  gateway?: StringRecord;
+  branding?: StringRecord;
+  reference?: StringRecord;
+  enableLifecycle?: boolean;
+  enableBridge?: boolean;
+  allowedOrigins?: string[];
+  bootstrap?: BackendKitNormalizedOptions["host"]["bootstrap"];
+  hostProxyService?: unknown;
+};
+
+type HostReferenceModuleDeps = {
+  createHostProxyService?: (input: {
+    gateway?: StringRecord;
+    branding?: StringRecord;
+    reference?: StringRecord;
+  }) => unknown;
+  registerHostRoutes?: (
+    app: RegisterableApp,
+    options: {
+      enableLifecycle: boolean;
+      enableBridge: boolean;
+      allowedOrigins: string[];
+      bootstrap: BackendKitNormalizedOptions["host"]["bootstrap"];
+      branding: StringRecord;
+      hostProxyService: unknown;
+    },
+  ) => Promise<void> | void;
+};
+
+type HostProxyServiceDeps = {
+  createGatewayClient?: (input: { baseUrl: string; apiKey: string }) => unknown;
+  createEmbedHostProxyService?: (input: {
+    gatewayClient: unknown;
+    gatewayUrl: string;
+    hostModes?: HostSurface[];
+  }) => unknown;
+};
+
+type GatewayExecutionModuleDeps = {
+  registerPaymentRoutes?: (
+    app: RegisterableApp,
+    options: { enabledModes: string[]; paymentRuntime: unknown },
+  ) => Promise<void> | void;
+  registerGuardRoutes?: (
+    app: RegisterableApp,
+    options: { enabledModes: string[]; paymentRuntime: unknown },
+  ) => Promise<void> | void;
+  registerSubjectProfileRoutes?: (
+    app: RegisterableApp,
+    subjectProfiles: StringRecord,
+  ) => Promise<void> | void;
+};
+
+type ReferenceSurfaceModuleDeps = {
+  registerReferenceRoutes?: (
+    app: RegisterableApp,
+    options: {
+      enableReference: boolean;
+      enableLifecycle: boolean;
+      enableBridge: boolean;
+      enabledModes?: string[];
+      gateway: StringRecord;
+      branding: StringRecord;
+      reference: StringRecord;
+    },
+  ) => Promise<void> | void;
+};
 
 export function createHostReferenceModule(
   {
@@ -9,11 +84,11 @@ export function createHostReferenceModule(
     enableLifecycle = true,
     enableBridge = true,
     allowedOrigins = [],
-    bootstrap = {},
+    bootstrap = { apiKeys: [], signingSecret: "", ttlSeconds: 300 },
     hostProxyService = null,
-  } = {},
-  deps = {},
-) {
+  }: HostReferenceModuleInput = {},
+  deps: HostReferenceModuleDeps = {},
+): RouteModule {
   const createHostProxyService =
     typeof deps.createHostProxyService === "function" ? deps.createHostProxyService : null;
   const registerHostRoutes =
@@ -45,7 +120,10 @@ export function createHostReferenceModule(
   };
 }
 
-export function createHostProxyService({ gateway = {}, reference = {} } = {}, deps = {}) {
+export function createHostProxyService(
+  { gateway = {}, reference = {} }: { gateway?: StringRecord; reference?: StringRecord } = {},
+  deps: HostProxyServiceDeps = {},
+): unknown {
   const createGatewayClient =
     typeof deps.createGatewayClient === "function" ? deps.createGatewayClient : null;
   const createEmbedHostProxyService =
@@ -68,9 +146,17 @@ export function createHostProxyService({ gateway = {}, reference = {} } = {}, de
 }
 
 export function createGatewayExecutionModule(
-  { enabledModes, subjectProfiles = {}, paymentRuntime = {} } = {},
-  deps = {},
-) {
+  {
+    enabledModes = [],
+    subjectProfiles = {},
+    paymentRuntime = {},
+  }: {
+    enabledModes?: string[];
+    subjectProfiles?: StringRecord;
+    paymentRuntime?: unknown;
+  } = {},
+  deps: GatewayExecutionModuleDeps = {},
+): RouteModule {
   const registerPaymentRoutes =
     typeof deps.registerPaymentRoutes === "function" ? deps.registerPaymentRoutes : null;
   const registerGuardRoutes =
@@ -101,9 +187,17 @@ export function createReferenceSurfaceModule(
     enableBridge = true,
     enabledModes,
     reference = {},
+  }: {
+    gateway?: StringRecord;
+    branding?: StringRecord;
+    enableReference?: boolean;
+    enableLifecycle?: boolean;
+    enableBridge?: boolean;
+    enabledModes?: string[];
+    reference?: StringRecord;
   } = {},
-  deps = {},
-) {
+  deps: ReferenceSurfaceModuleDeps = {},
+): RouteModule {
   const registerReferenceRoutes =
     typeof deps.registerReferenceRoutes === "function" ? deps.registerReferenceRoutes : null;
   if (!registerReferenceRoutes) {
