@@ -8,6 +8,7 @@
     "packages/widget-sdk",
     "packages/signing-client",
     "packages/openapi-import",
+    "packages/xapp-manifest",
     "packages/xapps-embed-sdk",
     "packages/browser-host",
     "packages/backend-kit",
@@ -17,9 +18,9 @@
     "packages/publisher-verifier"
   ],
   "scripts": {
-    "build": "npm --workspace packages/server-sdk run build && npm --workspace packages/widget-sdk run build && npm --workspace packages/signing-client run build && npm --workspace packages/openapi-import run build && npm --workspace packages/xapps-embed-sdk run build && npm --workspace packages/browser-host run build && npm --workspace packages/backend-kit run build && npm --workspace packages/marketplace-ui run build && npm --workspace packages/widget-runtime run build && npm --workspace packages/payment-hosted-client run build",
-    "smoke": "npm --workspace packages/server-sdk run smoke && npm --workspace packages/widget-sdk run smoke && npm --workspace packages/signing-client run smoke && npm --workspace packages/openapi-import run smoke && npm --workspace packages/xapps-embed-sdk run smoke && npm --workspace packages/browser-host run smoke && npm --workspace packages/backend-kit run smoke && npm --workspace packages/marketplace-ui run smoke && npm --workspace packages/widget-runtime run smoke && npm --workspace packages/payment-hosted-client run smoke && npm --workspace packages/publisher-verifier run smoke",
-    "pack:dry-run": "npm pack --dry-run --workspace packages/server-sdk && npm pack --dry-run --workspace packages/widget-sdk && npm pack --dry-run --workspace packages/signing-client && npm pack --dry-run --workspace packages/openapi-import && npm pack --dry-run --workspace packages/xapps-embed-sdk && npm pack --dry-run --workspace packages/browser-host && npm pack --dry-run --workspace packages/backend-kit && npm pack --dry-run --workspace packages/marketplace-ui && npm pack --dry-run --workspace packages/widget-runtime && npm pack --dry-run --workspace packages/payment-hosted-client && npm pack --dry-run --workspace packages/publisher-verifier",
+    "build": "npm --workspace packages/server-sdk run build && npm --workspace packages/widget-sdk run build && npm --workspace packages/signing-client run build && npm --workspace packages/openapi-import run build && npm --workspace packages/xapp-manifest run build && npm --workspace packages/xapps-embed-sdk run build && npm --workspace packages/browser-host run build && npm --workspace packages/backend-kit run build && npm --workspace packages/marketplace-ui run build && npm --workspace packages/widget-runtime run build && npm --workspace packages/payment-hosted-client run build",
+    "smoke": "npm --workspace packages/server-sdk run smoke && npm --workspace packages/widget-sdk run smoke && npm --workspace packages/signing-client run smoke && npm --workspace packages/openapi-import run smoke && npm --workspace packages/xapp-manifest run smoke && npm --workspace packages/xapps-embed-sdk run smoke && npm --workspace packages/browser-host run smoke && npm --workspace packages/backend-kit run smoke && npm --workspace packages/marketplace-ui run smoke && npm --workspace packages/widget-runtime run smoke && npm --workspace packages/payment-hosted-client run smoke && npm --workspace packages/publisher-verifier run smoke",
+    "pack:dry-run": "npm pack --dry-run --workspace packages/server-sdk && npm pack --dry-run --workspace packages/widget-sdk && npm pack --dry-run --workspace packages/signing-client && npm pack --dry-run --workspace packages/openapi-import && npm pack --dry-run --workspace packages/xapp-manifest && npm pack --dry-run --workspace packages/xapps-embed-sdk && npm pack --dry-run --workspace packages/browser-host && npm pack --dry-run --workspace packages/backend-kit && npm pack --dry-run --workspace packages/marketplace-ui && npm pack --dry-run --workspace packages/widget-runtime && npm pack --dry-run --workspace packages/payment-hosted-client && npm pack --dry-run --workspace packages/publisher-verifier",
     "changeset": "changeset",
     "changeset:status": "changeset status --verbose",
     "changeset:version": "changeset version"

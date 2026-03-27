@@ -1,0 +1,22 @@
+export declare const CURRENT_GUARD_TRIGGERS: readonly ["before:installation_create", "before:widget_load", "before:session_open", "before:thread_create", "before:tool_run", "after:install", "after:link_complete", "before:link_revoke", "before:uninstall", "after:tool_complete", "after:uninstall"];
+export declare const RESERVED_POST_ACTION_GUARD_TRIGGERS: readonly ["after:payment_completed", "after:payment_failed", "after:request_created", "after:response_ready", "after:response_finalized"];
+export declare const ALL_KNOWN_GUARD_TRIGGERS: readonly ["before:installation_create", "before:widget_load", "before:session_open", "before:thread_create", "before:tool_run", "after:install", "after:link_complete", "before:link_revoke", "before:uninstall", "after:tool_complete", "after:uninstall", "after:payment_completed", "after:payment_failed", "after:request_created", "after:response_ready", "after:response_finalized"];
+export declare const HOOK_EFFECT_KINDS: readonly ["policy", "invoice", "notification", "integration_call"];
+export declare const HOOK_EXECUTION_MODES: readonly ["gateway_managed", "tenant_managed", "publisher_managed", "gateway_delegated"];
+export declare const HOOK_PROVIDER_SCOPES: readonly ["gateway", "tenant", "publisher"];
+export declare const HOOK_FAILURE_POLICIES: readonly ["fail_closed", "fail_open", "audit_only", "retry"];
+export declare const HOOK_IDEMPOTENCY_SCOPES: readonly ["none", "request", "request_response", "payment_session", "payment_receipt", "response_version"];
+export type CurrentGuardTrigger = (typeof CURRENT_GUARD_TRIGGERS)[number];
+export type ReservedPostActionGuardTrigger = (typeof RESERVED_POST_ACTION_GUARD_TRIGGERS)[number];
+export type KnownGuardTrigger = (typeof ALL_KNOWN_GUARD_TRIGGERS)[number];
+export type HookEffectKind = (typeof HOOK_EFFECT_KINDS)[number];
+export type HookExecutionMode = (typeof HOOK_EXECUTION_MODES)[number];
+export type HookProviderScope = (typeof HOOK_PROVIDER_SCOPES)[number];
+export type HookFailurePolicy = (typeof HOOK_FAILURE_POLICIES)[number];
+export type HookIdempotencyScope = (typeof HOOK_IDEMPOTENCY_SCOPES)[number];
+export declare function normalizeHookEffectKind(value: unknown): HookEffectKind | null;
+export declare function normalizeHookExecutionMode(value: unknown): HookExecutionMode | null;
+export declare function normalizeHookProviderScope(value: unknown): HookProviderScope | null;
+export declare function normalizeHookFailurePolicy(value: unknown): HookFailurePolicy | null;
+export declare function normalizeHookIdempotencyScope(value: unknown): HookIdempotencyScope | null;
+//# sourceMappingURL=hookContracts.d.ts.map

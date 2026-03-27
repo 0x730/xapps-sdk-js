@@ -1,0 +1,73 @@
+# `@xapps-platform/xapp-manifest`
+
+Shared Xapp manifest schema, types, and structural validator.
+
+## Install
+
+```bash
+npm install @xapps-platform/xapp-manifest
+```
+
+## Purpose
+
+Use this package when you need manifest parsing and validation without pulling in the broader backend/runtime SDK surface.
+
+It is the direct public home for:
+
+- `xappManifestJsonSchema`
+- `parseXappManifest(...)`
+- manifest-facing TypeScript types such as `XappManifest`
+
+## What moved here
+
+This package now owns the shared manifest contract that was previously implemented only in the core validator.
+
+That shared surface includes:
+
+- JSON schema validation
+- structural manifest normalization/parsing
+- shared governance checks for hook/notification/invoice/subject-profile manifest sections
+- structured warnings for unreferenced definitions/templates
+
+## What stayed in core
+
+Gateway/runtime-only behavior still stays in core API code.
+
+The current core wrapper in `src/validation/xappManifest.ts` exists only to:
+
+- reuse this shared validator
+- map shared warnings into gateway logger output
+
+## Minimal usage
+
+```ts
+import { parseXappManifest, xappManifestJsonSchema } from "@xapps-platform/xapp-manifest";
+
+const manifest = parseXappManifest({
+  name: "Example Xapp",
+  slug: "example-xapp",
+  version: "1.0.0",
+  tools: [],
+  widgets: [],
+});
+
+console.log(manifest.slug);
+console.log(xappManifestJsonSchema.type);
+```
+
+## Relation to other packages
+
+- `@xapps-platform/server-sdk` re-exports this package for convenience in backend-oriented code.
+- `@xapps/cli` uses this validator through `@xapps-platform/server-sdk` so current CLI publish flows stay non-breaking.
+
+## Build
+
+```bash
+npm run build --workspace packages/xapp-manifest
+```
+
+## Smoke
+
+```bash
+npm run smoke --workspace packages/xapp-manifest
+```
