@@ -76,6 +76,7 @@ export type CatalogOptions = {
     createWidgetSessionUrl?: string;
     installationsUrl?: string;
     headers?: Record<string, string>;
+    getHeaders?: () => Record<string, string> | null | undefined;
   };
   publishers?: string[];
   tags?: string[];
@@ -249,6 +250,20 @@ function readStringField(source: Record<string, unknown> | null | undefined, ...
     if (typeof value === "string" && value.trim()) return value.trim();
   }
   return "";
+}
+
+function resolveHostApiHeaders(
+  hostApi: CatalogOptions["hostApi"] | null | undefined,
+): Record<string, string> {
+  const providerValue =
+    typeof hostApi?.getHeaders === "function" ? hostApi.getHeaders() || undefined : undefined;
+  const headers =
+    providerValue && typeof providerValue === "object" && !Array.isArray(providerValue)
+      ? providerValue
+      : hostApi?.headers && typeof hostApi.headers === "object" && !Array.isArray(hostApi.headers)
+        ? hostApi.headers
+        : {};
+  return { ...headers };
 }
 
 export function createMarketplaceMutationEventHandler(options: MarketplaceMutationHelperOptions) {
@@ -1100,7 +1115,7 @@ export class XappsHost {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        ...(this.options.hostApi?.headers || {}),
+        ...resolveHostApiHeaders(this.options.hostApi),
       },
       body: JSON.stringify(input),
     });
@@ -1127,7 +1142,7 @@ export class XappsHost {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        ...(this.options.hostApi?.headers || {}),
+        ...resolveHostApiHeaders(this.options.hostApi),
       },
       body: JSON.stringify({
         ...(input.installationId ? { installationId: input.installationId } : {}),
@@ -1205,9 +1220,7 @@ export class XappsHost {
 
         const resp = await fetch(urlWithSubject, {
           method: "GET",
-          headers: {
-            ...(this.options.hostApi?.headers || {}),
-          },
+          headers: resolveHostApiHeaders(this.options.hostApi),
         });
         const data = await resp.json().catch(() => ({}));
         if (!resp.ok)

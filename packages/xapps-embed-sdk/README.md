@@ -1,23 +1,28 @@
-# `xapps-embed-sdk`
+# `@xapps-platform/embed-sdk`
 
-Host-side embed bridge helper package used to build browser SDK artifacts.
+Low-level browser host/embed primitives for Xapps catalog, widget, and payment-resume flows.
+
+## Install
+
+```bash
+npm install @xapps-platform/embed-sdk
+```
 
 ## Status
 
 Host-facing browser SDK package in this repo (`packages/xapps-embed-sdk/src/index.ts`).
-Current platform runtime still primarily serves the built browser artifacts through `/embed/sdk/*`,
-while package metadata is already formalized for direct package distribution when needed.
+Current platform runtime also serves the built browser artifacts through `/embed/sdk/*`, and the same surface is now published as `@xapps-platform/embed-sdk`.
 
 ## Build output
 
 - `dist/sdk/xapps-embed-sdk.esm.js`
 - `dist/sdk/xapps-embed-sdk.umd.js`
 
-Built by `scripts/build-embed-sdk.mjs`.
+Built by `scripts/build/build-embed-sdk.mjs`.
 
 Package metadata:
 
-- package name: `xapps-embed-sdk`
+- package name: `@xapps-platform/embed-sdk`
 - ESM export: `dist/xapps-embed-sdk.esm.js`
 - UMD export: `dist/xapps-embed-sdk.umd.js`
 
@@ -31,7 +36,7 @@ Package metadata:
 
 ## Relation To `@xapps-platform/browser-host`
 
-`xapps-embed-sdk` is the low-level browser SDK.
+`@xapps-platform/embed-sdk` is the low-level browser SDK.
 
 It owns:
 
@@ -44,7 +49,7 @@ It owns:
 
 Use:
 
-- `xapps-embed-sdk` when you need low-level browser primitives or a custom host shape
+- `@xapps-platform/embed-sdk` when you need low-level browser primitives or a custom host shape
 - `@xapps-platform/browser-host` when you want the standard host bootstrap/runtime path and only need local pages, branding, and small callbacks
 
 Hosted-integrator note:
@@ -70,6 +75,21 @@ No fixed DOM contract is required for:
 `createHostConfirmDialog()` injects its own dialog DOM.
 
 `createHostUiBridge(...)` is callback-driven, so host UI component choices remain integrator-defined.
+
+## Minimal usage
+
+```ts
+import {
+  parsePaymentReturnFromSearch,
+  stripPaymentReturnParamsFromUrl,
+} from "@xapps-platform/embed-sdk";
+
+const payment = parsePaymentReturnFromSearch(window.location.search);
+if (payment) {
+  const cleanUrl = stripPaymentReturnParamsFromUrl(window.location.href);
+  history.replaceState({}, "", cleanUrl);
+}
+```
 
 ## Payment Return Helpers
 
@@ -178,6 +198,13 @@ Integrators should not rebuild the host orchestration from scratch. The recommen
 - `createHostDomUiController(...)` for toast/modal/confirm DOM wiring
 
 `apps/tenants/xconect/host/*` is now a consumer of these helpers, not the target shape third parties should copy line-by-line.
+
+## Verify locally
+
+```bash
+npm run build --workspace packages/xapps-embed-sdk
+npm run smoke --workspace packages/xapps-embed-sdk
+```
 
 ## Standard Marketplace Runtime
 
@@ -650,7 +677,7 @@ Behavior:
   - `Option B (Formalized)`: npm package distribution (`xapps-embed-sdk`) with semver contract and release policy.
 - Package metadata/pipeline:
   - `packages/xapps-embed-sdk/package.json`
-  - `scripts/prepare-embed-sdk-package.mjs` (prepack artifact copy into package `dist/`)
+  - `scripts/prepare/prepare-embed-sdk-package.mjs` (prepack artifact copy into package `dist/`)
 - Semver baseline:
   - additive-only changes in current minor track
   - breaking changes only via major version + migration notes
