@@ -1,0 +1,37 @@
+{
+  "name": "@xapps-platform/platform-i18n",
+  "version": "0.1.1",
+  "license": "MIT",
+  "author": "Daniel Vladescu <daniel.vladescu@gmail.com>",
+  "description": "Shared locale normalization, translation lookup, and React i18n helpers for Xapps surfaces",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/0x730/xapps-sdk-js.git",
+    "directory": "packages/platform-i18n"
+  },
+  "homepage": "https://gateway.0x730.com",
+  "bugs": {
+    "url": "https://github.com/0x730/xapps-sdk-js/issues"
+  },
+  "scripts": {
+    "build": "node ../../scripts/build/build-platform-i18n.mjs",
+    "smoke": "npm run build"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0"
+  }
+}

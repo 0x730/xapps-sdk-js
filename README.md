@@ -12,6 +12,7 @@ Current public packages:
 - `@xapps-platform/signing-client`
 - `@xapps-platform/embed-sdk`
 - `@xapps-platform/browser-host`
+- `@xapps-platform/platform-i18n`
 - `@xapps-platform/backend-kit`
 - `@xapps-platform/marketplace-ui`
 - `@xapps-platform/widget-runtime`
@@ -26,6 +27,7 @@ Quick package guide:
 - `@xapps-platform/xapp-manifest`: shared manifest schema, parser, and types.
 - `@xapps-platform/embed-sdk`: low-level browser host/embed primitives.
 - `@xapps-platform/browser-host`: higher-level browser host runtime for marketplace and single-xapp surfaces.
+- `@xapps-platform/platform-i18n`: shared locale normalization, translation lookup, and React i18n helpers.
 - `@xapps-platform/backend-kit`: higher-level Node backend kit that sits above `server-sdk`.
 
 Install examples:
