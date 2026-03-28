@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { useMarketplaceI18n } from "../i18n";
 
 export function ConfirmActionModal(props: {
   open: boolean;
@@ -9,12 +10,13 @@ export function ConfirmActionModal(props: {
   onConfirm: () => void;
   onCancel: () => void;
 }) {
+  const { t } = useMarketplaceI18n();
   const {
     open,
     title,
     description,
-    confirmLabel = "Confirm",
-    cancelLabel = "Cancel",
+    confirmLabel = t("common.confirm", undefined, "Confirm"),
+    cancelLabel = t("common.cancel", undefined, "Cancel"),
     onConfirm,
     onCancel,
   } = props;
@@ -46,7 +48,11 @@ export function ConfirmActionModal(props: {
           <h2 id="mx-confirm-action-title" className="mx-section-title mx-section-title-tight">
             {title}
           </h2>
-          <button onClick={onCancel} className="mx-btn mx-btn-ghost" aria-label="Close dialog">
+          <button
+            onClick={onCancel}
+            className="mx-btn mx-btn-ghost"
+            aria-label={t("common.close_dialog", undefined, "Close dialog")}
+          >
             ×
           </button>
         </div>

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
+import { resolveMarketplaceText, useMarketplaceI18n } from "../i18n";
 import { useMarketplace } from "../MarketplaceContext";
 import { MarketplaceActivityTabs } from "../components/MarketplaceActivityTabs";
 import { MarketplacePrimaryNav } from "../components/MarketplacePrimaryNav";
@@ -40,6 +41,7 @@ function renderGuardActionHint(summary: Record<string, unknown>): string {
 
 export function RequestsPage() {
   const { client, host, env } = useMarketplace();
+  const { locale, t } = useMarketplaceI18n();
   const token = useQueryToken();
   const query = useQuery();
 
@@ -100,7 +102,9 @@ export function RequestsPage() {
       try {
         const res = await client.getCatalogXapp(String(xappIdFilter));
         const detail = asRecord(res);
-        const name = readFirstString(asRecord(detail.xapp).name, asRecord(detail.manifest).title);
+        const name =
+          resolveMarketplaceText(asRecord(detail.manifest).title as any, locale) ||
+          readFirstString(asRecord(detail.xapp).name);
         if (!alive) return;
         setXappTitle(name);
       } catch {
@@ -113,7 +117,7 @@ export function RequestsPage() {
       alive = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [xappIdFilter]);
+  }, [locale, xappIdFilter]);
 
   const isEmbedded = window.location.pathname.startsWith("/embed");
 
@@ -156,12 +160,18 @@ export function RequestsPage() {
     return (
       <div className={`mx-catalog-container ${isEmbedded ? "is-embedded" : ""}`}>
         <div className="mx-table-container mx-unavailable">
-          <h2 className="mx-title mx-unavailable-title">Requests are unavailable</h2>
+          <h2 className="mx-title mx-unavailable-title">
+            {t("activity.unavailable_requests_title", undefined, "Requests are unavailable")}
+          </h2>
           <p className="mx-unavailable-desc">
-            This public catalog does not support viewing personal requests.
+            {t(
+              "activity.unavailable_requests_desc",
+              undefined,
+              "This public catalog does not support viewing personal requests.",
+            )}
           </p>
           <Link to={backToContext as any} className="mx-btn mx-btn-primary">
-            ← Back
+            ← {t("common.back", undefined, "Back")}
           </Link>
         </div>
       </div>
@@ -171,9 +181,15 @@ export function RequestsPage() {
   return (
     <div className={`mx-catalog-container ${isEmbedded ? "is-embedded" : ""}`}>
       <div className="mx-breadcrumb">
-        {!env?.singleXappMode && <Link to={isEmbedded ? "/" : "/marketplace"}>Marketplace</Link>}
+        {!env?.singleXappMode && (
+          <Link to={isEmbedded ? "/" : "/marketplace"}>
+            {t("common.marketplace", undefined, "Marketplace")}
+          </Link>
+        )}
         {env?.singleXappMode && !isEmbedded && (
-          <Link to={isEmbedded ? "/" : "/marketplace"}>Marketplace</Link>
+          <Link to={isEmbedded ? "/" : "/marketplace"}>
+            {t("common.marketplace", undefined, "Marketplace")}
+          </Link>
         )}
         {xappIdFilter && xappLink && (
           <>
@@ -184,11 +200,11 @@ export function RequestsPage() {
           </>
         )}
         <span className="mx-breadcrumb-sep">/</span>
-        <span>Requests</span>
+        <span>{t("activity.requests_title", undefined, "Requests")}</span>
       </div>
 
       <header className="mx-header">
-        <h1 className="mx-title">Requests</h1>
+        <h1 className="mx-title">{t("activity.requests_title", undefined, "Requests")}</h1>
         <div className="mx-header-actions">
           <MarketplacePrimaryNav
             active="activity"
@@ -197,14 +213,14 @@ export function RequestsPage() {
           />
           {xappIdFilter && (
             <Link to={clearHref as any} className="mx-btn mx-btn-ghost">
-              Clear Filter
+              {t("common.clear_filter", undefined, "Clear Filter")}
             </Link>
           )}
           <button
             className={`mx-btn-icon ${busy ? "is-spinning" : ""}`}
             onClick={() => void refresh()}
             disabled={busy}
-            title="Refresh"
+            title={t("common.refresh", undefined, "Refresh")}
           >
             <svg
               viewBox="0 0 24 24"
@@ -229,10 +245,16 @@ export function RequestsPage() {
 
       {emptyState ? (
         <div className="mx-table-container mx-alert mx-alert-info">
-          <div className="mx-alert-subject-title">Subject required</div>
+          <div className="mx-alert-subject-title">
+            {t("activity.subject_required_title", undefined, "Subject required")}
+          </div>
           <div className="mx-alert-subject-desc">
-            This host session is not associated with a user. Ask your host to create a catalog
-            session with a <code>subjectId</code>.
+            {t(
+              "activity.subject_required_desc",
+              undefined,
+              "This host session is not associated with a user. Ask your host to create a catalog session with a subjectId.",
+            )}{" "}
+            <code>subjectId</code>.
           </div>
         </div>
       ) : error ? (
@@ -241,7 +263,7 @@ export function RequestsPage() {
 
       {xappIdFilter && (
         <div className="mx-subtle-note">
-          Showing requests for{" "}
+          {t("activity.showing_requests_for_prefix", undefined, "Showing requests for")}{" "}
           {xappLink ? (
             <Link to={xappLink} className="mx-subtle-note-link">
               {xappTitle || String(xappIdFilter)}
@@ -256,11 +278,11 @@ export function RequestsPage() {
         <table className="mx-table" data-responsive="cards">
           <thead>
             <tr>
-              <th scope="col">ID</th>
-              <th scope="col">Tool</th>
-              <th scope="col">Version</th>
-              <th scope="col">Status</th>
-              <th scope="col">Created</th>
+              <th scope="col">{t("common.id", undefined, "ID")}</th>
+              <th scope="col">{t("common.tool", undefined, "Tool")}</th>
+              <th scope="col">{t("common.version", undefined, "Version")}</th>
+              <th scope="col">{t("common.status", undefined, "Status")}</th>
+              <th scope="col">{t("common.created", undefined, "Created")}</th>
             </tr>
           </thead>
           <tbody>
@@ -268,16 +290,18 @@ export function RequestsPage() {
               <tr>
                 <td
                   colSpan={5}
-                  data-label="State"
+                  data-label={t("common.status", undefined, "Status")}
                   className={busy ? "mx-table-loading-cell" : "mx-table-empty-cell"}
                 >
                   {busy ? (
                     <div className="mx-loading-center mx-loading-table">
                       <div className="mx-spinner" />
-                      <span>Loading requests...</span>
+                      <span>
+                        {t("activity.loading_requests", undefined, "Loading requests...")}
+                      </span>
                     </div>
                   ) : (
-                    "No requests yet."
+                    t("activity.no_requests", undefined, "No requests yet.")
                   )}
                 </td>
               </tr>
@@ -309,10 +333,10 @@ export function RequestsPage() {
 
                 return (
                   <tr key={readFirstString(request.id)}>
-                    <td className="mx-cell-id" data-label="ID">
+                    <td className="mx-cell-id" data-label={t("common.id", undefined, "ID")}>
                       <Link to={href as any}>{readFirstString(request.id).slice(0, 8)}...</Link>
                     </td>
-                    <td data-label="Tool">
+                    <td data-label={t("common.tool", undefined, "Tool")}>
                       <div className="mx-cell-bold">
                         {readFirstString(request.tool_name) || "—"}
                       </div>
@@ -338,15 +362,21 @@ export function RequestsPage() {
                         </div>
                       )}
                     </td>
-                    <td className="mx-cell-muted" data-label="Version">
+                    <td
+                      className="mx-cell-muted"
+                      data-label={t("common.version", undefined, "Version")}
+                    >
                       {readString(request.xapp_version)
                         ? `v${readString(request.xapp_version)}`
                         : "—"}
                     </td>
-                    <td data-label="Status">
+                    <td data-label={t("common.status", undefined, "Status")}>
                       <StatusBadge status={readString(request.status)} />
                     </td>
-                    <td className="mx-cell-date" data-label="Created">
+                    <td
+                      className="mx-cell-date"
+                      data-label={t("common.created", undefined, "Created")}
+                    >
                       {formatDateTime(request.created_at) || "—"}
                     </td>
                   </tr>
@@ -372,10 +402,14 @@ export function RequestsPage() {
             }
             className={`mx-btn mx-btn-outline ${pageParam <= 1 || busy ? "is-disabled" : ""}`}
           >
-            Previous
+            {t("common.previous", undefined, "Previous")}
           </Link>
           <span className="mx-pagination-info">
-            Page <strong>{pagination.page}</strong> of <strong>{pagination.totalPages}</strong>
+            {t(
+              "activity.page_of",
+              { page: pagination.page, totalPages: pagination.totalPages },
+              `Page ${pagination.page} of ${pagination.totalPages}`,
+            )}
           </span>
           <Link
             to={
@@ -390,7 +424,7 @@ export function RequestsPage() {
             }
             className={`mx-btn mx-btn-outline ${pageParam >= pagination.totalPages || busy ? "is-disabled" : ""}`}
           >
-            Next
+            {t("common.next", undefined, "Next")}
           </Link>
         </div>
       )}

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
+import { resolveMarketplaceText, useMarketplaceI18n } from "../i18n";
 import { useMarketplace } from "../MarketplaceContext";
 import { MarketplaceActivityTabs } from "../components/MarketplaceActivityTabs";
 import { MarketplacePrimaryNav } from "../components/MarketplacePrimaryNav";
@@ -18,6 +19,7 @@ function useQuery(): URLSearchParams {
 }
 
 function StatusBadge({ status }: { status: string }) {
+  const { t } = useMarketplaceI18n();
   const normalized = String(status || "")
     .trim()
     .toUpperCase();
@@ -27,7 +29,11 @@ function StatusBadge({ status }: { status: string }) {
       : normalized === "FAILED"
         ? "mx-badge-danger"
         : "mx-badge-warning";
-  return <span className={`mx-badge ${className}`}>{normalized || "—"}</span>;
+  return (
+    <span className={`mx-badge ${className}`}>
+      {normalized || t("status.read", undefined, "Read")}
+    </span>
+  );
 }
 
 type InvoiceRecord = Record<string, unknown>;
@@ -35,6 +41,7 @@ type InvoicePagination = { total: number; page: number; pageSize: number; totalP
 
 export function InvoicesPage() {
   const { client, host } = useMarketplace();
+  const { locale, t } = useMarketplaceI18n();
   const token = useQueryToken();
   const query = useQuery();
 
@@ -56,7 +63,13 @@ export function InvoicesPage() {
 
   async function refresh(page: number = 1) {
     if (!client.listMyInvoices) {
-      setError("Invoices are unavailable in this host.");
+      setError(
+        t(
+          "activity.unavailable_invoices_title",
+          undefined,
+          "Invoices are unavailable in this host.",
+        ),
+      );
       setItems([]);
       setPagination(null);
       setBusy(false);
@@ -143,7 +156,9 @@ export function InvoicesPage() {
         if (!alive) return;
         const manifest = asRecord(res?.manifest);
         const xapp = asRecord(res?.xapp);
-        setXappTitle(readFirstString(manifest.title, xapp.name));
+        setXappTitle(
+          resolveMarketplaceText(manifest.title as any, locale) || readFirstString(xapp.name),
+        );
       } catch {
         if (!alive) return;
         setXappTitle("");
@@ -152,7 +167,7 @@ export function InvoicesPage() {
     return () => {
       alive = false;
     };
-  }, [client, xappIdFilter]);
+  }, [client, locale, xappIdFilter]);
 
   const xappLink = xappIdFilter
     ? ({
@@ -185,7 +200,9 @@ export function InvoicesPage() {
   return (
     <div className={`mx-catalog-container ${isEmbedded ? "is-embedded" : ""}`}>
       <div className="mx-breadcrumb">
-        <Link to={isEmbedded ? "/" : "/marketplace"}>Marketplace</Link>
+        <Link to={isEmbedded ? "/" : "/marketplace"}>
+          {t("common.marketplace", undefined, "Marketplace")}
+        </Link>
         {xappLink && (
           <>
             <span className="mx-breadcrumb-sep">/</span>
@@ -193,11 +210,11 @@ export function InvoicesPage() {
           </>
         )}
         <span className="mx-breadcrumb-sep">/</span>
-        <span>Invoices</span>
+        <span>{t("activity.invoices_title", undefined, "Invoices")}</span>
       </div>
 
       <header className="mx-header">
-        <h1 className="mx-title">Invoices</h1>
+        <h1 className="mx-title">{t("activity.invoices_title", undefined, "Invoices")}</h1>
         <div className="mx-header-actions">
           <MarketplacePrimaryNav
             active="activity"
@@ -206,14 +223,14 @@ export function InvoicesPage() {
           />
           {xappIdFilter && (
             <Link to={clearHref as any} className="mx-btn mx-btn-ghost">
-              Clear Filter
+              {t("common.clear_filter", undefined, "Clear Filter")}
             </Link>
           )}
           <button
             className={`mx-btn-icon ${busy ? "is-spinning" : ""}`}
             onClick={() => void refresh(pageParam)}
             disabled={busy}
-            title="Refresh"
+            title={t("common.refresh", undefined, "Refresh")}
           >
             <svg
               viewBox="0 0 24 24"
@@ -239,10 +256,16 @@ export function InvoicesPage() {
 
       {emptyState ? (
         <div className="mx-table-container mx-alert mx-alert-info">
-          <div className="mx-alert-subject-title">Subject required</div>
+          <div className="mx-alert-subject-title">
+            {t("activity.subject_required_title", undefined, "Subject required")}
+          </div>
           <div className="mx-alert-subject-desc">
-            This host session is not associated with a user. Ask your host to create a catalog
-            session with a <code>subjectId</code>.
+            {t(
+              "activity.subject_required_desc",
+              undefined,
+              "This host session is not associated with a user. Ask your host to create a catalog session with a subjectId.",
+            )}{" "}
+            <code>subjectId</code>.
           </div>
         </div>
       ) : error ? (
@@ -251,7 +274,7 @@ export function InvoicesPage() {
 
       {xappIdFilter && (
         <div className="mx-subtle-note">
-          Showing invoice records for{" "}
+          {t("activity.showing_invoices_for_prefix", undefined, "Showing invoice records for")}{" "}
           {xappLink ? (
             <Link to={xappLink} className="mx-subtle-note-link">
               {xappTitle || xappIdFilter}
@@ -266,11 +289,13 @@ export function InvoicesPage() {
         <div className="mx-record-panel">
           <div className="mx-record-panel-head">
             <div>
-              <div className="mx-record-panel-kicker">Invoice Detail</div>
+              <div className="mx-record-panel-kicker">
+                {t("activity.invoice_detail", undefined, "Invoice Detail")}
+              </div>
               <div className="mx-record-panel-id">{focusedInvoiceId}</div>
             </div>
             <Link to={listHref as any} className="mx-btn mx-btn-ghost">
-              Back to invoice list
+              {t("activity.back_to_invoice_list", undefined, "Back to invoice list")}
             </Link>
           </div>
           {focusedError ? (
@@ -279,7 +304,7 @@ export function InvoicesPage() {
             <>
               <div className="mx-record-grid">
                 <div className="mx-record-field">
-                  <div className="mx-record-label">Status</div>
+                  <div className="mx-record-label">{t("common.status", undefined, "Status")}</div>
                   <div className="mx-record-value">
                     <StatusBadge
                       status={readFirstString(
@@ -290,19 +315,23 @@ export function InvoicesPage() {
                   </div>
                 </div>
                 <div className="mx-record-field">
-                  <div className="mx-record-label">Provider</div>
+                  <div className="mx-record-label">
+                    {t("common.provider", undefined, "Provider")}
+                  </div>
                   <div className="mx-record-value is-strong">
                     {readFirstString(focusedInvoice.provider_key, "—")}
                   </div>
                 </div>
                 <div className="mx-record-field">
-                  <div className="mx-record-label">Payment Session</div>
+                  <div className="mx-record-label">
+                    {t("common.payment_session", undefined, "Payment Session")}
+                  </div>
                   <div className="mx-record-value is-mono">
                     {readFirstString(focusedInvoice.payment_session_id, "—")}
                   </div>
                 </div>
                 <div className="mx-record-field">
-                  <div className="mx-record-label">Created</div>
+                  <div className="mx-record-label">{t("common.created", undefined, "Created")}</div>
                   <div className="mx-record-value">
                     {formatDateTime(focusedInvoice.created_at) || "—"}
                   </div>
@@ -318,7 +347,7 @@ export function InvoicesPage() {
                         target="_blank"
                         rel="noreferrer"
                       >
-                        Open Document
+                        {t("activity.open_document", undefined, "Open Document")}
                       </a>
                     ) : null}
                     {focusedInvoice.document_download_url ? (
@@ -328,7 +357,7 @@ export function InvoicesPage() {
                         target="_blank"
                         rel="noreferrer"
                       >
-                        Download
+                        {t("common.download", undefined, "Download")}
                       </a>
                     ) : null}
                     {!focusedInvoice.document_download_url &&
@@ -340,7 +369,7 @@ export function InvoicesPage() {
                         target="_blank"
                         rel="noreferrer"
                       >
-                        Open External
+                        {t("activity.open_external", undefined, "Open External")}
                       </a>
                     ) : null}
                   </div>
@@ -348,14 +377,22 @@ export function InvoicesPage() {
               </div>
               {focusedHistory.length > 0 && (
                 <div className="mx-record-timeline">
-                  <div className="mx-record-label">Lifecycle History</div>
+                  <div className="mx-record-label">
+                    {t("activity.lifecycle_history", undefined, "Lifecycle History")}
+                  </div>
                   <div className="mx-detail-guard-list mx-detail-guard-list-compact">
                     {focusedHistory.map((event, index) => (
                       <div
                         key={readFirstString(event.id, index)}
                         className="mx-record-timeline-item"
                       >
-                        <strong>{readFirstString(event.action, event.type, "Event")}</strong>
+                        <strong>
+                          {readFirstString(
+                            event.action,
+                            event.type,
+                            t("activity.event", undefined, "Event"),
+                          )}
+                        </strong>
                         {formatDateTime(event.created_at)
                           ? ` • ${formatDateTime(event.created_at)}`
                           : ""}
@@ -368,7 +405,9 @@ export function InvoicesPage() {
           ) : (
             <div className="mx-record-loading">
               <div className="mx-spinner" />
-              <span>Loading invoice details...</span>
+              <span>
+                {t("activity.loading_invoice_detail", undefined, "Loading invoice details...")}
+              </span>
             </div>
           )}
         </div>
@@ -378,12 +417,12 @@ export function InvoicesPage() {
         <table className="mx-table" data-responsive="cards">
           <thead>
             <tr>
-              {!xappIdFilter && <th scope="col">Xapp</th>}
-              <th scope="col">Invoice</th>
-              <th scope="col">Status</th>
-              <th scope="col">Provider</th>
-              <th scope="col">Created</th>
-              <th scope="col">Document</th>
+              {!xappIdFilter && <th scope="col">{t("common.xapp", undefined, "Xapp")}</th>}
+              <th scope="col">{t("common.invoice", undefined, "Invoice")}</th>
+              <th scope="col">{t("common.status", undefined, "Status")}</th>
+              <th scope="col">{t("common.provider", undefined, "Provider")}</th>
+              <th scope="col">{t("common.created", undefined, "Created")}</th>
+              <th scope="col">{t("common.document", undefined, "Document")}</th>
             </tr>
           </thead>
           <tbody>
@@ -396,10 +435,12 @@ export function InvoicesPage() {
                   {busy ? (
                     <div className="mx-loading-center mx-loading-table">
                       <div className="mx-spinner" />
-                      <span>Loading invoices...</span>
+                      <span>
+                        {t("activity.loading_invoices", undefined, "Loading invoices...")}
+                      </span>
                     </div>
                   ) : (
-                    "No invoices found."
+                    t("activity.no_invoices", undefined, "No invoices found.")
                   )}
                 </td>
               </tr>
@@ -407,9 +448,11 @@ export function InvoicesPage() {
               items.map((item, index) => (
                 <tr key={readFirstString(item.id, index)}>
                   {!xappIdFilter && (
-                    <td data-label="Xapp">{readFirstString(item.xapp_name, item.xapp_id, "—")}</td>
+                    <td data-label={t("common.xapp", undefined, "Xapp")}>
+                      {readFirstString(item.xapp_name, item.xapp_id, "—")}
+                    </td>
                   )}
-                  <td data-label="Invoice">
+                  <td data-label={t("common.invoice", undefined, "Invoice")}>
                     <div className="mx-cell-bold">
                       {readFirstString(
                         item.invoice_identifier,
@@ -421,18 +464,24 @@ export function InvoicesPage() {
                     </div>
                     {readString(item.payment_session_id) && (
                       <div className="mx-cell-sub">
-                        Payment: {readString(item.payment_session_id)}
+                        {t("common.payment", undefined, "Payment")}:{" "}
+                        {readString(item.payment_session_id)}
                       </div>
                     )}
                   </td>
-                  <td data-label="Status">
+                  <td data-label={t("common.status", undefined, "Status")}>
                     <StatusBadge status={readFirstString(item.status, item.lifecycle_status)} />
                   </td>
-                  <td data-label="Provider">{readFirstString(item.provider_key, "—")}</td>
-                  <td className="mx-cell-date" data-label="Created">
+                  <td data-label={t("common.provider", undefined, "Provider")}>
+                    {readFirstString(item.provider_key, "—")}
+                  </td>
+                  <td
+                    className="mx-cell-date"
+                    data-label={t("common.created", undefined, "Created")}
+                  >
                     {formatDateTime(item.created_at) || "—"}
                   </td>
-                  <td data-label="Document">
+                  <td data-label={t("common.document", undefined, "Document")}>
                     <div className="mx-action-group">
                       <Link
                         to={
@@ -456,7 +505,7 @@ export function InvoicesPage() {
                         }
                         className="mx-btn mx-btn-outline mx-btn-sm"
                       >
-                        Details
+                        {t("common.details", undefined, "Details")}
                       </Link>
                       {item.document_download_url || item.external_url ? (
                         <a
@@ -465,7 +514,7 @@ export function InvoicesPage() {
                           target="_blank"
                           rel="noreferrer"
                         >
-                          Open
+                          {t("common.open", undefined, "Open")}
                         </a>
                       ) : null}
                     </div>
@@ -484,17 +533,21 @@ export function InvoicesPage() {
             disabled={pageParam <= 1}
             onClick={() => void refresh(pageParam - 1)}
           >
-            Previous
+            {t("common.previous", undefined, "Previous")}
           </button>
           <span className="mx-pagination-info">
-            Page <strong>{pagination.page}</strong> of <strong>{pagination.totalPages}</strong>
+            {t(
+              "activity.page_of",
+              { page: pagination.page, totalPages: pagination.totalPages },
+              `Page ${pagination.page} of ${pagination.totalPages}`,
+            )}
           </span>
           <button
             className="mx-btn mx-btn-outline"
             disabled={pageParam >= Number(pagination.totalPages || 1)}
             onClick={() => void refresh(pageParam + 1)}
           >
-            Next
+            {t("common.next", undefined, "Next")}
           </button>
         </div>
       )}

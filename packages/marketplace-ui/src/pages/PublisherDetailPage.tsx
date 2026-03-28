@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
+import { resolveMarketplaceText, useMarketplaceI18n } from "../i18n";
 import { useMarketplace } from "../MarketplaceContext";
 import { MarketplacePrimaryNav } from "../components/MarketplacePrimaryNav";
 import type { CatalogXapp } from "../types";
@@ -16,6 +17,7 @@ function useQueryToken(): string {
 export function PublisherDetailPage() {
   const { publisherSlug = "" } = useParams();
   const { client, host } = useMarketplace();
+  const { locale, t } = useMarketplaceI18n();
   const loc = useLocation();
   const token = useQueryToken();
   const tokenSearch = buildTokenSearch(token, loc.search);
@@ -68,19 +70,24 @@ export function PublisherDetailPage() {
     if (!query) return items;
     return items.filter((x) => {
       const manifest = asRecord(x.manifest);
-      const title = readFirstString(manifest.title, x.name);
-      const desc = readFirstString(manifest.description, x.description);
+      const title =
+        resolveMarketplaceText(manifest.title as any, locale) || readFirstString(x.name);
+      const desc =
+        resolveMarketplaceText(manifest.description as any, locale) ||
+        readFirstString(x.description);
       const hay = `${title} ${desc} ${x.slug}`.toLowerCase();
       return hay.includes(query);
     });
-  }, [items, q]);
+  }, [items, locale, q]);
 
   return (
     <div className={`mx-catalog-container ${isEmbedded ? "is-embedded" : ""}`}>
       <div className="mx-breadcrumb">
-        <Link to={backToXapps}>Marketplace</Link>
+        <Link to={backToXapps}>{t("common.marketplace", undefined, "Marketplace")}</Link>
         <span className="mx-breadcrumb-sep">/</span>
-        <Link to={backToPublishers}>Publishers</Link>
+        <Link to={backToPublishers}>
+          {t("publisher.publishers_title", undefined, "Publishers")}
+        </Link>
         <span className="mx-breadcrumb-sep">/</span>
         <span>{publisherName}</span>
       </div>
@@ -97,7 +104,7 @@ export function PublisherDetailPage() {
             className={`mx-btn-icon ${busy ? "is-spinning" : ""}`}
             onClick={() => void refresh()}
             disabled={busy}
-            title="Refresh"
+            title={t("common.refresh", undefined, "Refresh")}
           >
             <svg
               viewBox="0 0 24 24"
@@ -118,13 +125,23 @@ export function PublisherDetailPage() {
       <div className="mx-search-filters">
         <div className="mx-filters-inner">
           <div className="mx-input-group mx-input-group-grow">
-            <label className="mx-label">Search xapps</label>
+            <label className="mx-label">
+              {t("publisher.search_xapps", undefined, "Search xapps")}
+            </label>
             <input
               className="mx-input"
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="Search by title, slug, description..."
-              aria-label="Search this publisher's xapps"
+              placeholder={t(
+                "publisher.search_xapps_placeholder",
+                undefined,
+                "Search by title, slug, description...",
+              )}
+              aria-label={t(
+                "publisher.search_xapps_aria",
+                undefined,
+                "Search this publisher's xapps",
+              )}
             />
           </div>
         </div>
@@ -159,18 +176,32 @@ export function PublisherDetailPage() {
             {filteredItems.length === 0 && !busy ? (
               <div className="mx-empty-catalog">
                 <div className="mx-empty-catalog-icon">⌕</div>
-                <div className="mx-empty-catalog-title">No xapps found</div>
+                <div className="mx-empty-catalog-title">
+                  {t("publisher.no_xapps_found", undefined, "No xapps found")}
+                </div>
                 <div className="mx-empty-catalog-desc">
                   {q
-                    ? "Try adjusting your search to find what you're looking for."
-                    : `${publisherName} has no active xapps in the catalog right now.`}
+                    ? t(
+                        "publisher.empty_xapps_filtered",
+                        undefined,
+                        "Try adjusting your search to find what you're looking for.",
+                      )
+                    : t(
+                        "publisher.empty_xapps_default",
+                        { publisher: publisherName },
+                        `${publisherName} has no active xapps in the catalog right now.`,
+                      )}
                 </div>
               </div>
             ) : (
               filteredItems.map((x) => {
                 const manifest = asRecord(x.manifest);
-                const title = readFirstString(manifest.title, x.name, x.slug, "App");
-                const desc = readFirstString(manifest.description, x.description);
+                const title =
+                  resolveMarketplaceText(manifest.title as any, locale) ||
+                  readFirstString(x.name, x.slug, "App");
+                const desc =
+                  resolveMarketplaceText(manifest.description as any, locale) ||
+                  readFirstString(x.description);
                 const image =
                   readString(manifest.image) || "https://picsum.photos/seed/" + x.slug + "/560/320";
                 const tags = Array.isArray(manifest.tags)
@@ -195,12 +226,14 @@ export function PublisherDetailPage() {
                     <div className="mx-card-content">
                       <div className="mx-card-head">
                         <div className="mx-card-meta">
-                          <div className="mx-card-publisher">by {publisherName}</div>
+                          <div className="mx-card-publisher">
+                            {t("common.by", undefined, "by")} {publisherName}
+                          </div>
                           <div className="mx-card-badges">
                             {installed && (
                               <span className="mx-card-installed-badge">
                                 <span className="mx-card-installed-badge-dot" />
-                                Added
+                                {t("common.added", undefined, "Added")}
                               </span>
                             )}
                             {x.latest_version?.version && (

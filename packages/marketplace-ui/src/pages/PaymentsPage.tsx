@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
+import { resolveMarketplaceText, useMarketplaceI18n } from "../i18n";
 import { useMarketplace } from "../MarketplaceContext";
 import { MarketplaceActivityTabs } from "../components/MarketplaceActivityTabs";
 import { MarketplacePrimaryNav } from "../components/MarketplacePrimaryNav";
@@ -18,6 +19,7 @@ function useQuery(): URLSearchParams {
 }
 
 function StatusBadge({ status }: { status: string }) {
+  const { t } = useMarketplaceI18n();
   const normalized = String(status || "")
     .trim()
     .toUpperCase();
@@ -27,13 +29,18 @@ function StatusBadge({ status }: { status: string }) {
       : normalized === "FAILED"
         ? "mx-badge-danger"
         : "mx-badge-warning";
-  return <span className={`mx-badge ${className}`}>{normalized || "—"}</span>;
+  return (
+    <span className={`mx-badge ${className}`}>
+      {normalized || t("status.read", undefined, "Read")}
+    </span>
+  );
 }
 
 type PaymentSessionRecord = Record<string, unknown>;
 
 export function PaymentsPage() {
   const { client, host } = useMarketplace();
+  const { locale, t } = useMarketplaceI18n();
   const token = useQueryToken();
   const query = useQuery();
 
@@ -51,7 +58,13 @@ export function PaymentsPage() {
 
   async function refresh() {
     if (!client.listMyPaymentSessions) {
-      setError("Payments are unavailable in this host.");
+      setError(
+        t(
+          "activity.unavailable_payments_title",
+          undefined,
+          "Payments are unavailable in this host.",
+        ),
+      );
       setItems([]);
       setBusy(false);
       return;
@@ -120,7 +133,9 @@ export function PaymentsPage() {
         if (!alive) return;
         const manifest = asRecord(res?.manifest);
         const xapp = asRecord(res?.xapp);
-        setXappTitle(readFirstString(manifest.title, xapp.name));
+        setXappTitle(
+          resolveMarketplaceText(manifest.title as any, locale) || readFirstString(xapp.name),
+        );
       } catch {
         if (!alive) return;
         setXappTitle("");
@@ -129,7 +144,7 @@ export function PaymentsPage() {
     return () => {
       alive = false;
     };
-  }, [client, xappIdFilter]);
+  }, [client, locale, xappIdFilter]);
 
   const xappLink = xappIdFilter
     ? ({
@@ -161,7 +176,9 @@ export function PaymentsPage() {
   return (
     <div className={`mx-catalog-container ${isEmbedded ? "is-embedded" : ""}`}>
       <div className="mx-breadcrumb">
-        <Link to={isEmbedded ? "/" : "/marketplace"}>Marketplace</Link>
+        <Link to={isEmbedded ? "/" : "/marketplace"}>
+          {t("common.marketplace", undefined, "Marketplace")}
+        </Link>
         {xappLink && (
           <>
             <span className="mx-breadcrumb-sep">/</span>
@@ -169,11 +186,11 @@ export function PaymentsPage() {
           </>
         )}
         <span className="mx-breadcrumb-sep">/</span>
-        <span>Payments</span>
+        <span>{t("activity.payments_title", undefined, "Payments")}</span>
       </div>
 
       <header className="mx-header">
-        <h1 className="mx-title">Payments</h1>
+        <h1 className="mx-title">{t("activity.payments_title", undefined, "Payments")}</h1>
         <div className="mx-header-actions">
           <MarketplacePrimaryNav
             active="activity"
@@ -182,14 +199,14 @@ export function PaymentsPage() {
           />
           {xappIdFilter && (
             <Link to={clearHref as any} className="mx-btn mx-btn-ghost">
-              Clear Filter
+              {t("common.clear_filter", undefined, "Clear Filter")}
             </Link>
           )}
           <button
             className={`mx-btn-icon ${busy ? "is-spinning" : ""}`}
             onClick={() => void refresh()}
             disabled={busy}
-            title="Refresh"
+            title={t("common.refresh", undefined, "Refresh")}
           >
             <svg
               viewBox="0 0 24 24"
@@ -215,10 +232,16 @@ export function PaymentsPage() {
 
       {emptyState ? (
         <div className="mx-table-container mx-alert mx-alert-info">
-          <div className="mx-alert-subject-title">Subject required</div>
+          <div className="mx-alert-subject-title">
+            {t("activity.subject_required_title", undefined, "Subject required")}
+          </div>
           <div className="mx-alert-subject-desc">
-            This host session is not associated with a user. Ask your host to create a catalog
-            session with a <code>subjectId</code>.
+            {t(
+              "activity.subject_required_desc",
+              undefined,
+              "This host session is not associated with a user. Ask your host to create a catalog session with a subjectId.",
+            )}{" "}
+            <code>subjectId</code>.
           </div>
         </div>
       ) : error ? (
@@ -227,7 +250,7 @@ export function PaymentsPage() {
 
       {xappIdFilter && (
         <div className="mx-subtle-note">
-          Showing payment activity for{" "}
+          {t("activity.showing_payments_for_prefix", undefined, "Showing payment activity for")}{" "}
           {xappLink ? (
             <Link to={xappLink} className="mx-subtle-note-link">
               {xappTitle || xappIdFilter}
@@ -242,11 +265,13 @@ export function PaymentsPage() {
         <div className="mx-record-panel">
           <div className="mx-record-panel-head">
             <div>
-              <div className="mx-record-panel-kicker">Payment Detail</div>
+              <div className="mx-record-panel-kicker">
+                {t("activity.payment_detail", undefined, "Payment Detail")}
+              </div>
               <div className="mx-record-panel-id">{focusedPaymentSessionId}</div>
             </div>
             <Link to={listHref as any} className="mx-btn mx-btn-ghost">
-              Back to payment list
+              {t("activity.back_to_payment_list", undefined, "Back to payment list")}
             </Link>
           </div>
           {focusedError ? (
@@ -254,45 +279,47 @@ export function PaymentsPage() {
           ) : focusedSession ? (
             <div className="mx-record-grid">
               <div className="mx-record-field">
-                <div className="mx-record-label">Status</div>
+                <div className="mx-record-label">{t("common.status", undefined, "Status")}</div>
                 <div className="mx-record-value">
                   <StatusBadge status={readString(focusedSession.status)} />
                 </div>
               </div>
               <div className="mx-record-field">
-                <div className="mx-record-label">Amount</div>
+                <div className="mx-record-label">{t("common.amount", undefined, "Amount")}</div>
                 <div className="mx-record-value is-strong">
                   {readFirstString(focusedSession.amount, "—")}{" "}
                   {readString(focusedSession.currency)}
                 </div>
               </div>
               <div className="mx-record-field">
-                <div className="mx-record-label">Tool</div>
+                <div className="mx-record-label">{t("common.tool", undefined, "Tool")}</div>
                 <div className="mx-record-value is-strong">
                   {readFirstString(focusedSession.tool_name, "—")}
                 </div>
               </div>
               <div className="mx-record-field">
-                <div className="mx-record-label">Provider</div>
+                <div className="mx-record-label">{t("common.provider", undefined, "Provider")}</div>
                 <div className="mx-record-value is-strong">
                   {readFirstString(focusedSession.provider_key, focusedSession.issuer, "—")}
                 </div>
               </div>
               <div className="mx-record-field">
-                <div className="mx-record-label">Request</div>
+                <div className="mx-record-label">{t("common.request", undefined, "Request")}</div>
                 <div className="mx-record-value is-mono">
                   {readFirstString(focusedSession.request_id, "—")}
                 </div>
               </div>
               <div className="mx-record-field">
-                <div className="mx-record-label">Created</div>
+                <div className="mx-record-label">{t("common.created", undefined, "Created")}</div>
                 <div className="mx-record-value">
                   {formatDateTime(focusedSession.created_at) || "—"}
                 </div>
               </div>
               {Array.isArray(focusedSession.invoices) && focusedSession.invoices.length > 0 && (
                 <div className="mx-record-field is-span-full">
-                  <div className="mx-record-label">Invoices</div>
+                  <div className="mx-record-label">
+                    {t("activity.invoices_title", undefined, "Invoices")}
+                  </div>
                   <div className="mx-record-pill-row">
                     {focusedSession.invoices.map((invoice, index) => {
                       const invoiceRecord = asRecord(invoice);
@@ -304,7 +331,7 @@ export function PaymentsPage() {
                           {readFirstString(
                             invoiceRecord.invoice_identifier,
                             invoiceRecord.id,
-                            "Invoice",
+                            t("common.invoice", undefined, "Invoice"),
                           )}
                         </span>
                       );
@@ -316,7 +343,9 @@ export function PaymentsPage() {
           ) : (
             <div className="mx-record-loading">
               <div className="mx-spinner" />
-              <span>Loading payment details...</span>
+              <span>
+                {t("activity.loading_payment_detail", undefined, "Loading payment details...")}
+              </span>
             </div>
           )}
         </div>
@@ -326,13 +355,13 @@ export function PaymentsPage() {
         <table className="mx-table" data-responsive="cards">
           <thead>
             <tr>
-              {!xappIdFilter && <th scope="col">Xapp</th>}
-              <th scope="col">Session</th>
-              <th scope="col">Tool</th>
-              <th scope="col">Amount</th>
-              <th scope="col">Status</th>
-              <th scope="col">Created</th>
-              <th scope="col">Action</th>
+              {!xappIdFilter && <th scope="col">{t("common.xapp", undefined, "Xapp")}</th>}
+              <th scope="col">{t("common.session", undefined, "Session")}</th>
+              <th scope="col">{t("common.tool", undefined, "Tool")}</th>
+              <th scope="col">{t("common.amount", undefined, "Amount")}</th>
+              <th scope="col">{t("common.status", undefined, "Status")}</th>
+              <th scope="col">{t("common.created", undefined, "Created")}</th>
+              <th scope="col">{t("common.action", undefined, "Action")}</th>
             </tr>
           </thead>
           <tbody>
@@ -345,10 +374,12 @@ export function PaymentsPage() {
                   {busy ? (
                     <div className="mx-loading-center mx-loading-table">
                       <div className="mx-spinner" />
-                      <span>Loading payments...</span>
+                      <span>
+                        {t("activity.loading_payments", undefined, "Loading payments...")}
+                      </span>
                     </div>
                   ) : (
-                    "No payment activity found."
+                    t("activity.no_payments", undefined, "No payment activity found.")
                   )}
                 </td>
               </tr>
@@ -356,22 +387,32 @@ export function PaymentsPage() {
               items.map((item, index) => (
                 <tr key={readFirstString(item.payment_session_id, item.id, index)}>
                   {!xappIdFilter && (
-                    <td data-label="Xapp">{readFirstString(item.xapp_name, item.xapp_id, "—")}</td>
+                    <td data-label={t("common.xapp", undefined, "Xapp")}>
+                      {readFirstString(item.xapp_name, item.xapp_id, "—")}
+                    </td>
                   )}
-                  <td className="mx-cell-mono" data-label="Session">
+                  <td
+                    className="mx-cell-mono"
+                    data-label={t("common.session", undefined, "Session")}
+                  >
                     {readFirstString(item.payment_session_id, "—")}
                   </td>
-                  <td data-label="Tool">{readFirstString(item.tool_name, "—")}</td>
-                  <td className="mx-cell-bold" data-label="Amount">
+                  <td data-label={t("common.tool", undefined, "Tool")}>
+                    {readFirstString(item.tool_name, "—")}
+                  </td>
+                  <td className="mx-cell-bold" data-label={t("common.amount", undefined, "Amount")}>
                     {readString(item.amount)} {readString(item.currency)}
                   </td>
-                  <td data-label="Status">
+                  <td data-label={t("common.status", undefined, "Status")}>
                     <StatusBadge status={readString(item.status)} />
                   </td>
-                  <td className="mx-cell-date" data-label="Created">
+                  <td
+                    className="mx-cell-date"
+                    data-label={t("common.created", undefined, "Created")}
+                  >
                     {formatDateTime(item.created_at) || "—"}
                   </td>
-                  <td data-label="Action">
+                  <td data-label={t("common.action", undefined, "Action")}>
                     <div className="mx-action-group">
                       <Link
                         to={
@@ -396,7 +437,7 @@ export function PaymentsPage() {
                         }
                         className="mx-btn mx-btn-outline mx-btn-sm"
                       >
-                        Details
+                        {t("common.details", undefined, "Details")}
                       </Link>
                       {item.resume_url ? (
                         <a
@@ -405,7 +446,7 @@ export function PaymentsPage() {
                           target="_blank"
                           rel="noreferrer"
                         >
-                          Resume
+                          {t("activity.resume_payment", undefined, "Resume")}
                         </a>
                       ) : null}
                     </div>

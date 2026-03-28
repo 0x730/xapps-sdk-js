@@ -11,7 +11,11 @@
     "declarationMap": true,
     "emitDeclarationOnly": true,
     "outDir": "dist",
-    "rootDir": "src"
+    "rootDir": "src",
+    "baseUrl": ".",
+    "paths": {
+      "@xapps-platform/platform-i18n": ["../platform-i18n/dist/index.d.ts"]
+    }
   },
   "include": ["src"]
 }

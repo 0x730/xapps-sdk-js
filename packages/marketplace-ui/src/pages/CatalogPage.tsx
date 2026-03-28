@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
+import { resolveMarketplaceText, useMarketplaceI18n } from "../i18n";
 import { useMarketplace } from "../MarketplaceContext";
 import type { CatalogXapp } from "../types";
 import { ConfirmActionModal } from "../components/ConfirmActionModal";
@@ -74,6 +75,7 @@ function writeStoredCatalogFilters(storageKey: string, value: StoredCatalogFilte
 
 export function CatalogPage() {
   const { client, host, env } = useMarketplace();
+  const { locale, t } = useMarketplaceI18n();
   const canMutate = host.canMutate ? host.canMutate() : true;
   const addAppLabel = env?.copy?.addAppLabel || "Add app";
   const removeAppLabel = env?.copy?.removeAppLabel || "Remove app";
@@ -204,14 +206,16 @@ export function CatalogPage() {
   return (
     <div className={`mx-catalog-container ${isEmbedded ? "is-embedded" : ""}`}>
       <header className="mx-header">
-        <h1 className="mx-title">{env?.title ?? "Marketplace"}</h1>
+        <h1 className="mx-title">
+          {env?.title ?? t("common.marketplace", undefined, "Marketplace")}
+        </h1>
         <div className="mx-header-actions">
           <MarketplacePrimaryNav active="xapps" isEmbedded={isEmbedded} tokenSearch={tokenSearch} />
           <button
             className={`mx-btn-icon ${busy ? "is-spinning" : ""}`}
             onClick={() => void refresh()}
             disabled={busy}
-            title="Refresh"
+            title={t("common.refresh", undefined, "Refresh")}
           >
             <svg
               viewBox="0 0 24 24"
@@ -232,18 +236,22 @@ export function CatalogPage() {
       <div className="mx-search-filters">
         <div className="mx-filters-inner">
           <div className="mx-input-group mx-input-group-grow">
-            <label className="mx-label">Search</label>
+            <label className="mx-label">{t("common.search", undefined, "Search")}</label>
             <input
               className="mx-input"
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="Search by name, description..."
-              aria-label="Search apps"
+              placeholder={t(
+                "catalog.search_placeholder",
+                undefined,
+                "Search by name, description...",
+              )}
+              aria-label={t("catalog.search_aria", undefined, "Search apps")}
             />
           </div>
 
           <div className="mx-input-group">
-            <label className="mx-label">Tag</label>
+            <label className="mx-label">{t("common.tag", undefined, "Tag")}</label>
             <select
               className="mx-input mx-select"
               value={selectedTag}
@@ -255,9 +263,9 @@ export function CatalogPage() {
                   selectedTag: next,
                 });
               }}
-              aria-label="Filter by tag"
+              aria-label={t("catalog.filter_by_tag", undefined, "Filter by tag")}
             >
-              <option value="">All Tags</option>
+              <option value="">{t("common.all_tags", undefined, "All Tags")}</option>
               {allTags.map((t) => (
                 <option key={t} value={t}>
                   {t}
@@ -280,7 +288,9 @@ export function CatalogPage() {
               }}
               className="mx-checkbox"
             />
-            <span className="mx-label mx-label-inline">Added only</span>
+            <span className="mx-label mx-label-inline">
+              {t("common.added_only", undefined, "Added only")}
+            </span>
           </label>
         </div>
       </div>
@@ -305,8 +315,23 @@ export function CatalogPage() {
             <div className="mx-results-bar">
               <div className="mx-results-count">
                 {filtered.length === items.length
-                  ? `${filtered.length} app${filtered.length === 1 ? "" : "s"}`
-                  : `${filtered.length} of ${items.length} app${items.length === 1 ? "" : "s"}`}
+                  ? t(
+                      "catalog.results_all",
+                      {
+                        count: filtered.length,
+                        suffix: filtered.length === 1 ? "" : "s",
+                      },
+                      `${filtered.length} app${filtered.length === 1 ? "" : "s"}`,
+                    )
+                  : t(
+                      "catalog.results_filtered",
+                      {
+                        count: filtered.length,
+                        total: items.length,
+                        suffix: items.length === 1 ? "" : "s",
+                      },
+                      `${filtered.length} of ${items.length} app${items.length === 1 ? "" : "s"}`,
+                    )}
               </div>
             </div>
           )}
@@ -314,20 +339,39 @@ export function CatalogPage() {
             {filtered.length === 0 && !busy ? (
               <div className="mx-empty-catalog">
                 <div className="mx-empty-catalog-icon">⌕</div>
-                <div className="mx-empty-catalog-title">No apps found</div>
+                <div className="mx-empty-catalog-title">
+                  {t("catalog.no_apps_found", undefined, "No apps found")}
+                </div>
                 <div className="mx-empty-catalog-desc">
                   {installedOnly && items.length > 0
-                    ? "No apps are installed for the current subject yet. Turn off Added only to browse the full catalog."
+                    ? t(
+                        "catalog.empty_added_only",
+                        undefined,
+                        "No apps are installed for the current subject yet. Turn off Added only to browse the full catalog.",
+                      )
                     : q || selectedTag || installedOnly
-                      ? "Try adjusting your search or filters to find what you're looking for."
-                      : "No apps are available in the catalog right now."}
+                      ? t(
+                          "catalog.empty_filtered",
+                          undefined,
+                          "Try adjusting your search or filters to find what you're looking for.",
+                        )
+                      : t(
+                          "catalog.empty_default",
+                          undefined,
+                          "No apps are available in the catalog right now.",
+                        )}
                 </div>
               </div>
             ) : (
               filtered.map((x: CatalogXapp) => {
                 const manifest = asRecord(x.manifest);
-                const title = readFirstString(manifest.title, x.name, x.slug) || "App";
-                const desc = readFirstString(manifest.description, x.description);
+                const title =
+                  resolveMarketplaceText(manifest.title as any, locale) ||
+                  readFirstString(x.name, x.slug) ||
+                  "App";
+                const desc =
+                  resolveMarketplaceText(manifest.description as any, locale) ||
+                  readFirstString(x.description);
                 const image =
                   typeof manifest.image === "string"
                     ? manifest.image
@@ -361,7 +405,7 @@ export function CatalogPage() {
                         <div className="mx-card-meta">
                           {x.publisher?.slug ? (
                             <div className="mx-card-publisher">
-                              by{" "}
+                              {t("common.by", undefined, "by")}{" "}
                               <Link
                                 to={{
                                   pathname: isEmbedded
@@ -377,13 +421,15 @@ export function CatalogPage() {
                               </Link>
                             </div>
                           ) : (
-                            <div className="mx-card-publisher">Catalog app</div>
+                            <div className="mx-card-publisher">
+                              {t("common.catalog_app", undefined, "Catalog app")}
+                            </div>
                           )}
                           <div className="mx-card-badges">
                             {installed && (
                               <span className="mx-card-installed-badge">
                                 <span className="mx-card-installed-badge-dot" />
-                                Added
+                                {t("common.added", undefined, "Added")}
                               </span>
                             )}
                             {x.latest_version?.version && (
@@ -414,7 +460,7 @@ export function CatalogPage() {
                         to={detailTo}
                         className="mx-btn mx-btn-ghost mx-btn-sm mx-card-footer-link"
                       >
-                        View details
+                        {t("catalog.view_details", undefined, "View details")}
                       </Link>
                       {canMutate &&
                         (!installed ? (
@@ -465,10 +511,14 @@ export function CatalogPage() {
       )}
       <ConfirmActionModal
         open={Boolean(pendingRemoval)}
-        title="Remove app?"
+        title={t("catalog.remove_app_title", undefined, "Remove app?")}
         description={
           pendingRemoval
-            ? `Remove ${pendingRemoval.title} from your current workspace? You can add it again later.`
+            ? t(
+                "catalog.remove_app_description",
+                { title: pendingRemoval.title },
+                `Remove ${pendingRemoval.title} from your current workspace? You can add it again later.`,
+              )
             : ""
         }
         confirmLabel={removeAppLabel}

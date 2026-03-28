@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
+import type { TranslationParams } from "@xapps-platform/platform-i18n";
+import { useMarketplaceI18n } from "../i18n";
 import { useMarketplace } from "../MarketplaceContext";
 import type { CatalogXappDetail } from "../types";
 import { buildTokenSearch, readHostReturnUrl } from "../utils/embedSearch";
@@ -56,34 +58,55 @@ function readPaymentEvidenceParams(search: string): URLSearchParams {
   return out;
 }
 
-function toSessionExpiredUi(input: unknown): SessionExpiredUi {
+function toSessionExpiredUi(
+  input: unknown,
+  t: (key: string, params?: TranslationParams, fallback?: string) => string,
+): SessionExpiredUi {
   const data = asRecord(input);
   const reason = readString(data.reason).toLowerCase();
   const message = readFirstString(data.message);
 
   if (reason === "logout") {
     return {
-      title: "Session ended",
-      message: message || "Your session ended. Go back and open the widget again.",
+      title: t("widget.session_ended_title", undefined, "Session ended"),
+      message:
+        message ||
+        t(
+          "widget.session_ended_message",
+          undefined,
+          "Your session ended. Go back and open the widget again.",
+        ),
     };
   }
 
   if (reason === "token_refresh_failed") {
     return {
-      title: "Widget session expired",
+      title: t("widget.session_expired_title", undefined, "Widget session expired"),
       message:
-        message || "This widget session expired and could not be renewed. Open it again to continue.",
+        message ||
+        t(
+          "widget.session_expired_refresh_failed",
+          undefined,
+          "This widget session expired and could not be renewed. Open it again to continue.",
+        ),
     };
   }
 
   return {
-    title: "Widget session expired",
-    message: message || "This widget session ended. Go back and open it again to continue.",
+    title: t("widget.session_expired_title", undefined, "Widget session expired"),
+    message:
+      message ||
+      t(
+        "widget.session_expired_default",
+        undefined,
+        "This widget session ended. Go back and open it again to continue.",
+      ),
   };
 }
 
 export function WidgetView() {
   const { client, host, env } = useMarketplace();
+  const { t } = useMarketplaceI18n();
   const { installationId, widgetId } = useParams();
   const token = useQueryToken();
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -148,7 +171,9 @@ export function WidgetView() {
         if (inst && inst.xappId) {
           if (!alive) return;
           setXappId(inst.xappId);
-          const res = await client.getCatalogXapp(inst.xappId);
+          const res = await client.getCatalogXapp(inst.xappId, {
+            installationId: String(installationId || "").trim() || null,
+          });
           if (!alive) return;
           setXappDetail(res);
           const detail = asRecord(res);
@@ -481,7 +506,14 @@ export function WidgetView() {
         if (!env?.embedMode) {
           const data = asRecord(msg.data);
           const requestId = msg.id;
-          const prompt = String(data.message || "This action requires confirmation. Continue?");
+          const prompt = String(
+            data.message ||
+              t(
+                "widget.confirm_continue_prompt",
+                undefined,
+                "This action requires confirmation. Continue?",
+              ),
+          );
           const confirmed = typeof window.confirm === "function" ? window.confirm(prompt) : false;
           try {
             (e.source as Window | null)?.postMessage(
@@ -503,7 +535,10 @@ export function WidgetView() {
         return;
       }
 
-      if (msgType === "XAPPS_TOKEN_REFRESH_REQUEST" && e.source === iframeRef.current?.contentWindow) {
+      if (
+        msgType === "XAPPS_TOKEN_REFRESH_REQUEST" &&
+        e.source === iframeRef.current?.contentWindow
+      ) {
         void (async () => {
           try {
             const refreshed = await remintWidgetSession();
@@ -523,11 +558,15 @@ export function WidgetView() {
               );
             } catch {}
           } catch (refreshError) {
-            const sessionExpiredUi = toSessionExpiredUi({
-              reason: "token_refresh_failed",
-              message:
-                readFirstString(asRecord(refreshError).message) || "Widget session refresh failed",
-            });
+            const sessionExpiredUi = toSessionExpiredUi(
+              {
+                reason: "token_refresh_failed",
+                message:
+                  readFirstString(asRecord(refreshError).message) ||
+                  "Widget session refresh failed",
+              },
+              t,
+            );
             setSessionExpired(sessionExpiredUi);
             setWidgetToken("");
             try {
@@ -550,8 +589,24 @@ export function WidgetView() {
         return;
       }
 
+      if (
+        (msgType === "XAPPS_WIDGET_CONTEXT_REQUEST" || msgType === "XAPPS_WIDGET_READY") &&
+        e.source === iframeRef.current?.contentWindow
+      ) {
+        try {
+          (e.source as Window | null)?.postMessage(
+            {
+              type: "XAPPS_WIDGET_CONTEXT",
+              locale: env?.locale || null,
+            },
+            "*",
+          );
+        } catch {}
+        return;
+      }
+
       if (msgType === "XAPPS_SESSION_EXPIRED") {
-        setSessionExpired(toSessionExpiredUi(msg.data));
+        setSessionExpired(toSessionExpiredUi(msg.data, t));
         setWidgetToken("");
         return;
       }
@@ -644,7 +699,21 @@ export function WidgetView() {
     tokenSearch,
     token,
     xappId,
+    t,
   ]);
+
+  useEffect(() => {
+    if (!widgetToken || !env?.locale) return;
+    try {
+      iframeRef.current?.contentWindow?.postMessage(
+        {
+          type: "XAPPS_LOCALE_CHANGED",
+          locale: env.locale,
+        },
+        "*",
+      );
+    } catch {}
+  }, [env?.locale, widgetToken]);
 
   const widgetUrl = (() => {
     if (!widgetToken) return "";
@@ -663,27 +732,31 @@ export function WidgetView() {
       <div className={`mx-catalog-container ${isEmbedded ? "is-embedded" : ""}`}>
         <div className="mx-breadcrumb">
           <button className="mx-breadcrumb-link-btn" onClick={onBackToPortal}>
-            Portal
+            {t("common.portal", undefined, "Portal")}
           </button>
           {!env?.singleXappMode && (
             <>
               <span className="mx-breadcrumb-sep">/</span>
-              <Link to={marketplaceTo as any}>Marketplace</Link>
+              <Link to={marketplaceTo as any}>
+                {t("common.marketplace", undefined, "Marketplace")}
+              </Link>
             </>
           )}
           <span className="mx-breadcrumb-sep">/</span>
-          <span>Error</span>
+          <span>{t("common.error", undefined, "Error")}</span>
         </div>
         <div className="mx-widget-error">
-          <div className="mx-widget-error-title">Unable to load widget</div>
+          <div className="mx-widget-error-title">
+            {t("widget.unable_to_load", undefined, "Unable to load widget")}
+          </div>
           <div className="mx-widget-error-desc">{error}</div>
           <div className="mx-widget-error-actions">
             <Link to={marketplaceTo as any} className="mx-btn mx-btn-outline">
-              Back to Marketplace
+              {t("common.back_to_marketplace", undefined, "Back to Marketplace")}
             </Link>
             {xappTo && (
               <Link to={xappTo as any} className="mx-btn mx-btn-ghost">
-                View app details
+                {t("common.view_app_details", undefined, "View app details")}
               </Link>
             )}
           </div>
@@ -697,26 +770,28 @@ export function WidgetView() {
       <div className={`mx-catalog-container ${isEmbedded ? "is-embedded" : ""}`}>
         <div className="mx-breadcrumb">
           <button className="mx-breadcrumb-link-btn" onClick={onBackToPortal}>
-            Portal
+            {t("common.portal", undefined, "Portal")}
           </button>
           {!env?.singleXappMode && (
             <>
               <span className="mx-breadcrumb-sep">/</span>
-              <Link to={marketplaceTo as any}>Marketplace</Link>
+              <Link to={marketplaceTo as any}>
+                {t("common.marketplace", undefined, "Marketplace")}
+              </Link>
             </>
           )}
           <span className="mx-breadcrumb-sep">/</span>
-          <span>Session</span>
+          <span>{t("common.session", undefined, "Session")}</span>
         </div>
         <div className="mx-widget-error">
           <div className="mx-widget-error-title">{sessionExpired.title}</div>
           <div className="mx-widget-error-desc">{sessionExpired.message}</div>
           <div className="mx-widget-error-actions">
             <Link to={marketplaceTo as any} className="mx-btn mx-btn-outline">
-              Back to Marketplace
+              {t("common.back_to_marketplace", undefined, "Back to Marketplace")}
             </Link>
             <button className="mx-btn mx-btn-ghost" onClick={onBackToPortal}>
-              Back to Portal
+              {t("common.back_to_portal", undefined, "Back to Portal")}
             </button>
           </div>
         </div>
@@ -729,21 +804,37 @@ export function WidgetView() {
       <div className={`mx-catalog-container ${isEmbedded ? "is-embedded" : ""}`}>
         <div className="mx-breadcrumb">
           <button className="mx-breadcrumb-link-btn" onClick={onBackToPortal}>
-            Portal
+            {t("common.portal", undefined, "Portal")}
           </button>
           {!env?.singleXappMode && (
             <>
               <span className="mx-breadcrumb-sep">/</span>
-              <Link to={marketplaceTo as any}>Marketplace</Link>
+              <Link to={marketplaceTo as any}>
+                {t("common.marketplace", undefined, "Marketplace")}
+              </Link>
             </>
           )}
           <span className="mx-breadcrumb-sep">/</span>
-          <span>{xappTitle || "Widget"}</span>
+          <span>{xappTitle || t("common.widget", undefined, "Widget")}</span>
         </div>
         <div className="mx-widget-loading">
           <div className="mx-spinner mx-spinner-lg" />
-          <div className="mx-widget-loading-title">Preparing {xappTitle || "widget"}...</div>
-          <div className="mx-widget-loading-sub">Setting up a secure session for this app.</div>
+          <div className="mx-widget-loading-title">
+            {t(
+              "widget.preparing",
+              {
+                title: xappTitle || t("common.widget", undefined, "Widget"),
+              },
+              "Preparing {title}...",
+            )}
+          </div>
+          <div className="mx-widget-loading-sub">
+            {t(
+              "widget.secure_session_setup",
+              undefined,
+              "Setting up a secure session for this app.",
+            )}
+          </div>
         </div>
       </div>
     );
@@ -760,35 +851,37 @@ export function WidgetView() {
       {env?.embedMode && hostNestedExpandStage === "inline" && (
         <div className="mx-breadcrumb mx-breadcrumb-top">
           <button className="mx-breadcrumb-link-btn" onClick={onBackToPortal}>
-            Portal
+            {t("common.portal", undefined, "Portal")}
           </button>
           {!env?.singleXappMode && (
             <>
               <span className="mx-breadcrumb-sep">/</span>
-              <Link to={marketplaceTo as any}>Marketplace</Link>
+              <Link to={marketplaceTo as any}>
+                {t("common.marketplace", undefined, "Marketplace")}
+              </Link>
             </>
           )}
           {xappTo && (
             <>
               <span className="mx-breadcrumb-sep">/</span>
-              <Link to={xappTo as any}>{xappTitle || "App"}</Link>
+              <Link to={xappTo as any}>{xappTitle || t("common.app", undefined, "App")}</Link>
             </>
           )}
           <span className="mx-breadcrumb-sep">/</span>
-          <span>Widget</span>
+          <span>{t("common.widget", undefined, "Widget")}</span>
         </div>
       )}
       {!env?.embedMode && hostNestedExpandStage === "inline" && (
         <div className="mx-breadcrumb">
-          <Link to={marketplaceTo as any}>Marketplace</Link>
+          <Link to={marketplaceTo as any}>{t("common.marketplace", undefined, "Marketplace")}</Link>
           {xappTo && (
             <>
               <span className="mx-breadcrumb-sep">/</span>
-              <Link to={xappTo as any}>{xappTitle || "App"}</Link>
+              <Link to={xappTo as any}>{xappTitle || t("common.app", undefined, "App")}</Link>
             </>
           )}
           <span className="mx-breadcrumb-sep">/</span>
-          <span>Widget</span>
+          <span>{t("common.widget", undefined, "Widget")}</span>
         </div>
       )}
 

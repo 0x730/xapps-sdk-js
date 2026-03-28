@@ -23,6 +23,15 @@ This package is now prepared for public distribution for React integrators who w
   - `WidgetView`
 - CSS entry: `@xapps-platform/marketplace-ui/marketplace.css`
 
+## Locale
+
+`MarketplaceProvider` accepts `env.locale` and uses the shared platform i18n core.
+
+- current first-wave shipped locales: `en`, `ro`
+- shared navigation/catalog/widget-shell copy now resolves through the common catalog
+- open widget routes also forward runtime locale changes to the embedded widget with
+  `XAPPS_LOCALE_CHANGED`
+
 ## Minimal usage
 
 ```tsx

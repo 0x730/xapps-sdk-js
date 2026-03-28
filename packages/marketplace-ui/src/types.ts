@@ -90,7 +90,10 @@ export type InstallationInfo = {
 
 export type MarketplaceClient = {
   listCatalogXapps(): Promise<{ items: CatalogXapp[] }>;
-  getCatalogXapp(xappId: string): Promise<CatalogXappDetail>;
+  getCatalogXapp(
+    xappId: string,
+    options?: { installationId?: string | null },
+  ): Promise<CatalogXappDetail>;
 
   // Requests (read-only)
   listMyRequests(query?: {
@@ -169,6 +172,7 @@ export type MarketplaceClient = {
 export type MarketplaceHostAdapter = {
   subjectId?: string | null;
   theme?: Record<string, unknown> | null;
+  locale?: string | null;
 
   /**
    * Whether the current runtime is allowed to perform Marketplace mutations (install/update/uninstall).
@@ -219,6 +223,7 @@ export type MarketplaceHostAdapter = {
 };
 
 export type MarketplaceEnv = {
+  locale?: string;
   title?: string;
   copy?: {
     addAppLabel?: string;

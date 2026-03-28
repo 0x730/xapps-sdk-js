@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
+import { resolveMarketplaceText, useMarketplaceI18n } from "../i18n";
 import { useMarketplace } from "../MarketplaceContext";
 import { MarketplaceActivityTabs } from "../components/MarketplaceActivityTabs";
 import { MarketplacePrimaryNav } from "../components/MarketplacePrimaryNav";
@@ -18,18 +19,28 @@ function useQuery(): URLSearchParams {
 }
 
 function StatusBadge({ status, unread }: { status: string; unread: boolean }) {
-  if (unread) return <span className="mx-badge mx-badge-warning">Unread</span>;
+  const { t } = useMarketplaceI18n();
+  if (unread) {
+    return (
+      <span className="mx-badge mx-badge-warning">{t("status.unread", undefined, "Unread")}</span>
+    );
+  }
   const normalized = String(status || "")
     .trim()
     .toUpperCase();
   const className = normalized === "COMPLETED" ? "mx-badge-success" : "mx-badge-danger";
-  return <span className={`mx-badge ${className}`}>{normalized || "Read"}</span>;
+  return (
+    <span className={`mx-badge ${className}`}>
+      {normalized || t("status.read", undefined, "Read")}
+    </span>
+  );
 }
 
 type NotificationRecord = Record<string, unknown>;
 
 export function NotificationsPage() {
   const { client, host } = useMarketplace();
+  const { locale, t } = useMarketplaceI18n();
   const token = useQueryToken();
   const query = useQuery();
 
@@ -48,7 +59,13 @@ export function NotificationsPage() {
 
   async function refresh() {
     if (!client.listMyNotifications) {
-      setError("Notifications are unavailable in this host.");
+      setError(
+        t(
+          "activity.unavailable_notifications_title",
+          undefined,
+          "Notifications are unavailable in this host.",
+        ),
+      );
       setItems([]);
       setUnreadCount(0);
       setBusy(false);
@@ -180,7 +197,9 @@ export function NotificationsPage() {
         if (!alive) return;
         const manifest = asRecord(res?.manifest);
         const xapp = asRecord(res?.xapp);
-        setXappTitle(readFirstString(manifest.title, xapp.name));
+        setXappTitle(
+          resolveMarketplaceText(manifest.title as any, locale) || readFirstString(xapp.name),
+        );
       } catch {
         if (!alive) return;
         setXappTitle("");
@@ -189,7 +208,7 @@ export function NotificationsPage() {
     return () => {
       alive = false;
     };
-  }, [client, xappIdFilter]);
+  }, [client, locale, xappIdFilter]);
 
   const xappLink = xappIdFilter
     ? ({
@@ -221,7 +240,9 @@ export function NotificationsPage() {
   return (
     <div className={`mx-catalog-container ${isEmbedded ? "is-embedded" : ""}`}>
       <div className="mx-breadcrumb">
-        <Link to={isEmbedded ? "/" : "/marketplace"}>Marketplace</Link>
+        <Link to={isEmbedded ? "/" : "/marketplace"}>
+          {t("common.marketplace", undefined, "Marketplace")}
+        </Link>
         {xappLink && (
           <>
             <span className="mx-breadcrumb-sep">/</span>
@@ -229,14 +250,24 @@ export function NotificationsPage() {
           </>
         )}
         <span className="mx-breadcrumb-sep">/</span>
-        <span>Notifications</span>
+        <span>{t("activity.notifications_title", undefined, "Notifications")}</span>
       </div>
 
       <header className="mx-header">
         <div>
-          <h1 className="mx-title">Notifications</h1>
+          <h1 className="mx-title">
+            {t("activity.notifications_title", undefined, "Notifications")}
+          </h1>
           <div className="mx-subtle-note mx-subtle-note-compact">
-            {unreadCount} unread item{unreadCount === 1 ? "" : "s"}
+            {t(
+              "activity.unread_count",
+              {
+                count: unreadCount,
+                suffix: unreadCount === 1 ? "" : "s",
+                suffix2: unreadCount === 1 ? "" : "e",
+              },
+              `${unreadCount} unread item${unreadCount === 1 ? "" : "s"}`,
+            )}
           </div>
         </div>
         <div className="mx-header-actions">
@@ -247,19 +278,19 @@ export function NotificationsPage() {
           />
           {client.markAllMyNotificationsRead && unreadCount > 0 && (
             <button className="mx-btn mx-btn-outline" onClick={() => void markAllRead()}>
-              Mark all read
+              {t("activity.mark_all_read", undefined, "Mark all read")}
             </button>
           )}
           {xappIdFilter && (
             <Link to={clearHref as any} className="mx-btn mx-btn-ghost">
-              Clear Filter
+              {t("common.clear_filter", undefined, "Clear Filter")}
             </Link>
           )}
           <button
             className={`mx-btn-icon ${busy ? "is-spinning" : ""}`}
             onClick={() => void refresh()}
             disabled={busy}
-            title="Refresh"
+            title={t("common.refresh", undefined, "Refresh")}
           >
             <svg
               viewBox="0 0 24 24"
@@ -285,10 +316,16 @@ export function NotificationsPage() {
 
       {emptyState ? (
         <div className="mx-table-container mx-alert mx-alert-info">
-          <div className="mx-alert-subject-title">Subject required</div>
+          <div className="mx-alert-subject-title">
+            {t("activity.subject_required_title", undefined, "Subject required")}
+          </div>
           <div className="mx-alert-subject-desc">
-            This host session is not associated with a user. Ask your host to create a catalog
-            session with a <code>subjectId</code>.
+            {t(
+              "activity.subject_required_desc",
+              undefined,
+              "This host session is not associated with a user. Ask your host to create a catalog session with a subjectId.",
+            )}{" "}
+            <code>subjectId</code>.
           </div>
         </div>
       ) : error ? (
@@ -297,7 +334,11 @@ export function NotificationsPage() {
 
       {xappIdFilter && (
         <div className="mx-subtle-note">
-          Showing notification activity for{" "}
+          {t(
+            "activity.showing_notifications_for_prefix",
+            undefined,
+            "Showing notification activity for",
+          )}{" "}
           {xappLink ? (
             <Link to={xappLink} className="mx-subtle-note-link">
               {xappTitle || xappIdFilter}
@@ -312,11 +353,13 @@ export function NotificationsPage() {
         <div className="mx-record-panel">
           <div className="mx-record-panel-head">
             <div>
-              <div className="mx-record-panel-kicker">Notification Detail</div>
+              <div className="mx-record-panel-kicker">
+                {t("activity.notification_detail", undefined, "Notification Detail")}
+              </div>
               <div className="mx-record-panel-id">{focusedNotificationId}</div>
             </div>
             <Link to={listHref as any} className="mx-btn mx-btn-ghost">
-              Back to notification list
+              {t("activity.back_to_notification_list", undefined, "Back to notification list")}
             </Link>
           </div>
           {focusedError ? (
@@ -324,7 +367,7 @@ export function NotificationsPage() {
           ) : focusedNotification ? (
             <div className="mx-record-grid">
               <div className="mx-record-field">
-                <div className="mx-record-label">Status</div>
+                <div className="mx-record-label">{t("common.status", undefined, "Status")}</div>
                 <div className="mx-record-value">
                   <StatusBadge
                     status={readString(focusedNotification.status)}
@@ -333,25 +376,25 @@ export function NotificationsPage() {
                 </div>
               </div>
               <div className="mx-record-field">
-                <div className="mx-record-label">Trigger</div>
+                <div className="mx-record-label">{t("common.trigger", undefined, "Trigger")}</div>
                 <div className="mx-record-value is-strong">
                   {readFirstString(focusedNotification.trigger, "—")}
                 </div>
               </div>
               <div className="mx-record-field">
-                <div className="mx-record-label">Channel</div>
+                <div className="mx-record-label">{t("common.channel", undefined, "Channel")}</div>
                 <div className="mx-record-value is-strong">
                   {readFirstString(focusedNotification.channel, "—")}
                 </div>
               </div>
               <div className="mx-record-field">
-                <div className="mx-record-label">Received</div>
+                <div className="mx-record-label">{t("common.received", undefined, "Received")}</div>
                 <div className="mx-record-value">
                   {formatDateTime(focusedNotification.created_at) || "—"}
                 </div>
               </div>
               <div className="mx-record-field is-span-full">
-                <div className="mx-record-label">Message</div>
+                <div className="mx-record-label">{t("common.message", undefined, "Message")}</div>
                 <div className="mx-record-value">
                   {readFirstString(focusedNotification.message, "—")}
                 </div>
@@ -362,17 +405,20 @@ export function NotificationsPage() {
                 <div className="mx-record-pill-row">
                   {readString(focusedNotification.request_id) ? (
                     <span className="mx-badge mx-badge-outline">
-                      Request: {readString(focusedNotification.request_id)}
+                      {t("common.request", undefined, "Request")}:{" "}
+                      {readString(focusedNotification.request_id)}
                     </span>
                   ) : null}
                   {readString(focusedNotification.payment_session_id) ? (
                     <span className="mx-badge mx-badge-outline">
-                      Payment: {readString(focusedNotification.payment_session_id)}
+                      {t("common.payment", undefined, "Payment")}:{" "}
+                      {readString(focusedNotification.payment_session_id)}
                     </span>
                   ) : null}
                   {readString(focusedNotification.reason) ? (
                     <span className="mx-badge mx-badge-outline">
-                      Reason: {readString(focusedNotification.reason)}
+                      {t("common.reason", undefined, "Reason")}:{" "}
+                      {readString(focusedNotification.reason)}
                     </span>
                   ) : null}
                 </div>
@@ -383,7 +429,7 @@ export function NotificationsPage() {
                     className="mx-btn mx-btn-outline mx-btn-sm"
                     onClick={() => void markRead(readString(focusedNotification.id))}
                   >
-                    Mark read
+                    {t("activity.mark_read", undefined, "Mark read")}
                   </button>
                 </div>
               ) : null}
@@ -391,7 +437,13 @@ export function NotificationsPage() {
           ) : (
             <div className="mx-record-loading">
               <div className="mx-spinner" />
-              <span>Loading notification details...</span>
+              <span>
+                {t(
+                  "activity.loading_notification_detail",
+                  undefined,
+                  "Loading notification details...",
+                )}
+              </span>
             </div>
           )}
         </div>
@@ -401,12 +453,12 @@ export function NotificationsPage() {
         <table className="mx-table" data-responsive="cards">
           <thead>
             <tr>
-              <th scope="col">Status</th>
-              <th scope="col">Trigger</th>
-              <th scope="col">Channel</th>
-              <th scope="col">Message</th>
-              <th scope="col">Received</th>
-              <th scope="col">Action</th>
+              <th scope="col">{t("common.status", undefined, "Status")}</th>
+              <th scope="col">{t("common.trigger", undefined, "Trigger")}</th>
+              <th scope="col">{t("common.channel", undefined, "Channel")}</th>
+              <th scope="col">{t("common.message", undefined, "Message")}</th>
+              <th scope="col">{t("common.received", undefined, "Received")}</th>
+              <th scope="col">{t("common.action", undefined, "Action")}</th>
             </tr>
           </thead>
           <tbody>
@@ -416,26 +468,37 @@ export function NotificationsPage() {
                   {busy ? (
                     <div className="mx-loading-center mx-loading-table">
                       <div className="mx-spinner" />
-                      <span>Loading notifications...</span>
+                      <span>
+                        {t("activity.loading_notifications", undefined, "Loading notifications...")}
+                      </span>
                     </div>
                   ) : (
-                    "No notification activity found."
+                    t("activity.no_notifications", undefined, "No notification activity found.")
                   )}
                 </td>
               </tr>
             ) : (
               items.map((item, index) => (
                 <tr key={readFirstString(item.id, index)}>
-                  <td data-label="Status">
+                  <td data-label={t("common.status", undefined, "Status")}>
                     <StatusBadge status={readString(item.status)} unread={Boolean(item.unread)} />
                   </td>
-                  <td data-label="Trigger">{readFirstString(item.trigger, "—")}</td>
-                  <td data-label="Channel">{readFirstString(item.channel, "—")}</td>
-                  <td data-label="Message">{readFirstString(item.message, "—")}</td>
-                  <td className="mx-cell-date" data-label="Received">
+                  <td data-label={t("common.trigger", undefined, "Trigger")}>
+                    {readFirstString(item.trigger, "—")}
+                  </td>
+                  <td data-label={t("common.channel", undefined, "Channel")}>
+                    {readFirstString(item.channel, "—")}
+                  </td>
+                  <td data-label={t("common.message", undefined, "Message")}>
+                    {readFirstString(item.message, "—")}
+                  </td>
+                  <td
+                    className="mx-cell-date"
+                    data-label={t("common.received", undefined, "Received")}
+                  >
                     {formatDateTime(item.created_at) || "—"}
                   </td>
-                  <td data-label="Action">
+                  <td data-label={t("common.action", undefined, "Action")}>
                     <div className="mx-action-group">
                       <Link
                         to={
@@ -459,14 +522,14 @@ export function NotificationsPage() {
                         }
                         className="mx-btn mx-btn-outline mx-btn-sm"
                       >
-                        Details
+                        {t("common.details", undefined, "Details")}
                       </Link>
                       {Boolean(item.unread) && client.markMyNotificationRead ? (
                         <button
                           className="mx-btn mx-btn-outline mx-btn-sm"
                           onClick={() => void markRead(readString(item.id))}
                         >
-                          Mark read
+                          {t("activity.mark_read", undefined, "Mark read")}
                         </button>
                       ) : null}
                     </div>

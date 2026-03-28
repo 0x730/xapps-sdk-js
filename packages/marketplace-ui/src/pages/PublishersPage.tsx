@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
+import { useMarketplaceI18n } from "../i18n";
 import { useMarketplace } from "../MarketplaceContext";
 import { MarketplacePrimaryNav } from "../components/MarketplacePrimaryNav";
 import { buildTokenSearch } from "../utils/embedSearch";
@@ -41,6 +42,7 @@ function avatarColor(slug: string): string {
 
 export function PublishersPage() {
   const { client, env } = useMarketplace();
+  const { t } = useMarketplaceI18n();
   const loc = useLocation();
   const token = useQueryToken();
   const tokenSearch = buildTokenSearch(token, loc.search);
@@ -116,7 +118,9 @@ export function PublishersPage() {
   return (
     <div className={`mx-catalog-container ${isEmbedded ? "is-embedded" : ""}`}>
       <header className="mx-header">
-        <h1 className="mx-title">{env?.title ?? "Marketplace"}</h1>
+        <h1 className="mx-title">
+          {env?.title ?? t("common.marketplace", undefined, "Marketplace")}
+        </h1>
         <div className="mx-header-actions">
           <MarketplacePrimaryNav
             active="publishers"
@@ -138,7 +142,7 @@ export function PublishersPage() {
               })();
             }}
             disabled={busy}
-            title="Refresh"
+            title={t("common.refresh", undefined, "Refresh")}
           >
             <svg
               viewBox="0 0 24 24"
@@ -159,22 +163,32 @@ export function PublishersPage() {
       <div className="mx-search-filters">
         <div className="mx-filters-inner">
           <div className="mx-input-group mx-input-group-grow">
-            <label className="mx-label">Search publishers</label>
+            <label className="mx-label">
+              {t("publisher.search_publishers", undefined, "Search publishers")}
+            </label>
             <input
               className="mx-input"
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="Search by name or slug..."
-              aria-label="Search publishers"
+              placeholder={t(
+                "publisher.search_publishers_placeholder",
+                undefined,
+                "Search by name or slug...",
+              )}
+              aria-label={t("publisher.search_publishers", undefined, "Search publishers")}
             />
           </div>
           <div className="mx-stats-grid">
             <div className="mx-stat-card">
-              <div className="mx-stat-label">Publishers</div>
+              <div className="mx-stat-label">
+                {t("publisher.publishers_count", undefined, "Publishers")}
+              </div>
               <div className="mx-stat-value">{ordered.length}</div>
             </div>
             <div className="mx-stat-card">
-              <div className="mx-stat-label">Catalog xApps</div>
+              <div className="mx-stat-label">
+                {t("publisher.catalog_xapps", undefined, "Catalog xApps")}
+              </div>
               <div className="mx-stat-value">{totalXapps}</div>
             </div>
           </div>
@@ -203,7 +217,11 @@ export function PublishersPage() {
           {!busy && (
             <div className="mx-results-bar">
               <div className="mx-results-count">
-                {ordered.length} publisher{ordered.length === 1 ? "" : "s"}
+                {t(
+                  "publisher.results_count",
+                  { count: ordered.length, suffix: ordered.length === 1 ? "" : "s" },
+                  `${ordered.length} publisher${ordered.length === 1 ? "" : "s"}`,
+                )}
               </div>
             </div>
           )}
@@ -227,11 +245,21 @@ export function PublishersPage() {
                     <path d="M16 3.13a4 4 0 0 1 0 7.75" />
                   </svg>
                 </div>
-                <div className="mx-empty-catalog-title">No publishers found</div>
+                <div className="mx-empty-catalog-title">
+                  {t("publisher.no_publishers_found", undefined, "No publishers found")}
+                </div>
                 <div className="mx-empty-catalog-desc">
                   {q
-                    ? "Try adjusting your search to find what you're looking for."
-                    : "No publishers are available in the catalog right now."}
+                    ? t(
+                        "publisher.empty_filtered",
+                        undefined,
+                        "Try adjusting your search to find what you're looking for.",
+                      )
+                    : t(
+                        "publisher.empty_default",
+                        undefined,
+                        "No publishers are available in the catalog right now.",
+                      )}
                 </div>
               </div>
             ) : (
@@ -263,7 +291,7 @@ export function PublishersPage() {
                         to={detailTo}
                         className="mx-btn mx-btn-ghost mx-btn-sm mx-card-footer-link"
                       >
-                        View publisher
+                        {t("publisher.view_publisher", undefined, "View publisher")}
                       </Link>
                       <Link to={detailTo} className="mx-btn mx-btn-outline mx-btn-sm">
                         Browse xapps

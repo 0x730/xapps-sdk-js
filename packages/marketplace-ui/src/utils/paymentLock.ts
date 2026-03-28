@@ -18,6 +18,8 @@ export type PaymentLockResolution = {
   monetizationState: Record<string, unknown> | null;
 };
 
+type PaymentLockTranslate = (key: string, fallback: string) => string;
+
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
 }
@@ -42,51 +44,100 @@ function normalizeActionKind(raw: string): string {
   return readString(raw).toLowerCase();
 }
 
-function resolveCtaLabel(actionKind: string): string {
-  if (actionKind === "complete_payment") return "Complete Payment";
-  if (actionKind === "payment_required") return "Complete Payment";
-  return "Continue";
+function resolveText(t: PaymentLockTranslate | undefined, key: string, fallback: string): string {
+  return typeof t === "function" ? t(key, fallback) : fallback;
+}
+
+function resolveCtaLabel(actionKind: string, t?: PaymentLockTranslate): string {
+  if (actionKind === "complete_payment") {
+    return resolveText(t, "payment_lock.complete_payment", "Complete Payment");
+  }
+  if (actionKind === "payment_required") {
+    return resolveText(t, "payment_lock.complete_payment", "Complete Payment");
+  }
+  return resolveText(t, "payment_lock.continue", "Continue");
 }
 
 function resolveLockMessage(
   reason: string,
   paymentAttemptState: string,
   reconcileState: PaymentReconcileState,
+  t?: PaymentLockTranslate,
 ): string {
   if (reconcileState === "confirming_payment") {
-    return "Confirming payment finality with provider.";
+    return resolveText(
+      t,
+      "payment_lock.confirming_payment_finality",
+      "Confirming payment finality with provider.",
+    );
   }
   if (reconcileState === "still_pending") {
-    return "Payment is still pending at provider. Retry confirm in a few seconds.";
+    return resolveText(
+      t,
+      "payment_lock.pending_retry_confirm",
+      "Payment is still pending at provider. Retry confirm in a few seconds.",
+    );
   }
   if (reconcileState === "confirmed_paid") {
-    return "Payment is confirmed. Refresh to continue.";
+    return resolveText(
+      t,
+      "payment_lock.confirmed_refresh",
+      "Payment is confirmed. Refresh to continue.",
+    );
   }
   if (reconcileState === "failed") {
-    return "Payment is not settled. Complete a new payment attempt.";
+    return resolveText(
+      t,
+      "payment_lock.not_settled_new_attempt",
+      "Payment is not settled. Complete a new payment attempt.",
+    );
   }
   const attempt = readString(paymentAttemptState).toLowerCase();
   if (attempt === "requires_action") {
-    return "Payment requires additional action. Complete payment to continue.";
+    return resolveText(
+      t,
+      "payment_lock.requires_additional_action",
+      "Payment requires additional action. Complete payment to continue.",
+    );
   }
   if (attempt === "failed") {
-    return "Last payment attempt failed. Complete payment to continue.";
+    return resolveText(
+      t,
+      "payment_lock.attempt_failed",
+      "Last payment attempt failed. Complete payment to continue.",
+    );
   }
   if (attempt === "replayed") {
-    return "Payment evidence was already used. Start a new payment attempt.";
+    return resolveText(
+      t,
+      "payment_lock.evidence_used",
+      "Payment evidence was already used. Start a new payment attempt.",
+    );
   }
   if (reason === "payment_receipt_already_used") {
-    return "Payment evidence was already consumed. Start a new payment attempt.";
+    return resolveText(
+      t,
+      "payment_lock.evidence_consumed",
+      "Payment evidence was already consumed. Start a new payment attempt.",
+    );
   }
   if (reason === "payment_evidence_missing" || reason === "payment_required") {
-    return "Payment is required before this request can proceed.";
+    return resolveText(
+      t,
+      "payment_lock.required_before_request",
+      "Payment is required before this request can proceed.",
+    );
   }
-  return "Payment is required before this request can proceed.";
+  return resolveText(
+    t,
+    "payment_lock.required_before_request",
+    "Payment is required before this request can proceed.",
+  );
 }
 
 export function resolvePaymentLockStateFromGuardSummary(
   summaryInput: unknown,
-  options?: { reconcileState?: PaymentReconcileState | null },
+  options?: { reconcileState?: PaymentReconcileState | null; t?: PaymentLockTranslate },
 ): PaymentLockResolution {
   const summary = asRecord(summaryInput);
   const action = resolveAction(summary);
@@ -121,8 +172,8 @@ export function resolvePaymentLockStateFromGuardSummary(
     reason,
     actionKind,
     actionUrl,
-    ctaLabel: resolveCtaLabel(actionKind),
-    message: resolveLockMessage(reason, paymentAttemptState, reconcileState),
+    ctaLabel: resolveCtaLabel(actionKind, options?.t),
+    message: resolveLockMessage(reason, paymentAttemptState, reconcileState, options?.t),
     paymentSessionId: paymentSessionId || null,
     paymentAttemptState: paymentAttemptState || "unknown",
     reconcileState,

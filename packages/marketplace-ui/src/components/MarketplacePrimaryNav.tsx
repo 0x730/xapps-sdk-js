@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { useMarketplaceI18n } from "../i18n";
 
 type MarketplacePrimaryNavProps = {
   active: "xapps" | "publishers" | "activity";
@@ -7,6 +8,7 @@ type MarketplacePrimaryNavProps = {
 };
 
 export function MarketplacePrimaryNav(props: MarketplacePrimaryNavProps) {
+  const { t } = useMarketplaceI18n();
   const xappsTo = props.isEmbedded ? `/${props.tokenSearch}` : `/marketplace${props.tokenSearch}`;
   const publishersTo = props.isEmbedded
     ? `/publishers${props.tokenSearch}`
@@ -16,27 +18,30 @@ export function MarketplacePrimaryNav(props: MarketplacePrimaryNavProps) {
     : `/marketplace/requests${props.tokenSearch}`;
 
   return (
-    <nav className="mx-nav-switch" aria-label="Marketplace navigation">
+    <nav
+      className="mx-nav-switch"
+      aria-label={t("nav.marketplace", undefined, "Marketplace navigation")}
+    >
       <Link
         to={xappsTo as any}
         className={`mx-nav-link ${props.active === "xapps" ? "is-active" : ""}`}
         aria-current={props.active === "xapps" ? "page" : undefined}
       >
-        Xapps
+        {t("nav.xapps", undefined, "Xapps")}
       </Link>
       <Link
         to={publishersTo as any}
         className={`mx-nav-link ${props.active === "publishers" ? "is-active" : ""}`}
         aria-current={props.active === "publishers" ? "page" : undefined}
       >
-        Publishers
+        {t("nav.publishers", undefined, "Publishers")}
       </Link>
       <Link
         to={activityTo as any}
         className={`mx-nav-link ${props.active === "activity" ? "is-active" : ""}`}
         aria-current={props.active === "activity" ? "page" : undefined}
       >
-        Activity
+        {t("nav.activity", undefined, "Activity")}
       </Link>
     </nav>
   );

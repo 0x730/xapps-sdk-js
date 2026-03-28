@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
+import { useMarketplaceI18n } from "../i18n";
 import { useMarketplace } from "../MarketplaceContext";
 import { SchemaOutputView } from "../components/SchemaOutputView";
 import {
@@ -29,6 +30,7 @@ function useQuery(): URLSearchParams {
 
 export function RequestDetailPage() {
   const { client, host, env } = useMarketplace();
+  const { t } = useMarketplaceI18n();
   const { id } = useParams();
   const token = useQueryToken();
   const query = useQuery();
@@ -89,6 +91,9 @@ export function RequestDetailPage() {
       if (
         !resolvePaymentLockStateFromGuardSummary(
           asRecord(asRecord(res).request).guard_summary ?? null,
+          {
+            t: (key, fallback) => t(key, undefined, fallback),
+          },
         ).isLocked
       ) {
         setReconcileState("confirmed_paid");
@@ -161,7 +166,9 @@ export function RequestDetailPage() {
 
   const emptyState = error === "Subject required" || error === "Session token required";
 
-  const title = readFirstString(toolRecord.title, requestRecord.tool_name) || "Request Details";
+  const title =
+    readFirstString(toolRecord.title, requestRecord.tool_name) ||
+    t("activity.request_detail_title", undefined, "Request Details");
   const artifacts = Array.isArray(dataRecord.artifacts) ? dataRecord.artifacts : [];
 
   function attachArtifactLinks(value: unknown, arts: unknown[]): unknown {
@@ -208,12 +215,18 @@ export function RequestDetailPage() {
     return (
       <div className={`mx-catalog-container ${isEmbedded ? "is-embedded" : ""}`}>
         <div className="mx-table-container mx-unavailable">
-          <h2 className="mx-title mx-unavailable-title">Requests are unavailable</h2>
+          <h2 className="mx-title mx-unavailable-title">
+            {t("activity.unavailable_requests_title", undefined, "Requests are unavailable")}
+          </h2>
           <p className="mx-unavailable-desc">
-            This public catalog does not support viewing personal requests.
+            {t(
+              "activity.unavailable_requests_desc",
+              undefined,
+              "This public catalog does not support viewing personal requests.",
+            )}
           </p>
           <Link to={backToX as any} className="mx-btn mx-btn-primary">
-            ← Back
+            ← {t("common.back", undefined, "Back")}
           </Link>
         </div>
       </div>
@@ -233,8 +246,9 @@ export function RequestDetailPage() {
     () =>
       resolvePaymentLockStateFromGuardSummary(requestRecord.guard_summary ?? null, {
         reconcileState,
+        t: (key, fallback) => t(key, undefined, fallback),
       }),
-    [requestRecord.guard_summary, reconcileState],
+    [requestRecord.guard_summary, reconcileState, t],
   );
 
   function getEventPayload(ev: unknown): unknown | null {
@@ -289,19 +303,36 @@ export function RequestDetailPage() {
 
   function renderGuardActionLabel(summary: ReturnType<typeof extractGuardSummary>): string {
     if (!summary) return "";
+    const suffix = summary.actionUrl ? ` (${summary.actionUrl})` : "";
     if (summary.actionKind === "upgrade_subscription") {
-      return `Upgrade subscription${summary.actionUrl ? ` (${summary.actionUrl})` : ""}`;
+      return t(
+        "activity.guard_action_upgrade_subscription",
+        { suffix },
+        "Upgrade subscription{suffix}",
+      );
     }
     if (summary.actionKind === "complete_payment") {
-      return `Complete payment${summary.actionUrl ? ` (${summary.actionUrl})` : ""}`;
+      return t("activity.guard_action_complete_payment", { suffix }, "Complete payment{suffix}");
     }
     if (summary.actionKind === "step_up_auth") {
-      return `Complete step-up authentication${summary.actionUrl ? ` (${summary.actionUrl})` : ""}`;
+      return t(
+        "activity.guard_action_step_up_authentication",
+        { suffix },
+        "Complete step-up authentication{suffix}",
+      );
     }
     if (summary.actionKind === "confirm_action") {
-      return summary.actionMessage ? `Confirm action (${summary.actionMessage})` : "Confirm action";
+      return summary.actionMessage
+        ? t(
+            "activity.guard_action_confirm_action_message",
+            { message: summary.actionMessage },
+            "Confirm action ({message})",
+          )
+        : t("activity.guard_action_confirm_action", undefined, "Confirm action");
     }
-    return summary.actionKind ? `Action: ${summary.actionKind}` : "";
+    return summary.actionKind
+      ? t("activity.guard_action_custom", { kind: summary.actionKind }, "Action: {kind}")
+      : "";
   }
 
   function relativeTime(dateValue: unknown): string {
@@ -312,16 +343,16 @@ export function RequestDetailPage() {
       const then = parsed.getTime();
       if (Number.isNaN(then)) return "";
       const diff = now - then;
-      if (diff < 0) return "just now";
+      if (diff < 0) return t("common.just_now", undefined, "just now");
       const seconds = Math.floor(diff / 1000);
-      if (seconds < 10) return "just now";
-      if (seconds < 60) return `${seconds}s ago`;
+      if (seconds < 10) return t("common.just_now", undefined, "just now");
+      if (seconds < 60) return t("common.seconds_ago", { value: seconds }, "{value}s ago");
       const minutes = Math.floor(seconds / 60);
-      if (minutes < 60) return `${minutes}m ago`;
+      if (minutes < 60) return t("common.minutes_ago", { value: minutes }, "{value}m ago");
       const hours = Math.floor(minutes / 60);
-      if (hours < 24) return `${hours}h ago`;
+      if (hours < 24) return t("common.hours_ago", { value: hours }, "{value}h ago");
       const days = Math.floor(hours / 24);
-      return `${days}d ago`;
+      return t("common.days_ago", { value: days }, "{value}d ago");
     } catch {
       return "";
     }
@@ -356,7 +387,9 @@ export function RequestDetailPage() {
           >
             <polyline points="9 18 15 12 9 6" />
           </svg>
-          {isOpen ? "Hide details" : "Show details"}
+          {isOpen
+            ? t("activity.hide_details", undefined, "Hide details")
+            : t("activity.show_details", undefined, "Show details")}
         </button>
         {isOpen && (
           <div className="mx-event-payload-body">
@@ -381,9 +414,11 @@ export function RequestDetailPage() {
   return (
     <div className={`mx-catalog-container ${isEmbedded ? "is-embedded" : ""}`}>
       <div className="mx-breadcrumb">
-        {!env?.singleXappMode && <Link to={marketplaceTo as any}>Marketplace</Link>}
+        {!env?.singleXappMode && (
+          <Link to={marketplaceTo as any}>{t("common.marketplace", undefined, "Marketplace")}</Link>
+        )}
         {env?.singleXappMode && !env?.embedMode && (
-          <Link to={marketplaceTo as any}>Marketplace</Link>
+          <Link to={marketplaceTo as any}>{t("common.marketplace", undefined, "Marketplace")}</Link>
         )}
         {xappTo && (
           <>
@@ -394,19 +429,23 @@ export function RequestDetailPage() {
           </>
         )}
         <span className="mx-breadcrumb-sep">/</span>
-        <Link to={backToRequests as any}>Requests</Link>
+        <Link to={backToRequests as any}>
+          {t("activity.requests_title", undefined, "Requests")}
+        </Link>
         <span className="mx-breadcrumb-sep">/</span>
         <span className="mx-cell-mono">{id?.slice(0, 8)}</span>
       </div>
 
       <header className="mx-header">
-        <h1 className="mx-title">Request Details</h1>
+        <h1 className="mx-title">
+          {t("activity.request_detail_title", undefined, "Request Details")}
+        </h1>
         <div className="mx-header-actions">
           <button
             className={`mx-btn-icon ${busy ? "is-spinning" : ""}`}
             onClick={() => void refreshOnce()}
             disabled={busy}
-            title="Refresh"
+            title={t("common.refresh", undefined, "Refresh")}
           >
             <svg
               viewBox="0 0 24 24"
@@ -424,10 +463,16 @@ export function RequestDetailPage() {
 
       {emptyState ? (
         <div className="mx-table-container mx-alert mx-alert-info">
-          <div className="mx-alert-subject-title">Subject required</div>
+          <div className="mx-alert-subject-title">
+            {t("activity.subject_required_title", undefined, "Subject required")}
+          </div>
           <div className="mx-alert-subject-desc">
-            This host session is not associated with a user. Ask your host to create a catalog
-            session with a <code>subjectId</code>.
+            {t(
+              "activity.subject_required_desc",
+              undefined,
+              "This host session is not associated with a user. Ask your host to create a catalog session with a subjectId.",
+            )}{" "}
+            <code>subjectId</code>.
           </div>
         </div>
       ) : error ? (
@@ -473,24 +518,28 @@ export function RequestDetailPage() {
 
               <div className="mx-request-meta-grid">
                 <div className="mx-meta-item">
-                  <span className="mx-meta-label">Request ID</span>
+                  <span className="mx-meta-label">
+                    {t("common.request_id", undefined, "Request ID")}
+                  </span>
                   <code className="mx-request-code">{id}</code>
                 </div>
                 <div className="mx-meta-item">
-                  <span className="mx-meta-label">Tool</span>
+                  <span className="mx-meta-label">{t("common.tool", undefined, "Tool")}</span>
                   <span className="mx-meta-value">
                     {readFirstString(requestRecord.tool_name) || "—"}
                   </span>
                 </div>
                 <div className="mx-meta-item">
-                  <span className="mx-meta-label">Created</span>
+                  <span className="mx-meta-label">{t("common.created", undefined, "Created")}</span>
                   <span className="mx-meta-value">
                     {formatDateTime(requestRecord.created_at) || "—"}
                   </span>
                 </div>
                 {readString(requestRecord.completed_at) && (
                   <div className="mx-meta-item">
-                    <span className="mx-meta-label">Completed</span>
+                    <span className="mx-meta-label">
+                      {t("common.completed", undefined, "Completed")}
+                    </span>
                     <span className="mx-meta-value">
                       {formatDateTime(requestRecord.completed_at) || "—"}
                     </span>
@@ -500,10 +549,14 @@ export function RequestDetailPage() {
             </section>
 
             <section className="mx-table-container mx-request-section">
-              <h3 className="mx-section-title mx-section-title-md">Response</h3>
+              <h3 className="mx-section-title mx-section-title-md">
+                {t("activity.response_title", undefined, "Response")}
+              </h3>
               {requestPaymentLock.isLocked && requestPaymentLock.actionUrl ? (
                 <div className="mx-payment-lock-banner">
-                  <div className="mx-payment-lock-title">Payment Required</div>
+                  <div className="mx-payment-lock-title">
+                    {t("activity.payment_required", undefined, "Payment Required")}
+                  </div>
                   <div className="mx-payment-lock-message">{requestPaymentLock.message}</div>
                   <div className="mx-payment-lock-actions">
                     <button
@@ -512,7 +565,8 @@ export function RequestDetailPage() {
                         window.location.href = requestPaymentLock.actionUrl;
                       }}
                     >
-                      {requestPaymentLock.ctaLabel || "Complete Payment"}
+                      {requestPaymentLock.ctaLabel ||
+                        t("activity.complete_payment", undefined, "Complete Payment")}
                     </button>
                     {client.reconcileMyRequestPayment && requestPaymentLock.paymentSessionId ? (
                       <button
@@ -522,11 +576,13 @@ export function RequestDetailPage() {
                           reconcileBusy || requestPaymentLock.reconcileState === "confirmed_paid"
                         }
                       >
-                        {reconcileBusy ? "Confirming..." : "Confirm Payment"}
+                        {reconcileBusy
+                          ? t("activity.confirming_payment", undefined, "Confirming...")
+                          : t("activity.confirm_payment", undefined, "Confirm Payment")}
                       </button>
                     ) : null}
                     <button className="mx-btn mx-btn-secondary" onClick={() => void refreshOnce()}>
-                      Refresh Status
+                      {t("activity.refresh_status", undefined, "Refresh Status")}
                     </button>
                   </div>
                   {reconcileError ? (
@@ -535,7 +591,9 @@ export function RequestDetailPage() {
                 </div>
               ) : null}
               {!isTerminal ? (
-                <div className="mx-waiting-state">Waiting for response…</div>
+                <div className="mx-waiting-state">
+                  {t("activity.waiting_for_response", undefined, "Waiting for response…")}
+                </div>
               ) : (
                 <SchemaOutputView schema={outputSchema} value={responsePayload} />
               )}
@@ -561,9 +619,21 @@ export function RequestDetailPage() {
                 let durationLabel = "";
                 if (firstTs && lastTs) {
                   const ms = Math.abs(lastTs.getTime() - firstTs.getTime());
-                  if (ms < 1000) durationLabel = `${ms}ms`;
-                  else if (ms < 60_000) durationLabel = `${(ms / 1000).toFixed(1)}s`;
-                  else durationLabel = `${(ms / 60_000).toFixed(1)}m`;
+                  if (ms < 1000) {
+                    durationLabel = t("activity.timeline_duration_ms", { value: ms }, "{value}ms");
+                  } else if (ms < 60_000) {
+                    durationLabel = t(
+                      "activity.timeline_duration_seconds",
+                      { value: (ms / 1000).toFixed(1) },
+                      "{value}s",
+                    );
+                  } else {
+                    durationLabel = t(
+                      "activity.timeline_duration_minutes",
+                      { value: (ms / 60_000).toFixed(1) },
+                      "{value}m",
+                    );
+                  }
                 }
                 return (
                   <section className="mx-table-container mx-request-section">
@@ -587,10 +657,20 @@ export function RequestDetailPage() {
                       <div className="mx-timeline-toggle-content">
                         <div className="mx-timeline-toggle-top">
                           <h3 className="mx-section-title mx-section-title-md mx-section-title-tight">
-                            Execution Timeline
+                            {t("activity.execution_timeline", undefined, "Execution Timeline")}
                           </h3>
                           <span className="mx-timeline-count">
-                            {evts.length} event{evts.length === 1 ? "" : "s"}
+                            {evts.length === 1
+                              ? t(
+                                  "activity.timeline_count_one",
+                                  { count: evts.length },
+                                  "{count} event",
+                                )
+                              : t(
+                                  "activity.timeline_count_other",
+                                  { count: evts.length },
+                                  "{count} events",
+                                )}
                           </span>
                         </div>
                         {!timelineOpen && (
@@ -606,7 +686,17 @@ export function RequestDetailPage() {
                             <div className="mx-timeline-summary-stats">
                               {errorCount > 0 && (
                                 <span className="mx-timeline-stat mx-timeline-stat-error">
-                                  {errorCount} err
+                                  {errorCount === 1
+                                    ? t(
+                                        "activity.timeline_error_count_one",
+                                        { count: errorCount },
+                                        "{count} error",
+                                      )
+                                    : t(
+                                        "activity.timeline_error_count_other",
+                                        { count: errorCount },
+                                        "{count} errors",
+                                      )}
                                 </span>
                               )}
                               {durationLabel && (
@@ -623,7 +713,9 @@ export function RequestDetailPage() {
                       <ol className="mx-timeline">
                         {dataRecord.events.map((ev, idx: number) => {
                           const eventRecord = asRecord(ev);
-                          const typeText = readFirstString(eventRecord.type) || "event";
+                          const typeText =
+                            readFirstString(eventRecord.type) ||
+                            t("activity.event_fallback", undefined, "event");
                           const lower = typeText.toLowerCase();
                           const isErr =
                             lower.includes("fail") ||
@@ -732,23 +824,41 @@ export function RequestDetailPage() {
                                     <div className="mx-event-guard-badges">
                                       {guardSummary.guardSlug && (
                                         <span className="mx-badge">
-                                          guard: {guardSummary.guardSlug}
+                                          {t(
+                                            "activity.guard_badge",
+                                            { value: guardSummary.guardSlug },
+                                            "guard: {value}",
+                                          )}
                                         </span>
                                       )}
                                       {guardSummary.trigger && (
                                         <span className="mx-badge mx-badge-warning">
-                                          trigger: {guardSummary.trigger}
+                                          {t(
+                                            "activity.trigger_badge",
+                                            { value: guardSummary.trigger },
+                                            "trigger: {value}",
+                                          )}
                                         </span>
                                       )}
                                       {guardSummary.outcome && (
                                         <span className="mx-badge mx-badge-success">
-                                          outcome: {guardSummary.outcome}
+                                          {t(
+                                            "activity.outcome_badge",
+                                            { value: guardSummary.outcome },
+                                            "outcome: {value}",
+                                          )}
                                         </span>
                                       )}
                                     </div>
                                     {(guardSummary.reason || guardActionLabel) && (
                                       <div className="mx-event-guard-detail">
-                                        {guardSummary.reason ? `reason=${guardSummary.reason}` : ""}
+                                        {guardSummary.reason
+                                          ? t(
+                                              "activity.reason_detail",
+                                              { value: guardSummary.reason },
+                                              "reason={value}",
+                                            )
+                                          : ""}
                                         {guardSummary.reason && guardActionLabel ? " · " : ""}
                                         {guardActionLabel}
                                       </div>
@@ -782,7 +892,9 @@ export function RequestDetailPage() {
           <aside className="mx-detail-sidebar">
             {artifacts.length > 0 && (
               <div className="mx-sidebar-card">
-                <h3 className="mx-section-title mx-detail-sidebar-title">Artifacts</h3>
+                <h3 className="mx-section-title mx-detail-sidebar-title">
+                  {t("activity.artifacts_title", undefined, "Artifacts")}
+                </h3>
                 <div className="mx-sidebar-stack">
                   {artifacts.map((a) => {
                     const artifact = asRecord(a);
@@ -794,7 +906,8 @@ export function RequestDetailPage() {
                         rel="noreferrer"
                         className="mx-btn mx-btn-outline mx-sidebar-artifact-link"
                       >
-                        {readFirstString(artifact.filename) || "Download Artifact"}
+                        {readFirstString(artifact.filename) ||
+                          t("activity.download_artifact", undefined, "Download Artifact")}
                       </a>
                     );
                   })}
@@ -806,7 +919,9 @@ export function RequestDetailPage() {
               Array.isArray(dataRecord.widgets) &&
               dataRecord.widgets.length > 0 && (
                 <div className="mx-sidebar-card">
-                  <h3 className="mx-section-title mx-detail-sidebar-title">Related Widgets</h3>
+                  <h3 className="mx-section-title mx-detail-sidebar-title">
+                    {t("activity.related_widgets_title", undefined, "Related Widgets")}
+                  </h3>
                   <div className="mx-sidebar-stack">
                     {(Array.isArray(dataRecord.widgets) ? dataRecord.widgets : []).map((w) => {
                       const widget = asRecord(w);
@@ -818,7 +933,8 @@ export function RequestDetailPage() {
                             const installationId = readFirstString(requestRecord.installation_id);
                             const widgetId = readFirstString(widget.id);
                             const widgetName =
-                              readFirstString(widget.title, widget.widget_name) || "Widget";
+                              readFirstString(widget.title, widget.widget_name) ||
+                              t("common.widget", undefined, "Widget");
                             if (!installationId || !widgetId) return;
 
                             if (env?.embedMode) {
@@ -841,7 +957,15 @@ export function RequestDetailPage() {
                             });
                           }}
                         >
-                          Open {readFirstString(widget.title, widget.widget_name) || "Widget"}
+                          {t(
+                            "activity.open_widget",
+                            {
+                              widget:
+                                readFirstString(widget.title, widget.widget_name) ||
+                                t("common.widget", undefined, "Widget"),
+                            },
+                            `Open ${readFirstString(widget.title, widget.widget_name) || t("common.widget", undefined, "Widget")}`,
+                          )}
                         </button>
                       );
                     })}
@@ -850,12 +974,18 @@ export function RequestDetailPage() {
               )}
 
             <div className="mx-sidebar-card">
-              <h3 className="mx-section-title mx-detail-sidebar-title">Help</h3>
+              <h3 className="mx-section-title mx-detail-sidebar-title">
+                {t("activity.help_title", undefined, "Help")}
+              </h3>
               <p className="mx-sidebar-help-text">
-                Need help with this request? Contact your administrator with the Request ID above.
+                {t(
+                  "activity.help_request",
+                  undefined,
+                  "Need help with this request? Contact your administrator with the Request ID above.",
+                )}
               </p>
               <Link to={backToRequests as any} className="mx-btn mx-btn-outline mx-btn-sidebar">
-                Back to Requests
+                {t("activity.back_to_requests", undefined, "Back to Requests")}
               </Link>
             </div>
           </aside>

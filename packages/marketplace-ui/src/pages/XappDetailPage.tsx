@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
+import { resolveMarketplaceText, useMarketplaceI18n } from "../i18n";
+import type { TranslateFunction } from "@xapps-platform/platform-i18n";
 import { useMarketplace } from "../MarketplaceContext";
 import { ConfirmActionModal } from "../components/ConfirmActionModal";
 import { buildTokenSearch } from "../utils/embedSearch";
 import {
   buildOperationalSurfaceHref,
   discoverOperationalSurfaceData,
-  getOperationalSurfaceLabel,
   getVisibleOperationalSurfaces,
   type OperationalSurfaceKey,
 } from "../utils/operationalSurfaces";
@@ -171,26 +172,35 @@ function humanizeSlug(slug: string): string {
     .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
-function humanizeTrigger(trigger: string): string {
+function humanizeTrigger(trigger: string, translate: TranslateFunction): string {
   const normalized = String(trigger || "")
     .trim()
     .toLowerCase();
-  if (normalized === "before:tool_run") return "Before running this app";
-  if (normalized === "after:tool_run") return "After this app finishes";
-  if (normalized === "before:widget_open") return "Before opening this app";
-  if (normalized === "after:widget_open") return "After opening this app";
-  if (!normalized) return "App stage";
+  if (normalized === "before:tool_run") {
+    return translate("xapp.trigger_before_tool_run", undefined, "Before running this app");
+  }
+  if (normalized === "after:tool_run") {
+    return translate("xapp.trigger_after_tool_run", undefined, "After this app finishes");
+  }
+  if (normalized === "before:widget_open") {
+    return translate("xapp.trigger_before_widget_open", undefined, "Before opening this app");
+  }
+  if (normalized === "after:widget_open") {
+    return translate("xapp.trigger_after_widget_open", undefined, "After opening this app");
+  }
+  if (!normalized) return translate("xapp.trigger_default", undefined, "App stage");
   return humanizeSlug(normalized.replace(/:/g, " "));
 }
 
-function describeGuardChain(policyKind: string): string {
+function describeGuardChain(policyKind: string, translate: TranslateFunction): string {
   return policyKind === "any"
-    ? "Any listed step can satisfy this stage."
-    : "All listed steps apply at this stage.";
+    ? translate("xapp.policy_any", undefined, "Any one satisfies")
+    : translate("xapp.policy_all", undefined, "All steps apply");
 }
 
 export function XappDetailPage() {
   const { client, host, env } = useMarketplace();
+  const { locale, t } = useMarketplaceI18n();
   const { xappId } = useParams();
   const loc = useLocation();
   const token = useQueryToken();
@@ -201,10 +211,13 @@ export function XappDetailPage() {
   const autoOpenedWidgetKeyRef = useRef<string>("");
 
   const canMutate = host.canMutate ? host.canMutate() : true;
-  const addAppLabel = env?.copy?.addAppLabel || "Add to workspace";
-  const removeAppLabel = env?.copy?.removeAppLabel || "Remove from workspace";
-  const updateAppLabel = env?.copy?.updateAppLabel || "Update app";
-  const openAppLabel = env?.copy?.openAppLabel || "Open app";
+  const addAppLabel =
+    env?.copy?.addAppLabel || t("xapp.add_to_workspace", undefined, "Add to workspace");
+  const removeAppLabel =
+    env?.copy?.removeAppLabel ||
+    t("xapp.remove_from_workspace", undefined, "Remove from workspace");
+  const updateAppLabel = env?.copy?.updateAppLabel || t("xapp.update_app", undefined, "Update app");
+  const openAppLabel = env?.copy?.openAppLabel || t("xapp.open_app", undefined, "Open app");
 
   const [data, setData] = useState<Record<string, unknown> | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -233,7 +246,9 @@ export function XappDetailPage() {
     setError(null);
     setBusy(true);
     try {
-      const res = await client.getCatalogXapp(String(xappId));
+      const res = await client.getCatalogXapp(String(xappId), {
+        installationId: installation?.installationId ?? null,
+      });
       setData(asRecord(res));
     } catch (e) {
       setError(readString(asRecord(e)?.message) || String(e));
@@ -251,7 +266,7 @@ export function XappDetailPage() {
       params: { xappId },
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [xappId]);
+  }, [client, installation?.installationId, xappId]);
 
   useEffect(() => {
     const currentXappId = String(xappId ?? "").trim();
@@ -279,9 +294,14 @@ export function XappDetailPage() {
   const xappRecord = asRecord(data?.xapp);
   const versionRecord = asRecord(data?.version);
   const publisherRecord = asRecord(xappRecord?.publisher);
-  const title = readString(manifest?.title) || readString(xappRecord?.name) || "Xapp";
+  const title =
+    resolveMarketplaceText(manifest?.title as any, locale) ||
+    readString(xappRecord?.name) ||
+    t("xapp.kicker_default", undefined, "Xapp");
   const description =
-    readString(manifest?.description) || readString(xappRecord?.description) || "";
+    resolveMarketplaceText(manifest?.description as any, locale) ||
+    readString(xappRecord?.description) ||
+    "";
   const imageUrl = readString(manifest?.image) || "https://picsum.photos/seed/xapps-detail/840/360";
 
   const widgets: Record<string, unknown>[] = Array.isArray(data?.widgets)
@@ -306,7 +326,9 @@ export function XappDetailPage() {
   };
 
   const terms = asRecord(manifest?.terms);
-  const termsTitle = readString(terms?.title) || "Terms & Conditions";
+  const termsTitle =
+    resolveMarketplaceText(terms?.title as any, locale) ||
+    t("xapp.terms_title", undefined, "Terms & Conditions");
   const termsText = readString(terms?.text);
   const termsUrl = readString(terms?.url);
   const hasTermsContent = Boolean(termsText || termsUrl);
@@ -353,7 +375,7 @@ export function XappDetailPage() {
         readString(widget?.title) ||
         readString(widget?.widget_name) ||
         readString(widget?.name) ||
-        "Widget",
+        t("common.widget", undefined, "Widget"),
       toolName: readString(widget?.bind_tool_name),
     });
   }, [
@@ -387,6 +409,18 @@ export function XappDetailPage() {
   const secondarySurfaceLinks = Array.from(
     new Set([...visibleOperationalSurfaces, ...discoveredOperationalSurfaces]),
   ).filter((surface) => surface !== "requests");
+  function getLocalizedOperationalSurfaceLabel(surface: OperationalSurfaceKey): string {
+    if (surface === "payments") {
+      return t("activity.payments_title", undefined, "Payments");
+    }
+    if (surface === "invoices") {
+      return t("activity.invoices_title", undefined, "Invoices");
+    }
+    if (surface === "notifications") {
+      return t("activity.notifications_title", undefined, "Notifications");
+    }
+    return t("activity.requests_title", undefined, "Requests");
+  }
   const publisherSlug = readString(publisherRecord?.slug);
   const publisherName = readString(publisherRecord?.name) || publisherSlug;
   const publisherTo = publisherSlug
@@ -449,7 +483,7 @@ export function XappDetailPage() {
         <div className="mx-detail-topbar-left">
           {!singleXappMode && (
             <Link to={backTo as any} relative="path" className="mx-btn mx-btn-ghost">
-              ← Back
+              ← {t("common.back", undefined, "Back")}
             </Link>
           )}
           <div className="mx-detail-topbar-title">{title}</div>
@@ -459,7 +493,7 @@ export function XappDetailPage() {
             className={`mx-btn-icon ${busy ? "is-spinning" : ""}`}
             onClick={() => void refresh()}
             disabled={busy}
-            title="Refresh"
+            title={t("common.refresh", undefined, "Refresh")}
           >
             <svg
               viewBox="0 0 24 24"
@@ -521,7 +555,13 @@ export function XappDetailPage() {
             <img src={imageUrl} alt={title} className="mx-detail-icon" />
             <div className="mx-detail-info">
               <div className="mx-detail-kicker">
-                {publisherName ? `Publisher: ${publisherName}` : "Xapp"}
+                {publisherName
+                  ? t(
+                      "xapp.kicker_publisher",
+                      { publisher: publisherName },
+                      `Publisher: ${publisherName}`,
+                    )
+                  : t("xapp.kicker_default", undefined, "Xapp")}
               </div>
               <h1 className="mx-detail-title">{title}</h1>
               {description ? <p className="mx-detail-subtitle">{description}</p> : null}
@@ -533,7 +573,9 @@ export function XappDetailPage() {
                   </div>
                 )}
                 {updateAvailable ? (
-                  <div className="mx-detail-update-pill">Update available</div>
+                  <div className="mx-detail-update-pill">
+                    {t("xapp.update_available", undefined, "Update available")}
+                  </div>
                 ) : null}
               </div>
             </div>
@@ -603,25 +645,43 @@ export function XappDetailPage() {
           <div className="mx-detail-grid">
             <main className="mx-detail-main">
               <section className="mx-detail-section mx-detail-section-about">
-                <h2 className="mx-section-title">About</h2>
+                <h2 className="mx-section-title">{t("xapp.about_title", undefined, "About")}</h2>
                 <div className="mx-detail-desc">{description}</div>
               </section>
 
               <section className="mx-detail-section mx-detail-section-widgets">
-                <h2 className="mx-section-title">Available Views</h2>
+                <h2 className="mx-section-title">
+                  {t("xapp.available_views_title", undefined, "Available Views")}
+                </h2>
                 {!widgetsEnabled ? (
                   <div className="mx-sidebar-card mx-detail-empty">
                     {!installation
-                      ? "Add this app to your workspace to access its available views."
+                      ? t(
+                          "xapp.add_to_access_views",
+                          undefined,
+                          "Add this app to your workspace to access its available views.",
+                        )
                       : updateAvailable
-                        ? "An update is available. Please update the app to access its available views."
+                        ? t(
+                            "xapp.update_to_access_views",
+                            undefined,
+                            "An update is available. Please update the app to access its available views.",
+                          )
                         : !hasSubject
-                          ? "Load the catalog as a user to access this app."
+                          ? t(
+                              "xapp.load_as_user_to_access",
+                              undefined,
+                              "Load the catalog as a user to access this app.",
+                            )
                           : null}
                   </div>
                 ) : widgets.length === 0 ? (
                   <div className="mx-sidebar-card mx-detail-empty">
-                    No app views are currently available.
+                    {t(
+                      "xapp.no_views_available",
+                      undefined,
+                      "No app views are currently available.",
+                    )}
                   </div>
                 ) : (
                   <div className="mx-detail-widget-list">
@@ -631,7 +691,7 @@ export function XappDetailPage() {
                         readString(w.widget_name) ||
                         readString(w.name) ||
                         readString(w.id) ||
-                        "Widget";
+                        t("common.widget", undefined, "Widget");
                       const disabled = !widgetsEnabled;
                       const isDefault =
                         readBoolean(w.default, false) ||
@@ -704,7 +764,9 @@ export function XappDetailPage() {
                             )}
                             <div className="mx-detail-widget-badges">
                               {isDefault && (
-                                <span className="mx-detail-widget-badge is-primary">Primary</span>
+                                <span className="mx-detail-widget-badge is-primary">
+                                  {t("xapp.widget_primary", undefined, "Primary")}
+                                </span>
                               )}
                               {widgetType && (
                                 <span className="mx-detail-widget-badge">{widgetType}</span>
@@ -712,7 +774,9 @@ export function XappDetailPage() {
                             </div>
                           </div>
                           <div className="mx-detail-widget-action">
-                            <span className="mx-detail-widget-action-label">Open</span>
+                            <span className="mx-detail-widget-action-label">
+                              {t("xapp.widget_open", undefined, "Open")}
+                            </span>
                             <svg
                               viewBox="0 0 24 24"
                               fill="none"
@@ -733,12 +797,16 @@ export function XappDetailPage() {
               </section>
               <section className="mx-detail-section mx-detail-section-guards">
                 <div className="mx-detail-guard-header">
-                  <h2 className="mx-section-title mx-section-title-tight">How This App Runs</h2>
+                  <h2 className="mx-section-title mx-section-title-tight">
+                    {t("xapp.how_app_runs", undefined, "How This App Runs")}
+                  </h2>
                   <button
                     className="mx-btn mx-btn-ghost mx-btn-sm"
                     onClick={() => setGuardSummaryOpen((v) => !v)}
                   >
-                    {guardSummaryOpen ? "Hide details" : "View details"}
+                    {guardSummaryOpen
+                      ? t("activity.hide_details", undefined, "Hide details")
+                      : t("xapp.view_details", undefined, "View details")}
                   </button>
                 </div>
                 {!guardSummaryOpen ? (
@@ -775,8 +843,21 @@ export function XappDetailPage() {
                     </div>
                     <div className="mx-guard-summary-text">
                       {guardSummary.items.length === 0
-                        ? "This app has no extra run requirements configured."
-                        : `This app includes ${guardSummary.items.length} run check${guardSummary.items.length === 1 ? "" : "s"} across ${guardSummary.byTrigger.size} stage${guardSummary.byTrigger.size === 1 ? "" : "s"}. Open details to review access, payment, or follow-up steps.`}
+                        ? t(
+                            "xapp.no_run_requirements",
+                            undefined,
+                            "This app has no extra run requirements configured.",
+                          )
+                        : t(
+                            "xapp.guard_summary",
+                            {
+                              itemCount: guardSummary.items.length,
+                              itemSuffix: guardSummary.items.length === 1 ? "" : "s",
+                              stageCount: guardSummary.byTrigger.size,
+                              stageSuffix: guardSummary.byTrigger.size === 1 ? "" : "s",
+                            },
+                            `This app includes ${guardSummary.items.length} run check${guardSummary.items.length === 1 ? "" : "s"} across ${guardSummary.byTrigger.size} stage${guardSummary.byTrigger.size === 1 ? "" : "s"}. Open details to review access, payment, or follow-up steps.`,
+                          )}
                     </div>
                   </div>
                 ) : guardSummary.items.length === 0 ? (
@@ -794,7 +875,11 @@ export function XappDetailPage() {
                       </svg>
                     </div>
                     <div className="mx-guard-summary-text">
-                      This app has no extra run requirements configured.
+                      {t(
+                        "xapp.no_run_requirements",
+                        undefined,
+                        "This app has no extra run requirements configured.",
+                      )}
                     </div>
                   </div>
                 ) : (
@@ -821,11 +906,11 @@ export function XappDetailPage() {
                                 </svg>
                               )}
                             </div>
-                            <div className="mx-guard-stage-title">{humanizeTrigger(trigger)}</div>
+                            <div className="mx-guard-stage-title">
+                              {humanizeTrigger(trigger, t)}
+                            </div>
                             <div className="mx-guard-stage-policy">
-                              {items[0]?.policyKind === "any"
-                                ? "Any one satisfies"
-                                : "All steps apply"}
+                              {describeGuardChain(items[0]?.policyKind || "all", t)}
                             </div>
                           </div>
                           <div className="mx-guard-stage-body">
@@ -882,12 +967,18 @@ export function XappDetailPage() {
                                         />
                                       </svg>
                                     )}
-                                    <span>{guard.headless ? "Auto" : "User step"}</span>
+                                    <span>
+                                      {guard.headless
+                                        ? t("xapp.auto", undefined, "Auto")
+                                        : t("xapp.user_step", undefined, "User step")}
+                                    </span>
                                   </span>
                                   <span
                                     className={`mx-guard-severity ${guard.blocking ? "mx-guard-severity--required" : "mx-guard-severity--optional"}`}
                                   >
-                                    {guard.blocking ? "Required" : "Info"}
+                                    {guard.blocking
+                                      ? t("xapp.required", undefined, "Required")
+                                      : t("xapp.info", undefined, "Info")}
                                   </span>
                                 </div>
                               </div>
@@ -902,10 +993,17 @@ export function XappDetailPage() {
 
               {manifestScreenshots.length > 0 && (
                 <section className="mx-detail-section mx-detail-section-screenshots">
-                  <h2 className="mx-section-title">Screenshots</h2>
+                  <h2 className="mx-section-title">
+                    {t("xapp.screenshots_title", undefined, "Screenshots")}
+                  </h2>
                   <div className="mx-screenshots">
                     {manifestScreenshots.map((s, i) => (
-                      <img key={i} src={s} alt={`Screenshot ${i + 1}`} className="mx-screenshot" />
+                      <img
+                        key={i}
+                        src={s}
+                        alt={t("xapp.screenshot_alt", { index: i + 1 }, `Screenshot ${i + 1}`)}
+                        className="mx-screenshot"
+                      />
                     ))}
                   </div>
                 </section>
@@ -915,27 +1013,42 @@ export function XappDetailPage() {
             <aside className="mx-detail-sidebar">
               {usageCreditSummary ? (
                 <div className="mx-sidebar-card">
-                  <h3 className="mx-section-title mx-detail-sidebar-title">Usage Credits</h3>
+                  <h3 className="mx-section-title mx-detail-sidebar-title">
+                    {t("xapp.usage_credits_title", undefined, "Usage Credits")}
+                  </h3>
                   <div className="mx-meta-item">
-                    <span className="mx-meta-label">Available</span>
+                    <span className="mx-meta-label">
+                      {t("xapp.available_label", undefined, "Available")}
+                    </span>
                     <span className="mx-meta-value">
-                      {usageCreditSummary.available_count} ready to use
+                      {t(
+                        "xapp.ready_to_use",
+                        { count: usageCreditSummary.available_count },
+                        `${usageCreditSummary.available_count} ready to use`,
+                      )}
                     </span>
                   </div>
                   {usageCreditSummary.available_session_backed_count > 0 ? (
                     <div className="mx-meta-item mx-meta-item-top">
-                      <span className="mx-meta-label">Source</span>
+                      <span className="mx-meta-label">
+                        {t("xapp.source_label", undefined, "Source")}
+                      </span>
                       <div className="mx-meta-value mx-meta-stack-sm">
                         <div>
-                          {usageCreditSummary.available_session_backed_count} linked to visible
-                          payment sessions
+                          {t(
+                            "xapp.linked_payment_sessions",
+                            { count: usageCreditSummary.available_session_backed_count },
+                            `${usageCreditSummary.available_session_backed_count} linked to visible payment sessions`,
+                          )}
                         </div>
                       </div>
                     </div>
                   ) : null}
                   {usageCreditSummary.reserved_active_count > 0 ? (
                     <div className="mx-meta-item">
-                      <span className="mx-meta-label">In flight</span>
+                      <span className="mx-meta-label">
+                        {t("xapp.in_flight_label", undefined, "In flight")}
+                      </span>
                       <span className="mx-meta-value">
                         {usageCreditSummary.reserved_active_count}
                       </span>
@@ -943,7 +1056,9 @@ export function XappDetailPage() {
                   ) : null}
                   {usageCreditSummary.reserved_stale_count > 0 ? (
                     <div className="mx-meta-item">
-                      <span className="mx-meta-label">Needs review</span>
+                      <span className="mx-meta-label">
+                        {t("xapp.needs_review_label", undefined, "Needs review")}
+                      </span>
                       <span className="mx-meta-value">
                         {usageCreditSummary.reserved_stale_count}
                       </span>
@@ -951,31 +1066,50 @@ export function XappDetailPage() {
                   ) : null}
                   {usageCreditSummary.available_ledger_only_count > 0 ? (
                     <div className="mx-meta-item mx-meta-item-top">
-                      <span className="mx-meta-label">Invalid</span>
+                      <span className="mx-meta-label">
+                        {t("xapp.invalid_label", undefined, "Invalid")}
+                      </span>
                       <div className="mx-meta-value mx-meta-stack-sm">
                         <div>
-                          {usageCreditSummary.available_ledger_only_count} orphan ledger rows are
-                          not usable credits
+                          {t(
+                            "xapp.invalid_credits",
+                            { count: usageCreditSummary.available_ledger_only_count },
+                            `${usageCreditSummary.available_ledger_only_count} orphan ledger rows are not usable credits`,
+                          )}
                         </div>
                       </div>
                     </div>
                   ) : null}
                   {usageCreditSummary.by_tool.length > 0 ? (
                     <div className="mx-meta-item mx-meta-item-top">
-                      <span className="mx-meta-label">By tool</span>
+                      <span className="mx-meta-label">
+                        {t("xapp.by_tool_label", undefined, "By tool")}
+                      </span>
                       <div className="mx-meta-value mx-meta-stack-md">
                         {usageCreditSummary.by_tool.map((tool) => (
                           <div key={tool.tool_name}>
-                            <strong>{tool.available_count}</strong> for{" "}
-                            <code>{tool.tool_name}</code>
+                            <strong>{tool.available_count}</strong>{" "}
+                            {t("xapp.for_label", undefined, "for")} <code>{tool.tool_name}</code>
                             {tool.available_ledger_only_count > 0
-                              ? ` · ${tool.available_ledger_only_count} invalid`
+                              ? ` · ${t(
+                                  "xapp.invalid_short",
+                                  { count: tool.available_ledger_only_count },
+                                  `${tool.available_ledger_only_count} invalid`,
+                                )}`
                               : ""}
                             {tool.reserved_active_count > 0
-                              ? ` · ${tool.reserved_active_count} in flight`
+                              ? ` · ${t(
+                                  "xapp.in_flight_short",
+                                  { count: tool.reserved_active_count },
+                                  `${tool.reserved_active_count} in flight`,
+                                )}`
                               : ""}
                             {tool.reserved_stale_count > 0
-                              ? ` · ${tool.reserved_stale_count} stale`
+                              ? ` · ${t(
+                                  "xapp.stale_short",
+                                  { count: tool.reserved_stale_count },
+                                  `${tool.reserved_stale_count} stale`,
+                                )}`
                               : ""}
                           </div>
                         ))}
@@ -1007,7 +1141,7 @@ export function XappDetailPage() {
                         readString(defaultWidget?.title) ||
                         readString(defaultWidget?.widget_name) ||
                         readString(defaultWidget?.name) ||
-                        "Widget",
+                        t("common.widget", undefined, "Widget"),
                       toolName: readString(defaultWidget?.bind_tool_name),
                     });
                   }}
@@ -1018,7 +1152,9 @@ export function XappDetailPage() {
 
               {(env?.requestsEnabled !== false || secondarySurfaceLinks.length > 0) && (
                 <div className="mx-sidebar-card mx-activity-card">
-                  <h3 className="mx-section-title mx-detail-sidebar-title">Activity</h3>
+                  <h3 className="mx-section-title mx-detail-sidebar-title">
+                    {t("xapp.activity_title", undefined, "Activity")}
+                  </h3>
                   {env?.requestsEnabled !== false && (
                     <Link to={requestsTo} relative="path" className="mx-activity-link">
                       <div className="mx-activity-link-icon mx-activity-link-icon-requests">
@@ -1038,7 +1174,9 @@ export function XappDetailPage() {
                           <line x1="16" y1="17" x2="8" y2="17" />
                         </svg>
                       </div>
-                      <span className="mx-activity-link-label">Requests</span>
+                      <span className="mx-activity-link-label">
+                        {t("activity.requests_title", undefined, "Requests")}
+                      </span>
                       <span className="mx-activity-link-arrow">→</span>
                     </Link>
                   )}
@@ -1109,7 +1247,7 @@ export function XappDetailPage() {
                           )}
                         </div>
                         <span className="mx-activity-link-label">
-                          {getOperationalSurfaceLabel(surface)}
+                          {getLocalizedOperationalSurfaceLabel(surface)}
                         </span>
                         <span className="mx-activity-link-arrow">→</span>
                       </Link>
@@ -1119,21 +1257,31 @@ export function XappDetailPage() {
               )}
 
               <div className="mx-sidebar-card">
-                <h3 className="mx-section-title mx-detail-sidebar-title">Details</h3>
+                <h3 className="mx-section-title mx-detail-sidebar-title">
+                  {t("xapp.details_title", undefined, "Details")}
+                </h3>
 
                 <div className="mx-meta-item">
-                  <span className="mx-meta-label">App ID</span>
+                  <span className="mx-meta-label">
+                    {t("xapp.app_id_label", undefined, "App ID")}
+                  </span>
                   <code className="mx-meta-value mx-meta-code">{xappId}</code>
                 </div>
 
                 <div className="mx-meta-item">
-                  <span className="mx-meta-label">Status</span>
-                  <span className="mx-meta-value">{installation ? "Added" : "Available"}</span>
+                  <span className="mx-meta-label">{t("common.status", undefined, "Status")}</span>
+                  <span className="mx-meta-value">
+                    {installation
+                      ? t("xapp.status_added", undefined, "Added")
+                      : t("xapp.status_available", undefined, "Available")}
+                  </span>
                 </div>
 
                 {publisherTo ? (
                   <div className="mx-meta-item">
-                    <span className="mx-meta-label">Publisher</span>
+                    <span className="mx-meta-label">
+                      {t("xapp.publisher_label", undefined, "Publisher")}
+                    </span>
                     <Link to={publisherTo as any} className="mx-meta-value">
                       {publisherName}
                     </Link>
@@ -1142,7 +1290,7 @@ export function XappDetailPage() {
 
                 {manifestTags.length > 0 && (
                   <div className="mx-meta-item">
-                    <span className="mx-meta-label">Tags</span>
+                    <span className="mx-meta-label">{t("xapp.tags_label", undefined, "Tags")}</span>
                     <div className="mx-tag-list">
                       {manifestTags.map((t) => (
                         <span key={t} className="mx-tag">
@@ -1162,7 +1310,7 @@ export function XappDetailPage() {
                         setTermsOpen(true);
                       }}
                     >
-                      View Terms & Conditions →
+                      {t("xapp.view_terms", undefined, "View Terms & Conditions")} →
                     </button>
                   </div>
                 )}
@@ -1178,7 +1326,7 @@ export function XappDetailPage() {
                   <button
                     onClick={() => setTermsOpen(false)}
                     className="mx-btn mx-btn-ghost"
-                    aria-label="Close terms dialog"
+                    aria-label={t("xapp.close_terms_dialog", undefined, "Close terms dialog")}
                   >
                     ×
                   </button>
@@ -1195,7 +1343,7 @@ export function XappDetailPage() {
                       rel="noreferrer"
                       className="mx-btn mx-btn-outline mx-detail-modal-link"
                     >
-                      View Full Document
+                      {t("xapp.view_full_document", undefined, "View Full Document")}
                     </a>
                   )}
 
@@ -1208,7 +1356,11 @@ export function XappDetailPage() {
                         className="mx-detail-terms-checkbox"
                       />
                       <span className="mx-detail-terms-copy">
-                        I have read and accept the terms and conditions.
+                        {t(
+                          "xapp.accept_terms",
+                          undefined,
+                          "I have read and accept the terms and conditions.",
+                        )}
                       </span>
                     </label>
                   )}
@@ -1216,7 +1368,7 @@ export function XappDetailPage() {
 
                 <div className="mx-detail-modal-actions">
                   <button className="mx-btn mx-btn-outline" onClick={() => setTermsOpen(false)}>
-                    Cancel
+                    {t("common.cancel", undefined, "Cancel")}
                   </button>
                   {termsAction === "install" ? (
                     <button
@@ -1233,7 +1385,7 @@ export function XappDetailPage() {
                         setTermsAction("none");
                       }}
                     >
-                      Accept & Add app
+                      {t("xapp.accept_add_app", undefined, "Accept & Add app")}
                     </button>
                   ) : termsAction === "update" ? (
                     <button
@@ -1250,7 +1402,7 @@ export function XappDetailPage() {
                         setTermsAction("none");
                       }}
                     >
-                      Accept & Update
+                      {t("xapp.accept_update", undefined, "Accept & Update")}
                     </button>
                   ) : null}
                 </div>
@@ -1260,8 +1412,12 @@ export function XappDetailPage() {
 
           <ConfirmActionModal
             open={removeConfirmOpen}
-            title="Remove app?"
-            description={`Remove ${title} from your current workspace? You can add it again later.`}
+            title={t("catalog.remove_app_title", undefined, "Remove app?")}
+            description={t(
+              "catalog.remove_app_description",
+              { title },
+              `Remove ${title} from your current workspace? You can add it again later.`,
+            )}
             confirmLabel={removeAppLabel}
             onCancel={() => setRemoveConfirmOpen(false)}
             onConfirm={() => {

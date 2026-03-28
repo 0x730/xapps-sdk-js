@@ -1,4 +1,5 @@
 import React, { createContext, useContext } from "react";
+import { MarketplaceI18nProvider } from "./i18n";
 import type { MarketplaceClient, MarketplaceEnv, MarketplaceHostAdapter } from "./types";
 
 export type MarketplaceContextValue = {
@@ -16,9 +17,11 @@ export function MarketplaceProvider(props: {
   children: React.ReactNode;
 }) {
   return (
-    <Ctx.Provider value={{ client: props.client, host: props.host, env: props.env }}>
-      {props.children}
-    </Ctx.Provider>
+    <MarketplaceI18nProvider locale={props.env?.locale}>
+      <Ctx.Provider value={{ client: props.client, host: props.host, env: props.env }}>
+        {props.children}
+      </Ctx.Provider>
+    </MarketplaceI18nProvider>
   );
 }
 

@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { useMarketplaceI18n } from "../i18n";
 
 type ActivityTabKey = "requests" | "payments" | "invoices" | "notifications";
 
@@ -31,15 +32,19 @@ function buildActivityHref(input: {
 }
 
 export function MarketplaceActivityTabs(props: MarketplaceActivityTabsProps) {
+  const { t } = useMarketplaceI18n();
   const tabs: Array<{ key: ActivityTabKey; label: string }> = [
-    { key: "requests", label: "Requests" },
-    { key: "payments", label: "Payments" },
-    { key: "invoices", label: "Invoices" },
-    { key: "notifications", label: "Notifications" },
+    { key: "requests", label: t("activity.requests", undefined, "Requests") },
+    { key: "payments", label: t("activity.payments", undefined, "Payments") },
+    { key: "invoices", label: t("activity.invoices", undefined, "Invoices") },
+    { key: "notifications", label: t("activity.notifications", undefined, "Notifications") },
   ];
 
   return (
-    <nav className="mx-activity-tabs" aria-label="Activity navigation">
+    <nav
+      className="mx-activity-tabs"
+      aria-label={t("activity.navigation", undefined, "Activity navigation")}
+    >
       {tabs.map((tab) => (
         <Link
           key={tab.key}
