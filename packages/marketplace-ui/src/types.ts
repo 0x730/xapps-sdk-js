@@ -160,7 +160,10 @@ export type MarketplaceClient = {
   }>;
   markMyNotificationRead?(notificationId: string): Promise<{ ok: boolean; unread_count: number }>;
   markAllMyNotificationsRead?(): Promise<{ ok: boolean; unread_count: number }>;
-  getWidgetToken(installationId: string, widgetId: string): Promise<{ token: string }>;
+  getWidgetToken(
+    installationId: string,
+    widgetId: string,
+  ): Promise<{ token: string; expires_in?: number }>;
 };
 
 export type MarketplaceHostAdapter = {

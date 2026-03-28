@@ -25,6 +25,11 @@ type NestedPendingExpand = {
   resolve: (value: Record<string, unknown> | null) => void;
 };
 
+type SessionExpiredUi = {
+  title: string;
+  message: string;
+};
+
 function useQueryToken(): string {
   const loc = useLocation();
   const qs = new URLSearchParams(loc.search);
@@ -51,6 +56,32 @@ function readPaymentEvidenceParams(search: string): URLSearchParams {
   return out;
 }
 
+function toSessionExpiredUi(input: unknown): SessionExpiredUi {
+  const data = asRecord(input);
+  const reason = readString(data.reason).toLowerCase();
+  const message = readFirstString(data.message);
+
+  if (reason === "logout") {
+    return {
+      title: "Session ended",
+      message: message || "Your session ended. Go back and open the widget again.",
+    };
+  }
+
+  if (reason === "token_refresh_failed") {
+    return {
+      title: "Widget session expired",
+      message:
+        message || "This widget session expired and could not be renewed. Open it again to continue.",
+    };
+  }
+
+  return {
+    title: "Widget session expired",
+    message: message || "This widget session ended. Go back and open it again to continue.",
+  };
+}
+
 export function WidgetView() {
   const { client, host, env } = useMarketplace();
   const { installationId, widgetId } = useParams();
@@ -67,6 +98,7 @@ export function WidgetView() {
   >([]);
   const [widgetToken, setWidgetToken] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
+  const [sessionExpired, setSessionExpired] = useState<SessionExpiredUi | null>(null);
   const [hostNestedExpandStage, setHostNestedExpandStage] = useState<ExpandStage>("inline");
 
   const loc = useLocation();
@@ -168,6 +200,7 @@ export function WidgetView() {
       try {
         const { token: wToken } = await client.getWidgetToken(installationId, widgetId);
         if (!alive) return;
+        setSessionExpired(null);
         setWidgetToken(wToken);
       } catch (e) {
         if (!alive) return;
@@ -178,6 +211,26 @@ export function WidgetView() {
       alive = false;
     };
   }, [installationId, widgetId, client]);
+
+  async function remintWidgetSession() {
+    if (!installationId || !widgetId) {
+      throw new Error("Missing installationId/widgetId for widget refresh");
+    }
+    const refreshed = await client.getWidgetToken(installationId, widgetId);
+    const nextToken = String(refreshed?.token || "").trim();
+    if (!nextToken) {
+      throw new Error("Widget refresh did not return a token");
+    }
+    setSessionExpired(null);
+    setWidgetToken(nextToken);
+    return {
+      token: nextToken,
+      expires_in:
+        Number.isFinite(Number(refreshed?.expires_in)) && Number(refreshed?.expires_in) > 0
+          ? Number(refreshed?.expires_in)
+          : undefined,
+    };
+  }
 
   useEffect(() => {
     return () => {
@@ -450,6 +503,59 @@ export function WidgetView() {
         return;
       }
 
+      if (msgType === "XAPPS_TOKEN_REFRESH_REQUEST" && e.source === iframeRef.current?.contentWindow) {
+        void (async () => {
+          try {
+            const refreshed = await remintWidgetSession();
+            try {
+              (e.source as Window | null)?.postMessage(
+                {
+                  type: "XAPPS_TOKEN_REFRESH",
+                  id: readString(msg.id) || undefined,
+                  data: {
+                    token: refreshed.token,
+                    ...(typeof refreshed.expires_in === "number"
+                      ? { expires_in: refreshed.expires_in }
+                      : {}),
+                  },
+                },
+                "*",
+              );
+            } catch {}
+          } catch (refreshError) {
+            const sessionExpiredUi = toSessionExpiredUi({
+              reason: "token_refresh_failed",
+              message:
+                readFirstString(asRecord(refreshError).message) || "Widget session refresh failed",
+            });
+            setSessionExpired(sessionExpiredUi);
+            setWidgetToken("");
+            try {
+              (e.source as Window | null)?.postMessage(
+                {
+                  type: "XAPPS_SESSION_EXPIRED",
+                  id: readString(msg.id) || undefined,
+                  data: {
+                    reason: "token_refresh_failed",
+                    channel: "host",
+                    recoverable: false,
+                    message: sessionExpiredUi.message,
+                  },
+                },
+                "*",
+              );
+            } catch {}
+          }
+        })();
+        return;
+      }
+
+      if (msgType === "XAPPS_SESSION_EXPIRED") {
+        setSessionExpired(toSessionExpiredUi(msg.data));
+        setWidgetToken("");
+        return;
+      }
+
       if (msgType === "XAPPS_OPEN_WIDGET") {
         if (e.source === window) return;
 
@@ -580,6 +686,38 @@ export function WidgetView() {
                 View app details
               </Link>
             )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (sessionExpired) {
+    return (
+      <div className={`mx-catalog-container ${isEmbedded ? "is-embedded" : ""}`}>
+        <div className="mx-breadcrumb">
+          <button className="mx-breadcrumb-link-btn" onClick={onBackToPortal}>
+            Portal
+          </button>
+          {!env?.singleXappMode && (
+            <>
+              <span className="mx-breadcrumb-sep">/</span>
+              <Link to={marketplaceTo as any}>Marketplace</Link>
+            </>
+          )}
+          <span className="mx-breadcrumb-sep">/</span>
+          <span>Session</span>
+        </div>
+        <div className="mx-widget-error">
+          <div className="mx-widget-error-title">{sessionExpired.title}</div>
+          <div className="mx-widget-error-desc">{sessionExpired.message}</div>
+          <div className="mx-widget-error-actions">
+            <Link to={marketplaceTo as any} className="mx-btn mx-btn-outline">
+              Back to Marketplace
+            </Link>
+            <button className="mx-btn mx-btn-ghost" onClick={onBackToPortal}>
+              Back to Portal
+            </button>
           </div>
         </div>
       </div>
