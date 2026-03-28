@@ -38,6 +38,13 @@ export type HostShellApi = {
   renderIdentity: (identity: HostIdentity | null | undefined) => void;
   renderMode: (mode: string | null | undefined) => void;
   renderModeShell: (mode: HostMode) => void;
+  renderSessionExpiredShell: (input: {
+    title?: string | null;
+    message?: string | null;
+    restartLabel?: string | null;
+    backHref?: string | null;
+    backLabel?: string | null;
+  }) => void;
   renderSingleXappShell: () => void;
   setHeaderCollapsed: (collapsed: boolean) => void;
   setModeInUrl: (mode: HostMode) => void;
@@ -215,6 +222,45 @@ export function createHostShellApi(config?: HostShellConfig | null): HostShellAp
     `;
   }
 
+  function renderSessionExpiredShell(input: {
+    title?: string | null;
+    message?: string | null;
+    restartLabel?: string | null;
+    backHref?: string | null;
+    backLabel?: string | null;
+  }): void {
+    const root = document.getElementById("mode-shell");
+    if (!root) return;
+    const title = String(input?.title || "Session expired").trim() || "Session expired";
+    const message =
+      String(input?.message || "This hosted session expired and could not be renewed.").trim() ||
+      "This hosted session expired and could not be renewed.";
+    const restartLabel = String(input?.restartLabel || "Restart Session").trim() || "Restart Session";
+    const backHref = String(input?.backHref || "/").trim() || "/";
+    const backLabel = String(input?.backLabel || "Back to launcher").trim() || "Back to launcher";
+
+    root.innerHTML = `
+      <main class="main-content">
+        <section class="panel session-expired-panel">
+          <div class="session-expired-card">
+            <span class="session-expired-kicker">Hosted session</span>
+            <h2>${title}</h2>
+            <p>${message}</p>
+            <div class="actions">
+              <button id="host-session-restart" type="button">${restartLabel}</button>
+              <a class="ghost-link" href="${backHref}">${backLabel}</a>
+            </div>
+          </div>
+        </section>
+      </main>
+    `;
+
+    const restartButton = document.getElementById("host-session-restart");
+    restartButton?.addEventListener("click", () => {
+      window.location.reload();
+    });
+  }
+
   function setWidgetPlaceholder(
     title: string | null | undefined,
     message: string | null | undefined,
@@ -242,6 +288,7 @@ export function createHostShellApi(config?: HostShellConfig | null): HostShellAp
     renderIdentity,
     renderMode,
     renderModeShell,
+    renderSessionExpiredShell,
     renderSingleXappShell,
     setHeaderCollapsed,
     setModeInUrl,

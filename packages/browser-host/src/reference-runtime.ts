@@ -126,6 +126,8 @@ type CreateReferenceMarketplaceRuntimeOptions = {
     hostUi: unknown;
     theme: ReferenceTheme;
     apiBasePath: string;
+    apiClient?: unknown;
+    hostApiHeadersProvider?: (() => Record<string, string> | null | undefined) | undefined;
     bridgeV2: Record<string, unknown>;
     getCatalogMount: () => HTMLElement | null;
     getWidgetMount: () => HTMLElement | null;
@@ -140,6 +142,8 @@ type CreateReferenceMarketplaceRuntimeOptions = {
   themeKey?: string | null;
   defaultThemeKey?: string | null;
   apiBasePath?: string | null;
+  apiClient?: unknown;
+  hostApiHeadersProvider?: (() => Record<string, string> | null | undefined) | null;
   bridgeV2?: Record<string, unknown> | null;
   getCatalogMount?: (() => HTMLElement | null) | null;
   getWidgetMount?: (() => HTMLElement | null) | null;
@@ -173,8 +177,10 @@ export function createReferenceMarketplaceRuntime(
     theme:
       resolveReferenceTheme(options.themeKey, {
         defaultThemeKey: options.defaultThemeKey,
-      }) || REFERENCE_THEMES.harbor,
+    }) || REFERENCE_THEMES.harbor,
     apiBasePath: options.apiBasePath || "/api",
+    apiClient: options.apiClient,
+    hostApiHeadersProvider: options.hostApiHeadersProvider || undefined,
     bridgeV2: {
       ...(options.bridgeV2 || {}),
     },

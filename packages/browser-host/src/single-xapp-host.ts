@@ -5,19 +5,52 @@ import {
   resolveHostConfigUrl,
 } from "./backend-base.js";
 export async function bootSingleXappHost(config) {
-  const identity = config.readStoredJson(config.identityStorageKey);
-  if (!identity?.email || !identity?.subjectId) {
+  let currentIdentity = null;
+  let refreshInFlight = null;
+  let sessionExpiredShown = false;
+
+  async function tryRefreshIdentity() {
+    if (typeof config.refreshStoredJson !== "function") return null;
+    if (!refreshInFlight) {
+      refreshInFlight = Promise.resolve(config.refreshStoredJson(config.identityStorageKey))
+        .catch(() => null)
+        .finally(() => {
+          refreshInFlight = null;
+        });
+    }
+    const refreshed = await refreshInFlight;
+    if (refreshed?.email && refreshed?.subjectId) {
+      currentIdentity = refreshed;
+      try {
+        config.renderIdentity?.(currentIdentity);
+      } catch {}
+      return currentIdentity;
+    }
+    return null;
+  }
+
+  async function ensureIdentity() {
+    currentIdentity = config.readStoredJson(config.identityStorageKey);
+    if (currentIdentity?.email && currentIdentity?.subjectId) return currentIdentity;
+    const refreshed = await tryRefreshIdentity();
+    if (refreshed?.email && refreshed?.subjectId) return refreshed;
     const entryUrl = new URL(config.entryHref || "/", window.location.href);
     entryUrl.searchParams.set("hostError", "missing_identity");
     entryUrl.searchParams.set("next", window.location.pathname + window.location.search);
     window.location.replace(entryUrl.toString());
-    return;
+    return null;
   }
+
+  function getHostApiHeaders() {
+    const bootstrapToken = String(currentIdentity?.bootstrapToken || "").trim();
+    return bootstrapToken ? { "X-Xapps-Host-Bootstrap": bootstrapToken } : undefined;
+  }
+
+  const identity = await ensureIdentity();
+  if (!identity) return;
 
   const params = new URLSearchParams(window.location.search || "");
   const themeKey = config.applyThemePreference(config.readThemePreference(), { persist: false });
-  const bootstrapToken = String(identity.bootstrapToken || "").trim();
-  const hostApiHeaders = bootstrapToken ? { "X-Xapps-Host-Bootstrap": bootstrapToken } : undefined;
   const sdk = await import(
     `${config.sdkPath || "/embed/sdk/xapps-embed-sdk.esm.js"}${config.sdkVersionQuery || ""}`
   );
@@ -43,7 +76,37 @@ export async function bootSingleXappHost(config) {
   });
   const hostApiClient = createHostApiClient({
     timeoutMs: 15000,
-    defaultHeaders: hostApiHeaders,
+    fetchImpl: async (path, init) => {
+      const exec = () =>
+        fetch(String(path || ""), {
+          ...(init || {}),
+          headers: {
+            ...(getHostApiHeaders() || {}),
+            ...(((init && init.headers) || {}) as Record<string, string>),
+          },
+        });
+      let response = await exec();
+      const message = String(
+        await response
+          .clone()
+          .json()
+          .then((value) => value?.message || "")
+          .catch(() => ""),
+      )
+        .trim()
+        .toLowerCase();
+      if (
+        !response.ok &&
+        response.status === 401 &&
+        (message.includes("host bootstrap token expired") || message.includes("missing bootstrap"))
+      ) {
+        const refreshed = await tryRefreshIdentity();
+        if (refreshed) {
+          response = await exec();
+        }
+      }
+      return response;
+    },
   });
   const hostConfig = await hostApiClient(resolveHostConfigUrl(config), undefined, {
     method: "GET",
@@ -64,6 +127,32 @@ export async function bootSingleXappHost(config) {
   const widgetContext = createEmbedHostWidgetContext();
   const theme = config.resolveTheme(themeKey);
   let controller = null;
+
+  function showSessionExpired(reason) {
+    if (sessionExpiredShown) return;
+    sessionExpiredShown = true;
+    try {
+      controller?.destroy?.();
+    } catch {}
+    try {
+      widgetContext.reset?.();
+    } catch {}
+    const normalizedReason = String(reason || "").trim().toLowerCase();
+    const copy =
+      normalizedReason === "logout"
+        ? {
+            title: "Session ended",
+            message: "The hosted widget session ended. Start again from the launcher.",
+          }
+        : {
+            title: "Widget session expired",
+            message: "The hosted widget session could not be renewed. Restart the session to continue.",
+          };
+    config.renderSessionExpiredShell?.({
+      ...copy,
+      backHref: config.entryHref || "/",
+    });
+  }
 
   async function mountXapp(xappId) {
     const safeXappId = String(xappId || "").trim();
@@ -86,7 +175,9 @@ export async function bootSingleXappHost(config) {
       subjectId: String(identity.subjectId || "").trim() || undefined,
       theme,
       apiBasePath: resolveHostApiBasePath(config),
-      hostApiHeaders,
+      apiClient: hostApiClient,
+      hostApiHeaders: getHostApiHeaders(),
+      hostApiHeadersProvider: getHostApiHeaders,
       paymentResume: false,
       embedContext: {
         getHostReturnUrl: () =>
@@ -108,6 +199,9 @@ export async function bootSingleXappHost(config) {
             baseUrl: window.location.href,
             paymentParams: paymentResumeState.getPendingPaymentParams(),
           }),
+        clearSession: ({ reason } = {}) => {
+          showSessionExpired(reason);
+        },
         endpoints: resolveBridgeEndpoints(config),
       },
       uiBridge: {

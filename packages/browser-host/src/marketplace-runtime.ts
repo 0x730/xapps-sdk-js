@@ -30,6 +30,8 @@ type MarketplaceRuntimeOptions = {
     hostUi: unknown;
     theme: ReferenceTheme;
     apiBasePath: string;
+    apiClient?: unknown;
+    hostApiHeadersProvider?: (() => Record<string, string> | null | undefined) | undefined;
     bridgeV2: Record<string, unknown>;
     getCatalogMount: () => HTMLElement | null;
     getWidgetMount: () => HTMLElement | null;
@@ -43,6 +45,8 @@ type MarketplaceRuntimeOptions = {
   hostDomUi: unknown;
   theme: ReferenceTheme;
   apiBasePath?: string | null;
+  apiClient?: unknown;
+  hostApiHeadersProvider?: (() => Record<string, string> | null | undefined) | null;
   bridgeV2?: Record<string, unknown> | null;
   getCatalogMount?: (() => HTMLElement | null) | null;
   getWidgetMount?: (() => HTMLElement | null) | null;
@@ -73,6 +77,8 @@ export function createMarketplaceRuntime(options: MarketplaceRuntimeOptions): un
     hostUi: options.hostDomUi,
     theme: options.theme,
     apiBasePath: options.apiBasePath || "/api",
+    apiClient: options.apiClient,
+    hostApiHeadersProvider: options.hostApiHeadersProvider || undefined,
     bridgeV2: {
       ...(options.bridgeV2 || {}),
     },

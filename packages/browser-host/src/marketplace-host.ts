@@ -5,29 +5,123 @@ import {
   resolveHostConfigUrl,
 } from "./backend-base.js";
 export async function bootMarketplaceHost(config) {
-  const identity = config.readStoredJson(config.identityStorageKey);
-  if (!identity?.email || !identity?.subjectId) {
+  let currentIdentity = null;
+  let refreshInFlight = null;
+  let sessionExpiredShown = false;
+
+  async function tryRefreshIdentity() {
+    if (typeof config.refreshStoredJson !== "function") return null;
+    if (!refreshInFlight) {
+      refreshInFlight = Promise.resolve(config.refreshStoredJson(config.identityStorageKey))
+        .catch(() => null)
+        .finally(() => {
+          refreshInFlight = null;
+        });
+    }
+    const refreshed = await refreshInFlight;
+    if (refreshed?.email && refreshed?.subjectId) {
+      currentIdentity = refreshed;
+      try {
+        config.renderIdentity?.(currentIdentity);
+      } catch {}
+      return currentIdentity;
+    }
+    return null;
+  }
+
+  async function ensureIdentity() {
+    currentIdentity = config.readStoredJson(config.identityStorageKey);
+    if (currentIdentity?.email && currentIdentity?.subjectId) return currentIdentity;
+    const refreshed = await tryRefreshIdentity();
+    if (refreshed?.email && refreshed?.subjectId) return refreshed;
     const entryUrl = new URL(config.entryHref || "/", window.location.href);
     entryUrl.searchParams.set("hostError", "missing_identity");
     entryUrl.searchParams.set("next", window.location.pathname + window.location.search);
     window.location.replace(entryUrl.toString());
-    return;
+    return null;
   }
+
+  function getHostApiHeaders() {
+    const bootstrapToken = String(currentIdentity?.bootstrapToken || "").trim();
+    return bootstrapToken ? { "X-Xapps-Host-Bootstrap": bootstrapToken } : undefined;
+  }
+
+  function isBootstrapRetryableMessage(message) {
+    const normalized = String(message || "").trim().toLowerCase();
+    return (
+      normalized.includes("host bootstrap token expired") || normalized.includes("missing bootstrap")
+    );
+  }
+
+  const identity = await ensureIdentity();
+  if (!identity) return;
 
   const themeKey = config.applyThemePreference(config.readThemePreference(), { persist: false });
   config.renderIdentity(identity);
   config.setHeaderCollapsed(config.readHeaderCollapsedPreference());
-  const bootstrapToken = String(identity.bootstrapToken || "").trim();
-  const hostApiHeaders = bootstrapToken ? { "X-Xapps-Host-Bootstrap": bootstrapToken } : undefined;
 
-  const configResponse = await fetch(resolveHostConfigUrl(config), {
-    method: "GET",
-    headers: hostApiHeaders,
-  });
-  const hostConfig = await configResponse.json().catch(() => ({}));
-  if (!configResponse.ok) {
-    throw new Error(String(hostConfig?.message || "host config failed"));
+  function showSessionExpired(reason) {
+    if (sessionExpiredShown) return;
+    sessionExpiredShown = true;
+    try {
+      runtime?.destroy?.();
+    } catch {}
+    const normalizedReason = String(reason || "").trim().toLowerCase();
+    const copy =
+      normalizedReason === "logout"
+        ? {
+            title: "Session ended",
+            message: "The hosted widget session ended. Start again from the launcher.",
+          }
+        : {
+            title: "Widget session expired",
+            message: "The hosted widget session could not be renewed. Restart the session to continue.",
+          };
+    config.renderSessionExpiredShell?.({
+      ...copy,
+      backHref: config.entryHref || "/",
+    });
   }
+
+  const hostApiClient = async (path, payload, init = {}) => {
+    const exec = async () =>
+      fetch(String(path || ""), {
+        method: init.method || (payload !== undefined ? "POST" : "GET"),
+        ...init,
+        headers: {
+          ...(getHostApiHeaders() || {}),
+          ...((init && init.headers) || {}),
+          ...(payload !== undefined && !(init && Object.prototype.hasOwnProperty.call(init, "body"))
+            ? { "Content-Type": "application/json" }
+            : {}),
+        },
+        body:
+          init && Object.prototype.hasOwnProperty.call(init, "body")
+            ? init.body
+            : payload !== undefined
+              ? JSON.stringify(payload || {})
+              : undefined,
+      });
+
+    let response = await exec();
+    let data = await response.json().catch(() => ({}));
+    const message = String(data?.message || "");
+    if (!response.ok && response.status === 401 && isBootstrapRetryableMessage(message)) {
+      const refreshed = await tryRefreshIdentity();
+      if (refreshed) {
+        response = await exec();
+        data = await response.json().catch(() => ({}));
+      }
+    }
+    if (!response.ok) {
+      throw new Error(String(data?.message || `${String(path || "")} failed`));
+    }
+    return data;
+  };
+
+  const hostConfig = await hostApiClient(resolveHostConfigUrl(config), undefined, {
+    method: "GET",
+  });
   const hostStatus = await config.renderHostStatus?.({
     hostConfig,
     identity,
@@ -44,6 +138,7 @@ export async function bootMarketplaceHost(config) {
     createStandardMarketplaceRuntime,
     createHostDomUiController,
     createHostPaymentResumeState,
+    createHostApiClient,
   } = sdk;
 
   function readDeepLinkQuery() {
@@ -89,8 +184,52 @@ export async function bootMarketplaceHost(config) {
       modalCloseId: "host-modal-close",
     }),
     apiBasePath: resolveHostApiBasePath(config),
-    hostApiHeaders,
+    apiClient:
+      typeof createHostApiClient === "function"
+        ? createHostApiClient({
+            fetchImpl: async (path, init) => {
+              const response = await fetch(String(path || ""), {
+                ...(init || {}),
+                headers: {
+                  ...(getHostApiHeaders() || {}),
+                  ...(((init && init.headers) || {}) as Record<string, string>),
+                },
+              });
+              if (
+                !response.ok &&
+                response.status === 401 &&
+                isBootstrapRetryableMessage(
+                  String(
+                    await response
+                      .clone()
+                      .json()
+                      .then((value) => value?.message || "")
+                      .catch(() => ""),
+                  ),
+                )
+              ) {
+                const refreshed = await tryRefreshIdentity();
+                if (refreshed) {
+                  return fetch(String(path || ""), {
+                    ...(init || {}),
+                    headers: {
+                      ...(getHostApiHeaders() || {}),
+                      ...(((init && init.headers) || {}) as Record<string, string>),
+                    },
+                  });
+                }
+              }
+              return response;
+            },
+            timeoutMs: 15000,
+          })
+        : undefined,
+    hostApiHeaders: getHostApiHeaders(),
+    hostApiHeadersProvider: getHostApiHeaders,
     bridgeV2: {
+      clearSession: ({ reason } = {}) => {
+        showSessionExpired(reason);
+      },
       endpoints: resolveBridgeEndpoints(config),
     },
     splitPanel: {

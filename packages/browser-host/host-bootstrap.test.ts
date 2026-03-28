@@ -68,6 +68,49 @@ describe("@xapps-platform/browser-host bootstrap helpers", () => {
     expect(redirected.searchParams.get("next")).toBe("/single-xapp.html?xappId=xapp_123");
   });
 
+  it("silently refreshes stored identity before redirecting marketplace hosts", async () => {
+    setMockWindow("http://localhost:3412/marketplace.html?mode=single-panel");
+    const fetchMock = vi.fn(async () => ({
+      ok: false,
+      json: async () => ({ message: "stop" }),
+    }));
+    globalThis.fetch = fetchMock as any;
+
+    await expect(
+      bootMarketplaceHost({
+        identityStorageKey: "xconect_reference_host_identity_v1",
+        readStoredJson: () => null,
+        refreshStoredJson: async () => ({
+          email: "daniel@example.com",
+          subjectId: "sub_renewed",
+          bootstrapToken: "token_refreshed",
+        }),
+        applyThemePreference: () => "harbor",
+        readThemePreference: () => "harbor",
+        renderIdentity: () => {},
+        setHeaderCollapsed: () => {},
+        readHeaderCollapsedPreference: () => false,
+        readModeFromUrl: () => "single-panel",
+        renderMode: () => {},
+        renderModeShell: () => {},
+        setModeInUrl: () => {},
+        toggleHeaderCollapsed: () => {},
+        createMarketplaceRuntime: () => ({
+          mount: async () => {},
+          destroy: () => {},
+        }),
+      } as any),
+    ).rejects.toThrow("stop");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/host-config",
+      expect.objectContaining({
+        method: "GET",
+        headers: { "X-Xapps-Host-Bootstrap": "token_refreshed" },
+      }),
+    );
+  });
+
   it("forwards the bootstrap token to host-config requests", async () => {
     setMockWindow("http://localhost:3412/marketplace.html?mode=single-panel");
     const fetchMock = vi.fn(async () => ({
