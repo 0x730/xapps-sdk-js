@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { GuardUiDescriptor, UiKitWidgetProps } from "./types";
 import { formatRequestErrorMessage } from "./errorMessages";
+import { getDefaultWidgetRuntimeLocale, translateWidgetRuntime } from "./i18n";
 import { attachReturnedPaymentEvidence, hasReturnedPaidPaymentEvidence } from "./paymentEvidence";
 import { readGuardBlocked, readGuardChallengeToken } from "./guardParsing";
-import { asRecord, readFirstString, readString } from "./runtimeReaders";
+import { asRecord, readFirstString, readString, readTrimmedString } from "./runtimeReaders";
 
 type UiKitAction =
   | {
@@ -180,12 +181,12 @@ export function computeHiddenFieldPatchForTest(
   return out;
 }
 
-async function fetchJson(path: string, init: RequestInit) {
+async function fetchJson(path: string, init: RequestInit, locale?: string | null) {
   const resp = await fetch(path, init);
   const contentType = resp.headers.get("content-type") ?? "";
   const data = contentType.includes("application/json") ? await resp.json() : await resp.text();
   if (!resp.ok) {
-    const err = new Error(formatRequestErrorMessage(data, resp.status)) as Error & {
+    const err = new Error(formatRequestErrorMessage(data, resp.status, locale)) as Error & {
       status?: number;
       data?: unknown;
       code?: string;
@@ -209,6 +210,7 @@ export function UiKitWidget(props: UiKitWidgetProps) {
     embedUrl: string;
     widget?: unknown;
   } | null>(null);
+  const [runtimeLocale, setRuntimeLocale] = useState(getDefaultWidgetRuntimeLocale());
 
   async function confirmGuardAction(input: {
     title: string;
@@ -238,7 +240,9 @@ export function UiKitWidget(props: UiKitWidgetProps) {
       return Boolean(await props.host.confirmDialog(input));
     }
     if (typeof window.confirm === "function") {
-      return window.confirm(input.message || "Continue?");
+      return window.confirm(
+        input.message || translateWidgetRuntime("continue_prompt", runtimeLocale),
+      );
     }
     return false;
   }
@@ -249,7 +253,7 @@ export function UiKitWidget(props: UiKitWidgetProps) {
     guardUi: GuardUiDescriptor;
   }): Promise<unknown> {
     if (typeof props.createWidgetSession !== "function") {
-      throw new Error("Guard UI is not available for this widget host.");
+      throw new Error(translateWidgetRuntime("guard_ui_unavailable", runtimeLocale));
     }
     const session = await props.createWidgetSession({
       installationId: input.installationId,
@@ -313,7 +317,9 @@ export function UiKitWidget(props: UiKitWidgetProps) {
       if (readString(data.status) === "resolved") {
         pending.resolve(data);
       } else {
-        pending.reject(new Error("Subject profile completion canceled."));
+        pending.reject(
+          new Error(translateWidgetRuntime("subject_profile_completion_canceled", runtimeLocale)),
+        );
       }
     }
 
@@ -327,6 +333,33 @@ export function UiKitWidget(props: UiKitWidgetProps) {
   const [result, setResult] = useState<unknown>(null);
   const skipNextOnLoadRef = useRef<string | null>(null);
   const effectiveCfgRef = useRef<UiKitConfig | null>(null);
+
+  useEffect(() => {
+    if (typeof props.host.getContext !== "function") return;
+    let alive = true;
+    void (async () => {
+      try {
+        const context = await props.host.getContext?.();
+        if (!alive) return;
+        setRuntimeLocale(readTrimmedString(context?.locale) || getDefaultWidgetRuntimeLocale());
+      } catch {
+        // ignore
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [props.host]);
+
+  useEffect(() => {
+    function handleLocaleChange(event: MessageEvent) {
+      const data = asRecord(event.data);
+      if (readString(data.type) !== "XAPPS_LOCALE_CHANGED") return;
+      setRuntimeLocale(readTrimmedString(data.locale) || getDefaultWidgetRuntimeLocale());
+    }
+    window.addEventListener("message", handleLocaleChange);
+    return () => window.removeEventListener("message", handleLocaleChange);
+  }, []);
 
   async function runAction(
     action: UiKitAction | undefined,
@@ -457,7 +490,7 @@ export function UiKitWidget(props: UiKitWidgetProps) {
 
     if (action.type !== "request") return;
     const toolName = String(action.toolName || props.tool?.tool_name || "");
-    if (!toolName) throw new Error("Missing tool name");
+    if (!toolName) throw new Error(translateWidgetRuntime("missing_tool_name", runtimeLocale));
 
     const payload = interpolate(action.payload, effectiveCtx);
 
@@ -468,21 +501,25 @@ export function UiKitWidget(props: UiKitWidgetProps) {
     ): Promise<Record<string, unknown>> => {
       try {
         return asRecord(
-          await fetchJson(props.apiBaseUrl + "/v1/requests", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: "Bearer " + props.widgetToken,
+          await fetchJson(
+            props.apiBaseUrl + "/v1/requests",
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: "Bearer " + props.widgetToken,
+              },
+              body: JSON.stringify({
+                installationId: props.installationId,
+                toolName,
+                payload: requestedPayload,
+                ...(currentOrchestration && Object.keys(currentOrchestration).length
+                  ? { guardOrchestration: currentOrchestration }
+                  : {}),
+              }),
             },
-            body: JSON.stringify({
-              installationId: props.installationId,
-              toolName,
-              payload: requestedPayload,
-              ...(currentOrchestration && Object.keys(currentOrchestration).length
-                ? { guardOrchestration: currentOrchestration }
-                : {}),
-            }),
-          }),
+            runtimeLocale,
+          ),
         );
       } catch (err) {
         const guard = readGuardBlocked(err);
@@ -513,10 +550,12 @@ export function UiKitWidget(props: UiKitWidgetProps) {
             title:
               (typeof action.title === "string" ? action.title : "") ||
               (typeof action.label === "string" ? action.label : "") ||
-              "Guard Action Required",
+              translateWidgetRuntime("guard_action_required", runtimeLocale),
             message: guard.message,
-            confirmLabel: (typeof action.label === "string" ? action.label : "") || "Continue",
-            cancelLabel: "Cancel",
+            confirmLabel:
+              (typeof action.label === "string" ? action.label : "") ||
+              translateWidgetRuntime("continue", runtimeLocale),
+            cancelLabel: translateWidgetRuntime("cancel", runtimeLocale),
             action,
           });
           if (approved) {
@@ -546,7 +585,9 @@ export function UiKitWidget(props: UiKitWidgetProps) {
     const created = await createRequestWithGuardRetry(payload, false);
 
     const requestId = readFirstString(asRecord(created.request).id) || undefined;
-    if (!requestId) throw new Error("Request id missing from response");
+    if (!requestId) {
+      throw new Error(translateWidgetRuntime("request_id_missing_from_response", runtimeLocale));
+    }
 
     const started = Date.now();
     while (Date.now() - started < 20_000) {
@@ -556,10 +597,12 @@ export function UiKitWidget(props: UiKitWidgetProps) {
           method: "GET",
           headers: { Authorization: "Bearer " + props.widgetToken },
         },
+        runtimeLocale,
       );
       const status = readFirstString(asRecord(asRecord(detail).request).status);
       if (status === "COMPLETED") break;
-      if (status === "FAILED") throw new Error("Request failed");
+      if (status === "FAILED")
+        throw new Error(translateWidgetRuntime("request_failed", runtimeLocale));
       await new Promise((r) => setTimeout(r, 600));
     }
 
@@ -569,6 +612,7 @@ export function UiKitWidget(props: UiKitWidgetProps) {
         method: "GET",
         headers: { Authorization: "Bearer " + props.widgetToken },
       },
+      runtimeLocale,
     );
     const output = asRecord(asRecord(resp).response).result ?? null;
     const actionResult = asRecord(asRecord(output)._action);
@@ -630,9 +674,11 @@ export function UiKitWidget(props: UiKitWidgetProps) {
   if (!cfg) {
     return (
       <div className="portal-card" style={{ padding: 16 }}>
-        <div style={{ fontWeight: 700 }}>UI Kit widget</div>
+        <div style={{ fontWeight: 700 }}>
+          {translateWidgetRuntime("ui_kit_widget", runtimeLocale)}
+        </div>
         <div style={{ marginTop: 8, color: "#6b7280", fontSize: 13 }}>
-          Missing `widget.config.ui_kit`.
+          {translateWidgetRuntime("missing_ui_kit_config", runtimeLocale)}
         </div>
       </div>
     );
@@ -642,7 +688,10 @@ export function UiKitWidget(props: UiKitWidgetProps) {
     <div className="portal-card" style={{ padding: 16, display: "grid", gap: 12 }}>
       <div>
         <div style={{ fontWeight: 800, fontSize: 16 }}>
-          {effectiveCfg?.title ?? cfg.title ?? props.tool?.title ?? "Widget"}
+          {effectiveCfg?.title ??
+            cfg.title ??
+            props.tool?.title ??
+            translateWidgetRuntime("widget_title_fallback", runtimeLocale)}
         </div>
         {effectiveCfg?.description ? (
           <div style={{ marginTop: 4, color: "#6b7280", fontSize: 13 }}>
@@ -708,7 +757,7 @@ export function UiKitWidget(props: UiKitWidgetProps) {
                     onChange={(e) => setState((s) => ({ ...s, [f.key]: e.target.value }))}
                   >
                     <option value="" disabled>
-                      {f.placeholder ?? "-- Select --"}
+                      {f.placeholder ?? translateWidgetRuntime("select_placeholder", runtimeLocale)}
                     </option>
                     {f.options?.map((opt) => (
                       <option key={String(opt.value)} value={String(opt.value)}>
@@ -727,7 +776,11 @@ export function UiKitWidget(props: UiKitWidgetProps) {
             );
           })}
           <button disabled={busy} type="submit">
-            {busy ? "Working…" : (effectiveCfg?.submitLabel ?? cfg.submitLabel ?? "Submit")}
+            {busy
+              ? translateWidgetRuntime("working", runtimeLocale)
+              : (effectiveCfg?.submitLabel ??
+                cfg.submitLabel ??
+                translateWidgetRuntime("submit", runtimeLocale))}
           </button>
         </form>
       ) : (
@@ -748,12 +801,20 @@ export function UiKitWidget(props: UiKitWidgetProps) {
               })();
             }}
           >
-            {busy ? "Working…" : (effectiveCfg?.submitLabel ?? cfg.submitLabel ?? "Run")}
+            {busy
+              ? translateWidgetRuntime("working", runtimeLocale)
+              : (effectiveCfg?.submitLabel ??
+                cfg.submitLabel ??
+                translateWidgetRuntime("run", runtimeLocale))}
           </button>
         </div>
       )}
 
-      {error ? <div style={{ color: "#b91c1c", fontSize: 13 }}>Error: {error}</div> : null}
+      {error ? (
+        <div style={{ color: "#b91c1c", fontSize: 13 }}>
+          {translateWidgetRuntime("error_prefix", runtimeLocale, { message: error })}
+        </div>
+      ) : null}
 
       {effectiveCfg?.resultView ? (
         <div style={{ display: "grid", gap: 8 }}>
@@ -787,7 +848,11 @@ export function UiKitWidget(props: UiKitWidgetProps) {
             if (rv.kind === "list") {
               const items = getPath(result, rv.itemsPath || "items");
               if (!Array.isArray(items) || items.length === 0) {
-                return <div style={{ color: "#6b7280", fontSize: 13 }}>No items.</div>;
+                return (
+                  <div style={{ color: "#6b7280", fontSize: 13 }}>
+                    {translateWidgetRuntime("no_items", runtimeLocale)}
+                  </div>
+                );
               }
               return (
                 <div
@@ -817,7 +882,7 @@ export function UiKitWidget(props: UiKitWidgetProps) {
                         }}
                       >
                         <div style={{ fontWeight: 700, fontSize: 13 }}>
-                          {String(title ?? "(untitled)")}
+                          {String(title ?? translateWidgetRuntime("untitled", runtimeLocale))}
                         </div>
                         {subtitle !== undefined && subtitle !== null ? (
                           <div style={{ color: "#6b7280", fontSize: 12 }}>{String(subtitle)}</div>
@@ -879,7 +944,7 @@ export function UiKitWidget(props: UiKitWidgetProps) {
               }
               style={{ width: "100%", height: "100%", border: 0 }}
               allow="clipboard-read; clipboard-write; publickey-credentials-get; publickey-credentials-create"
-              title="Subject profile guard"
+              title={translateWidgetRuntime("subject_profile_guard", runtimeLocale)}
             />
           </div>
         </div>
@@ -887,7 +952,7 @@ export function UiKitWidget(props: UiKitWidgetProps) {
 
       <details style={{ marginTop: 20, borderTop: "1px dashed #e5e7eb", paddingTop: 10 }}>
         <summary style={{ fontSize: 12, color: "#6b7280", cursor: "pointer" }}>
-          Debug: Widget State
+          {translateWidgetRuntime("debug_widget_state", runtimeLocale)}
         </summary>
         <pre
           style={{

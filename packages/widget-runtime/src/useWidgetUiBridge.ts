@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import type { GuardDecision, WidgetExpandResult, WidgetHostAdapter } from "./types";
+import { getDefaultWidgetRuntimeLocale, translateWidgetRuntime } from "./i18n";
 import {
   asRecord,
   normalizeExpandStage,
@@ -79,6 +80,7 @@ function inferPolicyKind(
 }
 
 function defaultGuardDecision(message: UiBridgeMessage): GuardDecision {
+  const locale = getDefaultWidgetRuntimeLocale();
   const data = asRecord(message.data ?? message.payload);
   const guardSlug = String(data.guardSlug ?? data.guard_slug ?? "").trim();
   const trigger = String(data.trigger || "before:tool_run");
@@ -90,7 +92,8 @@ function defaultGuardDecision(message: UiBridgeMessage): GuardDecision {
   const defaultReason = readFirstString(policy.reason, configRecord.reason);
   const defaultMessage = readFirstString(policy.message, configRecord.message);
   const failReason = defaultReason || "guard_not_satisfied";
-  const failMessage = defaultMessage || "Guard requirements are not satisfied";
+  const failMessage =
+    defaultMessage || translateWidgetRuntime("guard_requirements_not_satisfied", locale);
   const details = { context, config: configRecord, policy_kind: kind };
 
   const passIfAny = readStringArray(policy.pass_if_any ?? configRecord.pass_if_any);
@@ -134,7 +137,8 @@ function defaultGuardDecision(message: UiBridgeMessage): GuardDecision {
       status: "failed",
       satisfied: false,
       reason: defaultReason || "confirmation_required",
-      message: defaultMessage || "Confirmation required before continuing",
+      message:
+        defaultMessage || translateWidgetRuntime("confirmation_required_before_continuing", locale),
       details,
     };
   }
@@ -152,7 +156,7 @@ function defaultGuardDecision(message: UiBridgeMessage): GuardDecision {
       status: "failed",
       satisfied: false,
       reason: defaultReason || "step_up_required",
-      message: defaultMessage || "Step-up authentication required",
+      message: defaultMessage || translateWidgetRuntime("step_up_authentication_required", locale),
       details,
     };
   }
@@ -176,7 +180,8 @@ function defaultGuardDecision(message: UiBridgeMessage): GuardDecision {
       status: "failed",
       satisfied: false,
       reason: defaultReason || "payment_required",
-      message: defaultMessage || "Payment required before continuing",
+      message:
+        defaultMessage || translateWidgetRuntime("payment_required_before_continuing", locale),
       details,
     };
   }
@@ -198,7 +203,7 @@ function defaultGuardDecision(message: UiBridgeMessage): GuardDecision {
       status: "failed",
       satisfied: false,
       reason: defaultReason || "subscription_missing",
-      message: defaultMessage || "Subscription tier is insufficient",
+      message: defaultMessage || translateWidgetRuntime("subscription_tier_insufficient", locale),
       details: { ...details, current_tier: current ?? null, required_tier: required },
     };
   }
@@ -224,7 +229,9 @@ function defaultGuardDecision(message: UiBridgeMessage): GuardDecision {
     status: "failed",
     satisfied: false,
     reason: defaultReason || "unsupported_guard_slug",
-    message: defaultMessage || `Unsupported guard: ${guardSlug || "unknown"}`,
+    message:
+      defaultMessage ||
+      translateWidgetRuntime("unsupported_guard", locale, { guardSlug: guardSlug || "unknown" }),
     details,
   };
 }
@@ -284,7 +291,7 @@ export function useWidgetUiBridge(host: WidgetHostAdapter) {
             payloadRecord.title,
             msg.title,
             nestedDataPayload.title,
-          ) || "Alert";
+          ) || translateWidgetRuntime("alert", getDefaultWidgetRuntimeLocale());
         if (message) host.showAlert(String(message), String(title));
         return;
       }
@@ -296,7 +303,7 @@ export function useWidgetUiBridge(host: WidgetHostAdapter) {
             payloadRecord.title,
             msg.title,
             nestedDataPayload.title,
-          ) || "Modal";
+          ) || translateWidgetRuntime("modal", getDefaultWidgetRuntimeLocale());
         const message = readFirstString(
           dataRecord.message,
           payloadRecord.message,
@@ -409,7 +416,12 @@ export function useWidgetUiBridge(host: WidgetHostAdapter) {
                 type: "XAPPS_UI_EXPAND_RESULT",
                 ok: false,
                 error: {
-                  message: readFirstString(errorRecord.message) || "Expand handling failed",
+                  message:
+                    readFirstString(errorRecord.message) ||
+                    translateWidgetRuntime(
+                      "expand_handling_failed",
+                      getDefaultWidgetRuntimeLocale(),
+                    ),
                   code: readFirstString(errorRecord.code) || "EXPAND_HANDLING_FAILED",
                 },
               },
@@ -447,10 +459,19 @@ export function useWidgetUiBridge(host: WidgetHostAdapter) {
       if (type === "XAPPS_UI_CONFIRM_REQUEST") {
         const source = event.source as Window | null;
         const payloadData = asRecord(data ?? payload);
-        const title = String(payloadData.title ?? "Confirmation");
+        const title = String(
+          payloadData.title ??
+            translateWidgetRuntime("confirmation", getDefaultWidgetRuntimeLocale()),
+        );
         const message = String(payloadData.message ?? "");
-        const confirmLabel = String(payloadData.confirmLabel ?? "Continue");
-        const cancelLabel = String(payloadData.cancelLabel ?? "Cancel");
+        const confirmLabel = String(
+          payloadData.confirmLabel ??
+            translateWidgetRuntime("continue", getDefaultWidgetRuntimeLocale()),
+        );
+        const cancelLabel = String(
+          payloadData.cancelLabel ??
+            translateWidgetRuntime("cancel", getDefaultWidgetRuntimeLocale()),
+        );
 
         void (async () => {
           try {
@@ -484,7 +505,9 @@ export function useWidgetUiBridge(host: WidgetHostAdapter) {
                 id,
                 ok: false,
                 error: {
-                  message: readFirstString(errorRecord.message) || "Confirmation failed",
+                  message:
+                    readFirstString(errorRecord.message) ||
+                    translateWidgetRuntime("confirmation_failed", getDefaultWidgetRuntimeLocale()),
                   code: readFirstString(errorRecord.code) || "CONFIRMATION_FAILED",
                 },
               },
@@ -569,7 +592,9 @@ export function useWidgetUiBridge(host: WidgetHostAdapter) {
                 id: correlationId,
                 ok: false,
                 error: {
-                  message: readFirstString(errorRecord.message) || "Guard evaluation failed",
+                  message:
+                    readFirstString(errorRecord.message) ||
+                    translateWidgetRuntime("guard_evaluation_failed"),
                   code: readFirstString(errorRecord.code) || "GUARD_EVALUATION_FAILED",
                   status: errorRecord.status,
                 },

@@ -17,6 +17,7 @@ export type WidgetContext = {
   toolName?: string;
   devMode?: boolean;
   resultPresentation?: WidgetResultPresentation;
+  locale?: string | null;
 };
 
 export type WidgetExpandStage = "inline" | "focus" | "fullscreen";
@@ -122,6 +123,7 @@ export type UiKitWidgetProps = {
       subjectId: string | null;
       requestId?: string | null;
       resultPresentation?: WidgetResultPresentation;
+      locale?: string | null;
     } | null;
     widget?: any | null;
     tool?: any | null;
@@ -151,6 +153,7 @@ export type AppShellWidgetProps = {
       subjectId: string | null;
       requestId?: string | null;
       resultPresentation?: WidgetResultPresentation;
+      locale?: string | null;
     } | null;
     widget?: any | null;
     tool?: any | null;

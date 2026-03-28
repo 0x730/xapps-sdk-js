@@ -44,28 +44,35 @@ function readGuardBlockedContext(data: unknown): {
   };
 }
 
-function renderActionHint(action: Record<string, unknown>): string {
+function renderActionHint(action: Record<string, unknown>, locale?: string | null): string {
   const kind = readString(action.kind);
   if (!kind) return "";
   const url = readString(action.url);
+  const suffix = url ? ` (${url})` : "";
   if (kind === "upgrade_subscription") {
-    return `Action: upgrade subscription${url ? ` (${url})` : ""}`;
+    return translateWidgetRuntime("action_upgrade_subscription", locale, { suffix });
   }
   if (kind === "complete_payment") {
-    return `Action: complete payment${url ? ` (${url})` : ""}`;
+    return translateWidgetRuntime("action_complete_payment", locale, { suffix });
   }
   if (kind === "step_up_auth") {
     const method = readString(action.method);
     const detail = method ? ` (${method})` : "";
-    return `Action: complete step-up authentication${detail}${url ? ` (${url})` : ""}`;
+    return translateWidgetRuntime("action_complete_step_up_authentication", locale, {
+      suffix: `${detail}${suffix}`,
+    });
   }
   if (kind === "confirm_action") {
     const msg = readString(action.message);
-    return msg ? `Action: confirm action (${msg})` : "Action: confirm action";
+    return msg
+      ? translateWidgetRuntime("action_confirm_action_message", locale, { message: msg })
+      : translateWidgetRuntime("action_confirm_action", locale);
   }
   if (kind === "complete_subject_profile") {
     const title = readString(action.title);
-    return title ? `Action: ${title}` : "Action: complete subject profile";
+    return title
+      ? translateWidgetRuntime("action_custom", locale, { title })
+      : translateWidgetRuntime("action_complete_subject_profile", locale);
   }
   return "";
 }
@@ -75,34 +82,39 @@ function resolvePaymentLockHint(input: {
   reason: string;
   paymentAttemptState: string;
   finalityState: string;
+  locale?: string | null;
 }): string {
   const actionKind = readString(input.action.kind).toLowerCase();
   if (!(actionKind === "complete_payment" || actionKind === "payment_required")) return "";
   if (input.finalityState === "confirmed_paid") {
-    return "Payment confirmed. Refresh and retry.";
+    return translateWidgetRuntime("payment_confirmed_refresh_retry", input.locale);
   }
   if (input.finalityState === "still_pending") {
-    return "Payment still pending at provider. Retry confirm shortly.";
+    return translateWidgetRuntime("payment_pending_retry_confirm", input.locale);
   }
   if (input.finalityState === "failed") {
-    return "Payment not settled. Complete a new payment attempt.";
+    return translateWidgetRuntime("payment_not_settled_new_attempt", input.locale);
   }
   if (input.paymentAttemptState === "requires_action") {
-    return "Payment requires additional action. Complete payment to continue.";
+    return translateWidgetRuntime("payment_requires_additional_action", input.locale);
   }
   if (input.paymentAttemptState === "failed") {
-    return "Last payment attempt failed. Complete payment to continue.";
+    return translateWidgetRuntime("payment_attempt_failed", input.locale);
   }
   if (input.paymentAttemptState === "replayed" || input.reason === "payment_receipt_already_used") {
-    return "Payment evidence already used. Start a new payment attempt.";
+    return translateWidgetRuntime("payment_evidence_used", input.locale);
   }
   if (input.reason === "payment_evidence_missing" || input.reason === "payment_required") {
-    return "Payment is required before this request can proceed.";
+    return translateWidgetRuntime("payment_required_for_request", input.locale);
   }
   return "";
 }
 
-export function formatRequestErrorMessage(data: unknown, status: number): string {
+export function formatRequestErrorMessage(
+  data: unknown,
+  status: number,
+  locale?: string | null,
+): string {
   const body = asRecord(data);
   const text = typeof data === "string" ? data.trim() : "";
   const ctx = readGuardBlockedContext(data);
@@ -111,15 +123,17 @@ export function formatRequestErrorMessage(data: unknown, status: number): string
   if (ctx.code === "GUARD_BLOCKED" || ctx.guardSlug || ctx.reason) {
     if (ctx.guardSlug) details.push(`guard=${ctx.guardSlug}`);
     if (ctx.reason) details.push(`reason=${ctx.reason}`);
-    const actionHint = renderActionHint(ctx.action);
+    const actionHint = renderActionHint(ctx.action, locale);
     if (actionHint) details.push(actionHint);
     const lockHint = resolvePaymentLockHint({
       action: ctx.action,
       reason: ctx.reason,
       paymentAttemptState: ctx.paymentAttemptState,
       finalityState: ctx.finalityState,
+      locale,
     });
     if (lockHint) details.push(lockHint);
   }
   return details.length > 0 ? `${message} (${details.join("; ")})` : message;
 }
+import { translateWidgetRuntime } from "./i18n";

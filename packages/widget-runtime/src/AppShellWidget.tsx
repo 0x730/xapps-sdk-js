@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { AppShellWidgetProps, GuardUiDescriptor } from "./types";
 import { formatRequestErrorMessage } from "./errorMessages";
+import { getDefaultWidgetRuntimeLocale, translateWidgetRuntime } from "./i18n";
 import { UiKitWidget } from "./UiKitWidget";
 import { attachReturnedPaymentEvidence, hasReturnedPaidPaymentEvidence } from "./paymentEvidence";
 import { ed25519 } from "@noble/curves/ed25519.js";
@@ -22,18 +23,19 @@ type AppShellTab = {
 };
 
 export function AppShellWidget(props: AppShellWidgetProps) {
+  const [runtimeLocale, setRuntimeLocale] = useState(getDefaultWidgetRuntimeLocale());
   const tabs: AppShellTab[] = useMemo(() => {
     const cfg = props.shellWidget?.config?.app_shell;
     const rawTabs = asRecord(cfg).tabs;
     if (!Array.isArray(rawTabs)) return [];
     return readObjectArray(rawTabs).map((tab) => ({
-      title: readFirstString(tab.title) || "Tab",
+      title: readFirstString(tab.title) || translateWidgetRuntime("tab_fallback", runtimeLocale),
       widget_name: readTrimmedString(tab.widget_name) || undefined,
       widgetId: readTrimmedString(tab.widgetId) || undefined,
       render_mode:
         tab.render_mode === "iframe" || tab.render_mode === "publisher" ? tab.render_mode : "host",
     }));
-  }, [props.shellWidget]);
+  }, [props.shellWidget, runtimeLocale]);
 
   const [activeIdx, setActiveIdx] = useState(0);
   const active = tabs[activeIdx] ?? null;
@@ -71,6 +73,7 @@ export function AppShellWidget(props: AppShellWidgetProps) {
     reject: (error: Error) => void;
   } | null>(null);
   const themeRef = useRef<Record<string, unknown> | null>(null);
+  const localeRef = useRef<string | null>(null);
 
   async function confirmGuardAction(input: {
     title: string;
@@ -98,7 +101,9 @@ export function AppShellWidget(props: AppShellWidgetProps) {
       return Boolean(await props.host.confirmDialog(input));
     }
     if (typeof window.confirm === "function") {
-      return window.confirm(input.message || "Continue?");
+      return window.confirm(
+        input.message || translateWidgetRuntime("continue_prompt", runtimeLocale),
+      );
     }
     return false;
   }
@@ -160,7 +165,7 @@ export function AppShellWidget(props: AppShellWidgetProps) {
   function hexToBytes(hex: string): Uint8Array {
     const s = String(hex || "").trim();
     if (!/^[0-9a-fA-F]+$/.test(s) || s.length % 2 !== 0) {
-      throw new Error("Invalid hex string");
+      throw new Error(translateWidgetRuntime("invalid_hex_string", runtimeLocale));
     }
     const out = new Uint8Array(s.length / 2);
     for (let i = 0; i < s.length; i += 2) {
@@ -186,7 +191,7 @@ export function AppShellWidget(props: AppShellWidgetProps) {
     const targetWidgetId = resolveWidgetId(active);
     if (!targetWidgetId) {
       setChild(null);
-      setError("App shell tab is missing widget reference");
+      setError(translateWidgetRuntime("app_shell_tab_missing_widget_reference", runtimeLocale));
       return;
     }
 
@@ -223,6 +228,25 @@ export function AppShellWidget(props: AppShellWidgetProps) {
   }, [activeIdx, props.installationId]);
 
   useEffect(() => {
+    if (typeof props.host.getContext !== "function") return;
+    let alive = true;
+    void (async () => {
+      try {
+        const context = await props.host.getContext?.();
+        if (!alive) return;
+        const nextLocale = readTrimmedString(context?.locale) || getDefaultWidgetRuntimeLocale();
+        localeRef.current = nextLocale;
+        setRuntimeLocale(nextLocale);
+      } catch {
+        // ignore
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [props.host]);
+
+  useEffect(() => {
     try {
       if (window.parent && window.parent !== window) {
         window.parent.postMessage({ type: "XAPPS_WIDGET_CONTEXT_REQUEST" }, "*");
@@ -238,6 +262,23 @@ export function AppShellWidget(props: AppShellWidgetProps) {
         const theme = asRecord(message.theme);
         themeRef.current =
           theme && Object.keys(theme).length > 0 ? (theme as Record<string, unknown>) : null;
+        localeRef.current = readTrimmedString(message.locale) || null;
+        setRuntimeLocale(readTrimmedString(message.locale) || getDefaultWidgetRuntimeLocale());
+      } else if (type === "XAPPS_LOCALE_CHANGED") {
+        localeRef.current = readTrimmedString(message.locale) || null;
+        setRuntimeLocale(readTrimmedString(message.locale) || getDefaultWidgetRuntimeLocale());
+        const widgetIframe = iframeRef.current;
+        const guardIframe = guardIframeRef.current;
+        const localeMessage = {
+          type: "XAPPS_LOCALE_CHANGED",
+          locale: localeRef.current,
+        };
+        if (widgetIframe?.contentWindow) {
+          widgetIframe.contentWindow.postMessage(localeMessage, "*");
+        }
+        if (guardIframe?.contentWindow) {
+          guardIframe.contentWindow.postMessage(localeMessage, "*");
+        }
       } else if (type === "XAPPS_WIDGET_READY" || type === "XAPPS_WIDGET_CONTEXT_REQUEST") {
         const widgetIframe = iframeRef.current;
         const guardIframe = guardIframeRef.current;
@@ -252,6 +293,7 @@ export function AppShellWidget(props: AppShellWidgetProps) {
               token: childRef.current.token,
               baseUrl: props.apiBaseUrl,
               theme: themeRef.current,
+              locale: localeRef.current,
             },
             "*",
           );
@@ -266,6 +308,7 @@ export function AppShellWidget(props: AppShellWidgetProps) {
               token: guardOverlay.token,
               baseUrl: props.apiBaseUrl,
               theme: themeRef.current,
+              locale: localeRef.current,
             },
             "*",
           );
@@ -333,19 +376,31 @@ export function AppShellWidget(props: AppShellWidgetProps) {
             if (needsEd25519 && !hasSignature) {
               if (!ctx?.subjectId) {
                 throw new Error(
-                  "Subject signature required by policy (ed25519), but widget session has no subjectId.",
+                  translateWidgetRuntime("subject_signature_requires_subject_id", runtimeLocale),
                 );
               }
 
-              if (typeof process !== "undefined" && process.env?.NODE_ENV === "production") {
+              const nodeEnv =
+                typeof globalThis !== "undefined" &&
+                "process" in globalThis &&
+                (globalThis as { process?: { env?: Record<string, unknown> } }).process
+                  ? String(
+                      (globalThis as { process?: { env?: Record<string, unknown> } }).process?.env
+                        ?.NODE_ENV || "",
+                    )
+                  : "";
+              if (nodeEnv === "production") {
                 throw new Error(
-                  "Subject signature via localStorage dev key is not supported in production.",
+                  translateWidgetRuntime(
+                    "subject_signature_dev_key_not_supported_in_production",
+                    runtimeLocale,
+                  ),
                 );
               }
               const skHex = localStorage.getItem("XAPPS_DEV_ED25519_PRIVATE_KEY_HEX") ?? "";
               if (!skHex) {
                 throw new Error(
-                  "Subject signature required by policy (ed25519). Configure a dev signing key in localStorage as XAPPS_DEV_ED25519_PRIVATE_KEY_HEX.",
+                  translateWidgetRuntime("subject_signature_dev_key_required", runtimeLocale),
                 );
               }
 
@@ -358,11 +413,15 @@ export function AppShellWidget(props: AppShellWidgetProps) {
               if (!keyRes.ok) {
                 throw new Error(
                   readFirstString(keyData.message) ||
-                    `Failed to resolve subject key (${keyRes.status})`,
+                    translateWidgetRuntime("failed_to_resolve_subject_key", runtimeLocale, {
+                      status: keyRes.status,
+                    }),
                 );
               }
               const keyId = readFirstString(keyData.keyId);
-              if (!keyId) throw new Error("Missing keyId from /v1/signing/subject-keys/active");
+              if (!keyId) {
+                throw new Error(translateWidgetRuntime("missing_subject_key_id", runtimeLocale));
+              }
 
               // 2) Mint nonce
               const nonceRes = await fetch(`${props.apiBaseUrl}/v1/signing/nonces`, {
@@ -372,11 +431,16 @@ export function AppShellWidget(props: AppShellWidgetProps) {
               const nonceData = asRecord(await nonceRes.json().catch(() => ({})));
               if (!nonceRes.ok) {
                 throw new Error(
-                  readFirstString(nonceData.message) || `Failed to mint nonce (${nonceRes.status})`,
+                  readFirstString(nonceData.message) ||
+                    translateWidgetRuntime("failed_to_mint_nonce", runtimeLocale, {
+                      status: nonceRes.status,
+                    }),
                 );
               }
               const nonce = readFirstString(nonceData.nonce);
-              if (!nonce) throw new Error("Missing nonce from /v1/signing/nonces");
+              if (!nonce) {
+                throw new Error(translateWidgetRuntime("missing_signing_nonce", runtimeLocale));
+              }
 
               // 3) Canonicalize + hash payload
               const payloadHash = await sha256Hex(canonicalize(payload));
@@ -458,11 +522,12 @@ export function AppShellWidget(props: AppShellWidgetProps) {
                   title:
                     (typeof action.title === "string" ? action.title : "") ||
                     (typeof action.label === "string" ? action.label : "") ||
-                    "Guard Action Required",
+                    translateWidgetRuntime("guard_action_required", runtimeLocale),
                   message: guard.message,
                   confirmLabel:
-                    (typeof action.label === "string" ? action.label : "") || "Continue",
-                  cancelLabel: "Cancel",
+                    (typeof action.label === "string" ? action.label : "") ||
+                    translateWidgetRuntime("continue", runtimeLocale),
+                  cancelLabel: translateWidgetRuntime("cancel", runtimeLocale),
                   action,
                 });
                 if (approved) {
@@ -488,7 +553,7 @@ export function AppShellWidget(props: AppShellWidgetProps) {
                 }
               }
 
-              throw new Error(formatRequestErrorMessage(out, res.status));
+              throw new Error(formatRequestErrorMessage(out, res.status, runtimeLocale));
             };
 
             const out = await createRequestWithGuardRetry(body, false);
@@ -564,7 +629,9 @@ export function AppShellWidget(props: AppShellWidgetProps) {
         if (readFirstString(data.status) === "resolved") {
           pending.resolve(data);
         } else {
-          pending.reject(new Error("Subject profile completion canceled."));
+          pending.reject(
+            new Error(translateWidgetRuntime("subject_profile_completion_canceled", runtimeLocale)),
+          );
         }
       }
     }
@@ -600,8 +667,14 @@ export function AppShellWidget(props: AppShellWidgetProps) {
       </div>
 
       <div style={{ padding: 16 }}>
-        {busy ? <div style={{ color: "#6b7280" }}>Loading…</div> : null}
-        {error ? <div style={{ color: "#b91c1c" }}>Error: {error}</div> : null}
+        {busy ? (
+          <div style={{ color: "#6b7280" }}>{translateWidgetRuntime("loading", runtimeLocale)}</div>
+        ) : null}
+        {error ? (
+          <div style={{ color: "#b91c1c" }}>
+            {translateWidgetRuntime("error_prefix", runtimeLocale, { message: error })}
+          </div>
+        ) : null}
 
         {!busy && !error && child && child.widget ? (
           childRenderer === "ui-kit" && active?.render_mode === "host" ? (
@@ -626,7 +699,9 @@ export function AppShellWidget(props: AppShellWidgetProps) {
               }
               style={{ width: "100%", height: "70vh", border: 0, borderRadius: 12 }}
               allow="clipboard-read; clipboard-write; publickey-credentials-get; publickey-credentials-create"
-              title={String(active?.title || "App tab")}
+              title={String(
+                active?.title || translateWidgetRuntime("app_tab_fallback", runtimeLocale),
+              )}
             />
           )
         ) : null}
@@ -662,7 +737,7 @@ export function AppShellWidget(props: AppShellWidgetProps) {
               }
               style={{ width: "100%", height: "100%", border: 0 }}
               allow="clipboard-read; clipboard-write; publickey-credentials-get; publickey-credentials-create"
-              title="Subject profile guard"
+              title={translateWidgetRuntime("subject_profile_guard", runtimeLocale)}
             />
           </div>
         </div>
