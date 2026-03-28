@@ -23,6 +23,8 @@ export type InvoiceDefinition = {
 
 export type InvoiceTemplate = {
   name: string;
+  family?: string;
+  locale?: string;
   title?: string;
   text?: string;
   html?: string;
@@ -71,6 +73,66 @@ export function buildInvoiceTemplateRegistry(templates: unknown): Map<string, In
   return registry;
 }
 
+function normalizeTemplateLocale(input: unknown, fallbackLocale = "en"): string {
+  const raw = String(input || "").trim();
+  if (!raw) return fallbackLocale;
+  const parts = raw
+    .replace(/_/g, "-")
+    .split("-")
+    .map((part) => part.trim())
+    .filter(Boolean);
+  if (!parts.length) return fallbackLocale;
+  const [language, ...rest] = parts;
+  return [language.toLowerCase(), ...rest.map((part) => part.toUpperCase())].join("-");
+}
+
+function getTemplateLocaleCandidates(input: unknown, fallbackLocale = "en"): string[] {
+  const normalizedFallback = normalizeTemplateLocale(fallbackLocale, "en");
+  const normalized = normalizeTemplateLocale(input, normalizedFallback);
+  const out = new Set<string>([normalized]);
+  const dash = normalized.indexOf("-");
+  if (dash > 0) out.add(normalized.slice(0, dash));
+  const fallbackDash = normalizedFallback.indexOf("-");
+  if (fallbackDash > 0) out.add(normalizedFallback.slice(0, fallbackDash));
+  out.add(normalizedFallback);
+  out.add("en");
+  return Array.from(out);
+}
+
+export function resolveInvoiceTemplateVariant(input: {
+  templates: unknown;
+  templateRef: string;
+  locale?: unknown;
+  fallbackLocale?: string;
+}): InvoiceTemplate | null {
+  const templateRef = String(input.templateRef || "").trim();
+  if (!templateRef) return null;
+  const registry = buildInvoiceTemplateRegistry(input.templates);
+  const exact = registry.get(templateRef);
+
+  const templates = Array.isArray(input.templates)
+    ? input.templates.filter((template): template is InvoiceTemplate =>
+        Boolean(template && typeof template === "object"),
+      )
+    : [];
+  const familyMatches = templates.filter(
+    (template) => String(template.family || "").trim() === templateRef,
+  );
+  if (familyMatches.length > 0) {
+    const candidates = getTemplateLocaleCandidates(input.locale, input.fallbackLocale);
+    for (const candidate of candidates) {
+      const match = familyMatches.find(
+        (template) => normalizeTemplateLocale(template.locale, "") === candidate,
+      );
+      if (match) return match;
+    }
+    const noLocaleMatch = familyMatches.find((template) => !String(template.locale || "").trim());
+    if (noLocaleMatch) return noLocaleMatch;
+  }
+  if (exact) return exact;
+  return familyMatches[0] || null;
+}
+
 export function readInvoiceRef(config: unknown): string {
   if (!config || typeof config !== "object" || Array.isArray(config)) return "";
   return String((config as any).invoice_ref ?? (config as any).invoiceRef ?? "").trim();
@@ -102,7 +164,10 @@ function resolveInvoiceTemplateConfig(input: {
       },
     };
   }
-  const template = input.templates.get(templateRef);
+  const template = resolveInvoiceTemplateVariant({
+    templates: Array.from(input.templates.values()),
+    templateRef,
+  });
   if (!template) {
     return {
       ok: false,

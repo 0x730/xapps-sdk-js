@@ -16,6 +16,7 @@ import {
   readNotificationRef,
   readNotificationTemplateRef,
   resolveNotificationConfigWithGovernance,
+  resolveNotificationTemplateVariant,
 } from "./notifications.js";
 import {
   buildInvoiceDefinitionRegistry,
@@ -23,6 +24,7 @@ import {
   readInvoiceRef,
   readInvoiceTemplateRef,
   resolveInvoiceConfigWithGovernance,
+  resolveInvoiceTemplateVariant,
 } from "./invoices.js";
 import {
   buildSubjectProfileDefinitionRegistry,
@@ -31,10 +33,61 @@ import {
 } from "./subjectProfileGuardDefinitions.js";
 import { resolveSubjectProfileRequirement } from "./subjectProfileRequirement.js";
 
+export type LocalizedText = string | Record<string, string | null | undefined> | null | undefined;
+
+export { resolveNotificationTemplateVariant, resolveInvoiceTemplateVariant };
+
+function isLocalizedTextRecord(value: unknown): value is Record<string, string | null | undefined> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  return Object.values(value).every((entry) => entry == null || typeof entry === "string");
+}
+
+export function normalizeManifestLocale(input: unknown, fallbackLocale = "en"): string {
+  const raw = String(input || "").trim();
+  if (!raw) return fallbackLocale;
+  const parts = raw
+    .split("-")
+    .map((part) => part.trim())
+    .filter(Boolean);
+  if (!parts.length) return fallbackLocale;
+  const [language, ...rest] = parts;
+  return [language.toLowerCase(), ...rest.map((part) => part.toUpperCase())].join("-");
+}
+
+export function getManifestLocaleCandidates(input: unknown, fallbackLocale = "en"): string[] {
+  const normalizedFallback = normalizeManifestLocale(fallbackLocale, "en");
+  const normalized = normalizeManifestLocale(input, normalizedFallback);
+  const out = new Set<string>([normalized]);
+  const dash = normalized.indexOf("-");
+  if (dash > 0) out.add(normalized.slice(0, dash));
+  const fallbackDash = normalizedFallback.indexOf("-");
+  if (fallbackDash > 0) out.add(normalizedFallback.slice(0, fallbackDash));
+  out.add(normalizedFallback);
+  out.add("en");
+  return Array.from(out);
+}
+
+export function resolveManifestLocalizedText(
+  value: LocalizedText,
+  locale: unknown,
+  fallbackLocale = "en",
+): string {
+  if (typeof value === "string") return value;
+  if (!isLocalizedTextRecord(value)) return "";
+  for (const candidate of getManifestLocaleCandidates(locale, fallbackLocale)) {
+    const resolved = value[candidate];
+    if (typeof resolved === "string" && resolved.trim()) return resolved;
+  }
+  for (const resolved of Object.values(value)) {
+    if (typeof resolved === "string" && resolved.trim()) return resolved;
+  }
+  return "";
+}
+
 export type XappManifestTool = {
   tool_name: string;
-  title: string;
-  description?: string;
+  title: LocalizedText;
+  description?: LocalizedText;
   input_schema: Record<string, unknown>;
   input_ui_schema?: Record<string, unknown>;
   output_ui_schema?: Record<string, unknown>;
@@ -66,8 +119,8 @@ export type XappManifestWidget = {
   bind_tool_name?: string;
   entry?: { kind?: "platform_template" | "iframe_url"; template?: string; url?: string };
   capabilities?: string[];
-  title?: string;
-  accessibility?: { label?: string; role?: string };
+  title?: LocalizedText;
+  accessibility?: { label?: LocalizedText; role?: string };
   theme?: { mode?: "light" | "dark" | string; tokens?: Record<string, string> };
   requires_linking?: boolean;
   required_context?: Record<string, unknown>;
@@ -133,13 +186,13 @@ export type XappManifestGuard = {
 };
 
 export type XappManifest = {
-  title?: string;
+  title?: LocalizedText;
   name: string;
   slug: string;
-  description?: string;
+  description?: LocalizedText;
   image?: string;
   tags?: string[];
-  terms?: { title?: string; text?: string; url?: string; version?: string };
+  terms?: { title?: LocalizedText; text?: LocalizedText; url?: string; version?: string };
   visibility?: string;
   metadata?: Record<string, unknown>;
   target_client_id?: string;
@@ -256,6 +309,8 @@ export type XappManifest = {
   }>;
   notification_templates?: Array<{
     name: string;
+    family?: string;
+    locale?: string;
     channel?: string;
     subject?: string;
     text?: string;
@@ -282,6 +337,8 @@ export type XappManifest = {
   }>;
   invoice_templates?: Array<{
     name: string;
+    family?: string;
+    locale?: string;
     title?: string;
     text?: string;
     html?: string;
@@ -304,23 +361,41 @@ export type ParseXappManifestOptions = {
   warn?: (warning: ManifestWarning) => void;
 };
 
+function localizedTextSchema(maxLength: number, minLength = 0) {
+  const stringRule: Record<string, unknown> = { type: "string", maxLength };
+  if (minLength > 0) stringRule.minLength = minLength;
+  return {
+    anyOf: [
+      stringRule,
+      {
+        type: "object",
+        minProperties: 1,
+        propertyNames: { type: "string", minLength: 2, maxLength: 32 },
+        additionalProperties: {
+          anyOf: [{ ...stringRule }, { type: "null" }],
+        },
+      },
+    ],
+  };
+}
+
 export const xappManifestJsonSchema = {
   type: "object",
   required: ["name", "slug", "version", "tools", "widgets"],
   additionalProperties: false,
   properties: {
-    title: { type: "string", maxLength: 200 },
+    title: localizedTextSchema(200),
     name: { type: "string", minLength: 1, maxLength: 200 },
     slug: { type: "string", minLength: 1, maxLength: 100 },
-    description: { type: "string", maxLength: 2000 },
+    description: localizedTextSchema(2000),
     image: { type: "string", maxLength: 2048 },
     tags: { type: "array", maxItems: 50, items: { type: "string", maxLength: 64 } },
     terms: {
       type: "object",
       additionalProperties: false,
       properties: {
-        title: { type: "string", maxLength: 200 },
-        text: { type: "string", maxLength: 20000 },
+        title: localizedTextSchema(200),
+        text: localizedTextSchema(20000),
         url: { type: "string", maxLength: 2048 },
         version: { type: "string", maxLength: 64 },
       },
@@ -581,8 +656,8 @@ export const xappManifestJsonSchema = {
         additionalProperties: false,
         properties: {
           tool_name: { type: "string", minLength: 1, maxLength: 100 },
-          title: { type: "string", minLength: 1, maxLength: 200 },
-          description: { type: "string", maxLength: 2000 },
+          title: localizedTextSchema(200, 1),
+          description: localizedTextSchema(2000),
           input_schema: { type: "object" },
           input_ui_schema: { type: "object" },
           output_ui_schema: { type: "object" },
@@ -639,12 +714,12 @@ export const xappManifestJsonSchema = {
             enum: ["platform", "publisher", "json-forms", "ui-kit", "app-shell"],
           },
           bind_tool_name: { type: "string", maxLength: 100 },
-          title: { type: "string", minLength: 1, maxLength: 200 },
+          title: localizedTextSchema(200, 1),
           accessibility: {
             type: "object",
             additionalProperties: false,
             properties: {
-              label: { type: "string", minLength: 1, maxLength: 300 },
+              label: localizedTextSchema(300, 1),
               role: { type: "string", minLength: 1, maxLength: 50 },
             },
           },
@@ -737,19 +812,237 @@ export const xappManifestJsonSchema = {
       type: "object",
       additionalProperties: false,
       properties: {
-        executor_mode: { type: "string", enum: ["PUBLIC_EXECUTOR", "PRIVATE_EXECUTOR", "AGENT_TUNNEL"] },
+        executor_mode: {
+          type: "string",
+          enum: ["PUBLIC_EXECUTOR", "PRIVATE_EXECUTOR", "AGENT_TUNNEL"],
+        },
         auth_mode: { type: "string", enum: ["PUBLISHER_APP", "USER_DELEGATED", "HYBRID"] },
         signing_policy: { type: "string", enum: ["none", "subject_proof", "publisher_proof"] },
         webhooks: { type: "object" },
         proxy_policy: { type: "object" },
       },
     },
-    payment_guard_definitions: { type: "array", maxItems: 50, items: { type: "object", required: ["name"], additionalProperties: false, properties: { name: { type: "string", minLength: 1, maxLength: 200 }, payment_type: { type: "string", maxLength: 100 }, payment_issuer_mode: { type: "string", maxLength: 100, enum: ["owner_managed", "gateway_managed", "tenant_delegated", "publisher_delegated", "any"] }, payment_scheme: { type: "string", maxLength: 100 }, payment_network: { type: "string", maxLength: 100 }, payment_allowed_issuers: { type: "array", maxItems: 20, items: { type: "string", maxLength: 100, enum: ["tenant", "publisher", "gateway", "tenant_delegated", "publisher_delegated"] } }, payment_return_contract: { type: "string", maxLength: 200 }, payment_return_required: { type: "boolean" }, payment_return_max_age_s: { type: "number", minimum: 0, maximum: 86400 }, payment_return_hmac_secret_refs: { type: "object" }, payment_return_hmac_secrets: { type: "object" }, payment_return_hmac_delegated_secret_refs: { type: "object" }, payment_return_hmac_delegated_secrets: { type: "object" }, payment_provider_credentials: { type: "object" }, payment_provider_credentials_refs: { type: "object" }, payment_provider_secret_refs: { type: "object" }, pricing_model: { type: "string", maxLength: 100 }, pricing: { type: "object", additionalProperties: false, properties: { currency: { type: "string", maxLength: 32 }, default_amount: { type: "number" }, xapp_prices: { type: "object", additionalProperties: { type: "number" } }, tool_overrides: { type: "object", additionalProperties: { type: "number" } }, description: { type: "string", maxLength: 500 }, asset: { type: "string", maxLength: 256 }, pay_to: { type: "string", maxLength: 256 }, payTo: { type: "string", maxLength: 256 } } }, receipt_field: { type: "string", maxLength: 200 }, payment_url: { type: "string", maxLength: 2048 }, accepts: { type: "array", maxItems: 20, items: { type: "object", additionalProperties: true } }, payment_ui: { type: "object" }, policy: { type: "object" }, action: { type: "object" }, owner_override_allowlist: { type: "array", maxItems: 100, items: { type: "string", minLength: 1, maxLength: 200 } }, owner_pricing_floor: { type: "object", additionalProperties: false, properties: { default_amount: { type: "number" }, xapp_prices: { type: "object", additionalProperties: { type: "number" } }, tool_overrides: { type: "object", additionalProperties: { type: "number" } } } } } } },
-    subject_profile_guard_definitions: { type: "array", maxItems: 50, items: { type: "object", required: ["name"], additionalProperties: false, properties: { name: { type: "string", minLength: 1, maxLength: 200 }, policy: { type: "object" }, action: { type: "object" }, tools: { type: "array", maxItems: 100, items: { type: "string", minLength: 1, maxLength: 200 } }, subject_profile_requirement: { type: "object" }, subject_profile_remediation: { type: "object" }, subject_profile_sources: { type: "object" }, owner_override_allowlist: { type: "array", maxItems: 100, items: { type: "string", minLength: 1, maxLength: 200 } } } } },
-    notification_definitions: { type: "array", maxItems: 50, items: { type: "object", required: ["name"], additionalProperties: false, properties: { name: { type: "string", minLength: 1, maxLength: 200 }, channel: { type: "string", enum: ["email"] }, effect_kind: { type: "string", enum: ["policy", "invoice", "notification", "integration_call"] }, effectKind: { type: "string", enum: ["policy", "invoice", "notification", "integration_call"] }, provider_key: { type: "string", maxLength: 100 }, providerKey: { type: "string", maxLength: 100 }, execution_mode: { type: "string", maxLength: 100 }, executionMode: { type: "string", maxLength: 100 }, provider_scope: { type: "string", maxLength: 100 }, providerScope: { type: "string", maxLength: 100 }, provider_execution: { type: "string", maxLength: 100 }, providerExecution: { type: "string", maxLength: 100 }, failure_policy: { type: "string", maxLength: 100 }, failurePolicy: { type: "string", maxLength: 100 }, retry_policy: { type: "object" }, retryPolicy: { type: "object" }, idempotency_scope: { type: "string", maxLength: 100 }, idempotencyScope: { type: "string", maxLength: 100 }, template_ref: { type: "string", maxLength: 200 }, templateRef: { type: "string", maxLength: 200 }, target: { type: "object" }, template: { type: "object" } } } },
-    notification_templates: { type: "array", maxItems: 50, items: { type: "object", required: ["name"], additionalProperties: false, properties: { name: { type: "string", minLength: 1, maxLength: 200 }, channel: { type: "string", enum: ["email"] }, subject: { type: "string", maxLength: 500 }, text: { type: "string", maxLength: 20000 }, html: { type: "string", maxLength: 100000 } } } },
-    invoice_definitions: { type: "array", maxItems: 50, items: { type: "object", required: ["name"], additionalProperties: false, properties: { name: { type: "string", minLength: 1, maxLength: 200 }, provider_key: { type: "string", maxLength: 100 }, providerKey: { type: "string", maxLength: 100 }, effect_kind: { type: "string", enum: ["policy", "invoice", "notification", "integration_call"] }, effectKind: { type: "string", enum: ["policy", "invoice", "notification", "integration_call"] }, execution_mode: { type: "string", maxLength: 100 }, executionMode: { type: "string", maxLength: 100 }, provider_scope: { type: "string", maxLength: 100 }, providerScope: { type: "string", maxLength: 100 }, provider_execution: { type: "string", maxLength: 100 }, providerExecution: { type: "string", maxLength: 100 }, failure_policy: { type: "string", maxLength: 100 }, failurePolicy: { type: "string", maxLength: 100 }, idempotency_scope: { type: "string", maxLength: 100 }, idempotencyScope: { type: "string", maxLength: 100 }, invoice_template_ref: { type: "string", maxLength: 200 }, invoiceTemplateRef: { type: "string", maxLength: 200 }, invoice: { type: "object" }, template: { type: "object" } } } },
-    invoice_templates: { type: "array", maxItems: 50, items: { type: "object", required: ["name"], additionalProperties: true, properties: { name: { type: "string", minLength: 1, maxLength: 200 }, title: { type: "string", maxLength: 500 }, text: { type: "string", maxLength: 20000 }, html: { type: "string", maxLength: 100000 } } } },
+    payment_guard_definitions: {
+      type: "array",
+      maxItems: 50,
+      items: {
+        type: "object",
+        required: ["name"],
+        additionalProperties: false,
+        properties: {
+          name: { type: "string", minLength: 1, maxLength: 200 },
+          payment_type: { type: "string", maxLength: 100 },
+          payment_issuer_mode: {
+            type: "string",
+            maxLength: 100,
+            enum: [
+              "owner_managed",
+              "gateway_managed",
+              "tenant_delegated",
+              "publisher_delegated",
+              "any",
+            ],
+          },
+          payment_scheme: { type: "string", maxLength: 100 },
+          payment_network: { type: "string", maxLength: 100 },
+          payment_allowed_issuers: {
+            type: "array",
+            maxItems: 20,
+            items: {
+              type: "string",
+              maxLength: 100,
+              enum: ["tenant", "publisher", "gateway", "tenant_delegated", "publisher_delegated"],
+            },
+          },
+          payment_return_contract: { type: "string", maxLength: 200 },
+          payment_return_required: { type: "boolean" },
+          payment_return_max_age_s: { type: "number", minimum: 0, maximum: 86400 },
+          payment_return_hmac_secret_refs: { type: "object" },
+          payment_return_hmac_secrets: { type: "object" },
+          payment_return_hmac_delegated_secret_refs: { type: "object" },
+          payment_return_hmac_delegated_secrets: { type: "object" },
+          payment_provider_credentials: { type: "object" },
+          payment_provider_credentials_refs: { type: "object" },
+          payment_provider_secret_refs: { type: "object" },
+          pricing_model: { type: "string", maxLength: 100 },
+          pricing: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              currency: { type: "string", maxLength: 32 },
+              default_amount: { type: "number" },
+              xapp_prices: { type: "object", additionalProperties: { type: "number" } },
+              tool_overrides: { type: "object", additionalProperties: { type: "number" } },
+              description: { type: "string", maxLength: 500 },
+              asset: { type: "string", maxLength: 256 },
+              pay_to: { type: "string", maxLength: 256 },
+              payTo: { type: "string", maxLength: 256 },
+            },
+          },
+          receipt_field: { type: "string", maxLength: 200 },
+          payment_url: { type: "string", maxLength: 2048 },
+          accepts: {
+            type: "array",
+            maxItems: 20,
+            items: { type: "object", additionalProperties: true },
+          },
+          payment_ui: { type: "object" },
+          policy: { type: "object" },
+          action: { type: "object" },
+          owner_override_allowlist: {
+            type: "array",
+            maxItems: 100,
+            items: { type: "string", minLength: 1, maxLength: 200 },
+          },
+          owner_pricing_floor: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              default_amount: { type: "number" },
+              xapp_prices: { type: "object", additionalProperties: { type: "number" } },
+              tool_overrides: { type: "object", additionalProperties: { type: "number" } },
+            },
+          },
+        },
+      },
+    },
+    subject_profile_guard_definitions: {
+      type: "array",
+      maxItems: 50,
+      items: {
+        type: "object",
+        required: ["name"],
+        additionalProperties: false,
+        properties: {
+          name: { type: "string", minLength: 1, maxLength: 200 },
+          policy: { type: "object" },
+          action: { type: "object" },
+          tools: {
+            type: "array",
+            maxItems: 100,
+            items: { type: "string", minLength: 1, maxLength: 200 },
+          },
+          subject_profile_requirement: { type: "object" },
+          subject_profile_remediation: { type: "object" },
+          subject_profile_sources: { type: "object" },
+          owner_override_allowlist: {
+            type: "array",
+            maxItems: 100,
+            items: { type: "string", minLength: 1, maxLength: 200 },
+          },
+        },
+      },
+    },
+    notification_definitions: {
+      type: "array",
+      maxItems: 50,
+      items: {
+        type: "object",
+        required: ["name"],
+        additionalProperties: false,
+        properties: {
+          name: { type: "string", minLength: 1, maxLength: 200 },
+          channel: { type: "string", enum: ["email"] },
+          effect_kind: {
+            type: "string",
+            enum: ["policy", "invoice", "notification", "integration_call"],
+          },
+          effectKind: {
+            type: "string",
+            enum: ["policy", "invoice", "notification", "integration_call"],
+          },
+          provider_key: { type: "string", maxLength: 100 },
+          providerKey: { type: "string", maxLength: 100 },
+          execution_mode: { type: "string", maxLength: 100 },
+          executionMode: { type: "string", maxLength: 100 },
+          provider_scope: { type: "string", maxLength: 100 },
+          providerScope: { type: "string", maxLength: 100 },
+          provider_execution: { type: "string", maxLength: 100 },
+          providerExecution: { type: "string", maxLength: 100 },
+          failure_policy: { type: "string", maxLength: 100 },
+          failurePolicy: { type: "string", maxLength: 100 },
+          retry_policy: { type: "object" },
+          retryPolicy: { type: "object" },
+          idempotency_scope: { type: "string", maxLength: 100 },
+          idempotencyScope: { type: "string", maxLength: 100 },
+          template_ref: { type: "string", maxLength: 200 },
+          templateRef: { type: "string", maxLength: 200 },
+          target: { type: "object" },
+          template: { type: "object" },
+        },
+      },
+    },
+    notification_templates: {
+      type: "array",
+      maxItems: 50,
+      items: {
+        type: "object",
+        required: ["name"],
+        additionalProperties: false,
+        properties: {
+          name: { type: "string", minLength: 1, maxLength: 200 },
+          family: { type: "string", minLength: 1, maxLength: 200 },
+          locale: { type: "string", minLength: 2, maxLength: 32 },
+          channel: { type: "string", enum: ["email"] },
+          subject: { type: "string", maxLength: 500 },
+          text: { type: "string", maxLength: 20000 },
+          html: { type: "string", maxLength: 100000 },
+        },
+      },
+    },
+    invoice_definitions: {
+      type: "array",
+      maxItems: 50,
+      items: {
+        type: "object",
+        required: ["name"],
+        additionalProperties: false,
+        properties: {
+          name: { type: "string", minLength: 1, maxLength: 200 },
+          provider_key: { type: "string", maxLength: 100 },
+          providerKey: { type: "string", maxLength: 100 },
+          effect_kind: {
+            type: "string",
+            enum: ["policy", "invoice", "notification", "integration_call"],
+          },
+          effectKind: {
+            type: "string",
+            enum: ["policy", "invoice", "notification", "integration_call"],
+          },
+          execution_mode: { type: "string", maxLength: 100 },
+          executionMode: { type: "string", maxLength: 100 },
+          provider_scope: { type: "string", maxLength: 100 },
+          providerScope: { type: "string", maxLength: 100 },
+          provider_execution: { type: "string", maxLength: 100 },
+          providerExecution: { type: "string", maxLength: 100 },
+          failure_policy: { type: "string", maxLength: 100 },
+          failurePolicy: { type: "string", maxLength: 100 },
+          idempotency_scope: { type: "string", maxLength: 100 },
+          idempotencyScope: { type: "string", maxLength: 100 },
+          invoice_template_ref: { type: "string", maxLength: 200 },
+          invoiceTemplateRef: { type: "string", maxLength: 200 },
+          invoice: { type: "object" },
+          template: { type: "object" },
+        },
+      },
+    },
+    invoice_templates: {
+      type: "array",
+      maxItems: 50,
+      items: {
+        type: "object",
+        required: ["name"],
+        additionalProperties: true,
+        properties: {
+          name: { type: "string", minLength: 1, maxLength: 200 },
+          family: { type: "string", minLength: 1, maxLength: 200 },
+          locale: { type: "string", minLength: 2, maxLength: 32 },
+          title: { type: "string", maxLength: 500 },
+          text: { type: "string", maxLength: 20000 },
+          html: { type: "string", maxLength: 100000 },
+        },
+      },
+    },
   },
 } as const;
 
@@ -809,23 +1102,53 @@ function validateJsonFormsStepDispatch(tool: XappManifestTool, knownToolNames: S
     if (!isRecord(xapps) || !("onStepComplete" in xapps)) return;
     const action = (xapps as any).onStepComplete;
     if (!isRecord(action)) {
-      throw Object.assign(new Error(`Tool ${tool.tool_name} input_ui_schema step ${idx + 1} xapps.onStepComplete must be an object`), { status: 400 });
+      throw Object.assign(
+        new Error(
+          `Tool ${tool.tool_name} input_ui_schema step ${idx + 1} xapps.onStepComplete must be an object`,
+        ),
+        { status: 400 },
+      );
     }
     if (String((action as any).type) !== "request") {
-      throw Object.assign(new Error(`Tool ${tool.tool_name} input_ui_schema step ${idx + 1} xapps.onStepComplete.type must be "request"`), { status: 400 });
+      throw Object.assign(
+        new Error(
+          `Tool ${tool.tool_name} input_ui_schema step ${idx + 1} xapps.onStepComplete.type must be "request"`,
+        ),
+        { status: 400 },
+      );
     }
     const toolName = String((action as any).toolName ?? "").trim();
     if (!toolName) {
-      throw Object.assign(new Error(`Tool ${tool.tool_name} input_ui_schema step ${idx + 1} xapps.onStepComplete.toolName is required`), { status: 400 });
+      throw Object.assign(
+        new Error(
+          `Tool ${tool.tool_name} input_ui_schema step ${idx + 1} xapps.onStepComplete.toolName is required`,
+        ),
+        { status: 400 },
+      );
     }
     if (!knownToolNames.has(toolName)) {
-      throw Object.assign(new Error(`Tool ${tool.tool_name} input_ui_schema step ${idx + 1} xapps.onStepComplete.toolName references unknown tool: ${toolName}`), { status: 400 });
+      throw Object.assign(
+        new Error(
+          `Tool ${tool.tool_name} input_ui_schema step ${idx + 1} xapps.onStepComplete.toolName references unknown tool: ${toolName}`,
+        ),
+        { status: 400 },
+      );
     }
     if ("payloadMapping" in action && !isRecord((action as any).payloadMapping)) {
-      throw Object.assign(new Error(`Tool ${tool.tool_name} input_ui_schema step ${idx + 1} xapps.onStepComplete.payloadMapping must be an object`), { status: 400 });
+      throw Object.assign(
+        new Error(
+          `Tool ${tool.tool_name} input_ui_schema step ${idx + 1} xapps.onStepComplete.payloadMapping must be an object`,
+        ),
+        { status: 400 },
+      );
     }
     if ("resultMapping" in action && !isRecord((action as any).resultMapping)) {
-      throw Object.assign(new Error(`Tool ${tool.tool_name} input_ui_schema step ${idx + 1} xapps.onStepComplete.resultMapping must be an object`), { status: 400 });
+      throw Object.assign(
+        new Error(
+          `Tool ${tool.tool_name} input_ui_schema step ${idx + 1} xapps.onStepComplete.resultMapping must be an object`,
+        ),
+        { status: 400 },
+      );
     }
   });
 }
@@ -844,14 +1167,19 @@ function validateEndpointBaseUrl(baseUrl: string) {
 }
 
 function isLoopbackHostname(hostname: string): boolean {
-  const normalized = String(hostname || "").trim().toLowerCase();
+  const normalized = String(hostname || "")
+    .trim()
+    .toLowerCase();
   return normalized === "localhost" || normalized === "127.0.0.1" || normalized === "::1";
 }
 
 function parseUrlAllowlist(envName: string): string[] {
   const raw = String(process.env[envName] || "").trim();
   if (!raw) return [];
-  return raw.split(",").map((entry) => String(entry || "").trim()).filter(Boolean);
+  return raw
+    .split(",")
+    .map((entry) => String(entry || "").trim())
+    .filter(Boolean);
 }
 
 function matchesUrlAllowlist(url: URL, allowlist: string[]): boolean {
@@ -872,10 +1200,14 @@ function validateLinkingSetupUrl(setupUrl: string) {
   if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
     throw Object.assign(new Error("Unsupported linking.setup_url scheme"), { status: 400 });
   }
-  const allowInsecure = String(process.env.XAPPS_ALLOW_INSECURE_LINKING_URLS || "").trim().toLowerCase();
+  const allowInsecure = String(process.env.XAPPS_ALLOW_INSECURE_LINKING_URLS || "")
+    .trim()
+    .toLowerCase();
   const insecureAllowed = allowInsecure === "true" || allowInsecure === "1";
   if (parsed.protocol !== "https:" && !isLoopbackHostname(parsed.hostname) && !insecureAllowed) {
-    throw Object.assign(new Error("linking.setup_url must use https unless it targets localhost"), { status: 400 });
+    throw Object.assign(new Error("linking.setup_url must use https unless it targets localhost"), {
+      status: 400,
+    });
   }
   const allowlist = parseUrlAllowlist("XAPPS_LINKING_SETUP_URL_ALLOWLIST");
   if (!matchesUrlAllowlist(parsed, allowlist)) {
@@ -888,9 +1220,15 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 }
 
 function normalizeResultPresentation(value: unknown) {
-  const normalized = String(value || "").trim().toLowerCase();
+  const normalized = String(value || "")
+    .trim()
+    .toLowerCase();
   if (!normalized) return "";
-  if (normalized === "runtime_default" || normalized === "inline" || normalized === "publisher_managed") {
+  if (
+    normalized === "runtime_default" ||
+    normalized === "inline" ||
+    normalized === "publisher_managed"
+  ) {
     return normalized;
   }
   return "__invalid__";
@@ -910,7 +1248,12 @@ function validateWidgetResultPresentation(widget: XappManifestWidget) {
     if (rawValue === undefined || rawValue === null || String(rawValue).trim() === "") continue;
     const normalized = normalizeResultPresentation(rawValue);
     if (normalized === "__invalid__") {
-      throw Object.assign(new Error(`Widget ${widget.widget_name} ${fieldPath} must be one of: runtime_default, inline, publisher_managed`), { status: 400 });
+      throw Object.assign(
+        new Error(
+          `Widget ${widget.widget_name} ${fieldPath} must be one of: runtime_default, inline, publisher_managed`,
+        ),
+        { status: 400 },
+      );
     }
   }
 }
@@ -925,9 +1268,17 @@ function validateGuardHookConfig(
       ? resolvedConfigOverride
       : rawConfig;
   if (!effectiveConfig) return;
-  const unresolvedNotificationRef = Boolean(rawConfig && readNotificationRef(rawConfig) && !resolvedConfigOverride);
-  const unresolvedInvoiceRef = Boolean(rawConfig && readInvoiceRef(rawConfig) && !resolvedConfigOverride);
-  const resolved = normalizeHookGuardConfig({ slug: guard.slug, trigger: guard.trigger, config: effectiveConfig });
+  const unresolvedNotificationRef = Boolean(
+    rawConfig && readNotificationRef(rawConfig) && !resolvedConfigOverride,
+  );
+  const unresolvedInvoiceRef = Boolean(
+    rawConfig && readInvoiceRef(rawConfig) && !resolvedConfigOverride,
+  );
+  const resolved = normalizeHookGuardConfig({
+    slug: guard.slug,
+    trigger: guard.trigger,
+    config: effectiveConfig,
+  });
   const effectKind = resolved.config.effectKind as HookEffectKind | undefined;
   const executionMode = resolved.config.executionMode as HookExecutionMode | undefined;
   const providerScope = resolved.config.providerScope as HookProviderScope | undefined;
@@ -936,43 +1287,111 @@ function validateGuardHookConfig(
   const hookMeta = resolved.hook;
   const supportedFieldChecks: Array<[string, unknown]> = [
     ["config.effect_kind", (rawConfig as any)?.effect_kind ?? (rawConfig as any)?.effectKind],
-    ["config.execution_mode", (rawConfig as any)?.execution_mode ?? (rawConfig as any)?.executionMode],
-    ["config.provider_scope", (rawConfig as any)?.provider_scope ?? (rawConfig as any)?.providerScope],
-    ["config.failure_policy", (rawConfig as any)?.failure_policy ?? (rawConfig as any)?.failurePolicy],
-    ["config.idempotency_scope", (rawConfig as any)?.idempotency_scope ?? (rawConfig as any)?.idempotencyScope],
+    [
+      "config.execution_mode",
+      (rawConfig as any)?.execution_mode ?? (rawConfig as any)?.executionMode,
+    ],
+    [
+      "config.provider_scope",
+      (rawConfig as any)?.provider_scope ?? (rawConfig as any)?.providerScope,
+    ],
+    [
+      "config.failure_policy",
+      (rawConfig as any)?.failure_policy ?? (rawConfig as any)?.failurePolicy,
+    ],
+    [
+      "config.idempotency_scope",
+      (rawConfig as any)?.idempotency_scope ?? (rawConfig as any)?.idempotencyScope,
+    ],
   ];
   for (const [fieldPath, rawValue] of supportedFieldChecks) {
     if (rawValue === undefined || rawValue === null || String(rawValue).trim() === "") continue;
     if (
-      (fieldPath === "config.effect_kind" && !((resolved.config.effectKind as string) || "").trim()) ||
-      (fieldPath === "config.execution_mode" && !((resolved.config.executionMode as string | null) || "").trim()) ||
-      (fieldPath === "config.provider_scope" && !((resolved.config.providerScope as string | null) || "").trim()) ||
-      (fieldPath === "config.failure_policy" && !((resolved.config.failurePolicy as string) || "").trim()) ||
-      (fieldPath === "config.idempotency_scope" && !((resolved.config.idempotencyScope as string | null) || "").trim())
+      (fieldPath === "config.effect_kind" &&
+        !((resolved.config.effectKind as string) || "").trim()) ||
+      (fieldPath === "config.execution_mode" &&
+        !((resolved.config.executionMode as string | null) || "").trim()) ||
+      (fieldPath === "config.provider_scope" &&
+        !((resolved.config.providerScope as string | null) || "").trim()) ||
+      (fieldPath === "config.failure_policy" &&
+        !((resolved.config.failurePolicy as string) || "").trim()) ||
+      (fieldPath === "config.idempotency_scope" &&
+        !((resolved.config.idempotencyScope as string | null) || "").trim())
     ) {
-      throw Object.assign(new Error(`Guard ${guard.slug} ${fieldPath} has unsupported value: ${String(rawValue)}`), { status: 400 });
+      throw Object.assign(
+        new Error(`Guard ${guard.slug} ${fieldPath} has unsupported value: ${String(rawValue)}`),
+        { status: 400 },
+      );
     }
   }
   if (effectKind && guard.trigger.startsWith("before:") && effectKind !== "policy") {
-    throw Object.assign(new Error(`Guard ${guard.slug} effect_kind=${effectKind} is not supported on blocking trigger ${guard.trigger}`), { status: 400 });
+    throw Object.assign(
+      new Error(
+        `Guard ${guard.slug} effect_kind=${effectKind} is not supported on blocking trigger ${guard.trigger}`,
+      ),
+      { status: 400 },
+    );
   }
   if (effectKind && hookMeta && !hookMeta.allowedEffectKinds.includes(effectKind)) {
-    throw Object.assign(new Error(`Guard ${guard.slug} effect_kind=${effectKind} is not supported on trigger ${guard.trigger}`), { status: 400 });
+    throw Object.assign(
+      new Error(
+        `Guard ${guard.slug} effect_kind=${effectKind} is not supported on trigger ${guard.trigger}`,
+      ),
+      { status: 400 },
+    );
   }
-  if (effectKind === "policy" && (providerScope || idempotencyScope) && guard.trigger.startsWith("before:")) {
-    throw Object.assign(new Error(`Guard ${guard.slug} policy effect on ${guard.trigger} must not declare provider_scope or idempotency_scope`), { status: 400 });
+  if (
+    effectKind === "policy" &&
+    (providerScope || idempotencyScope) &&
+    guard.trigger.startsWith("before:")
+  ) {
+    throw Object.assign(
+      new Error(
+        `Guard ${guard.slug} policy effect on ${guard.trigger} must not declare provider_scope or idempotency_scope`,
+      ),
+      { status: 400 },
+    );
   }
   if (executionMode === "gateway_delegated" && providerScope === "gateway") {
-    throw Object.assign(new Error(`Guard ${guard.slug} gateway_delegated execution requires provider_scope tenant or publisher`), { status: 400 });
+    throw Object.assign(
+      new Error(
+        `Guard ${guard.slug} gateway_delegated execution requires provider_scope tenant or publisher`,
+      ),
+      { status: 400 },
+    );
   }
-  if ((effectKind === "invoice" || effectKind === "notification") && !providerScope && !unresolvedNotificationRef && !unresolvedInvoiceRef) {
-    throw Object.assign(new Error(`Guard ${guard.slug} effect_kind=${effectKind} requires provider_scope`), { status: 400 });
+  if (
+    (effectKind === "invoice" || effectKind === "notification") &&
+    !providerScope &&
+    !unresolvedNotificationRef &&
+    !unresolvedInvoiceRef
+  ) {
+    throw Object.assign(
+      new Error(`Guard ${guard.slug} effect_kind=${effectKind} requires provider_scope`),
+      { status: 400 },
+    );
   }
-  if ((effectKind === "invoice" || effectKind === "notification") && !failurePolicy && !unresolvedNotificationRef && !unresolvedInvoiceRef) {
-    throw Object.assign(new Error(`Guard ${guard.slug} effect_kind=${effectKind} requires failure_policy`), { status: 400 });
+  if (
+    (effectKind === "invoice" || effectKind === "notification") &&
+    !failurePolicy &&
+    !unresolvedNotificationRef &&
+    !unresolvedInvoiceRef
+  ) {
+    throw Object.assign(
+      new Error(`Guard ${guard.slug} effect_kind=${effectKind} requires failure_policy`),
+      { status: 400 },
+    );
   }
-  if ((effectKind === "invoice" || effectKind === "notification") && !idempotencyScope && !unresolvedNotificationRef && !unresolvedInvoiceRef) {
-    throw Object.assign(new Error(`Guard ${guard.slug} effect_kind=${effectKind} requires idempotency_scope`), { status: 400 });
+  if (
+    (effectKind === "invoice" || effectKind === "notification") &&
+    !idempotencyScope &&
+    !unresolvedNotificationRef &&
+    !unresolvedInvoiceRef
+  ) {
+    throw Object.assign(
+      new Error(`Guard ${guard.slug} effect_kind=${effectKind} requires idempotency_scope`),
+      { status: 400 },
+    );
   }
 }
 
@@ -986,33 +1405,52 @@ function validateAdapterShape(tool: XappManifestTool) {
   if (!adapter || !isPlainObject(adapter)) return;
   const path = String((adapter as any).path ?? "").trim();
   if (!path.startsWith("/")) {
-    throw Object.assign(new Error(`Tool ${tool.tool_name} adapter.path must start with "/"`), { status: 400 });
+    throw Object.assign(new Error(`Tool ${tool.tool_name} adapter.path must start with "/"`), {
+      status: 400,
+    });
   }
   const query = (adapter as any).query;
   if (query !== undefined && !isPlainObject(query)) {
-    throw Object.assign(new Error(`Tool ${tool.tool_name} adapter.query must be an object`), { status: 400 });
+    throw Object.assign(new Error(`Tool ${tool.tool_name} adapter.query must be an object`), {
+      status: 400,
+    });
   }
   const headers = (adapter as any).headers;
   if (headers !== undefined) {
     if (!isPlainObject(headers)) {
-      throw Object.assign(new Error(`Tool ${tool.tool_name} adapter.headers must be an object`), { status: 400 });
+      throw Object.assign(new Error(`Tool ${tool.tool_name} adapter.headers must be an object`), {
+        status: 400,
+      });
     }
     for (const headerName of Object.keys(headers)) {
       const trimmed = String(headerName).trim();
       if (!trimmed || !/^[A-Za-z0-9-]+$/.test(trimmed)) {
-        throw Object.assign(new Error(`Tool ${tool.tool_name} adapter.headers has invalid header name: ${headerName}`), { status: 400 });
+        throw Object.assign(
+          new Error(
+            `Tool ${tool.tool_name} adapter.headers has invalid header name: ${headerName}`,
+          ),
+          { status: 400 },
+        );
       }
     }
   }
   const responseMapping = (adapter as any).response_mapping;
   if (responseMapping !== undefined) {
     if (!isPlainObject(responseMapping)) {
-      throw Object.assign(new Error(`Tool ${tool.tool_name} adapter.response_mapping must be an object`), { status: 400 });
+      throw Object.assign(
+        new Error(`Tool ${tool.tool_name} adapter.response_mapping must be an object`),
+        { status: 400 },
+      );
     }
     if (Object.keys(responseMapping).length === 0) {
-      throw Object.assign(new Error(`Tool ${tool.tool_name} adapter.response_mapping must not be empty`), { status: 400 });
+      throw Object.assign(
+        new Error(`Tool ${tool.tool_name} adapter.response_mapping must not be empty`),
+        { status: 400 },
+      );
     }
-    const outputSchema = isPlainObject(tool.output_schema) ? (tool.output_schema as Record<string, unknown>) : null;
+    const outputSchema = isPlainObject(tool.output_schema)
+      ? (tool.output_schema as Record<string, unknown>)
+      : null;
     const schemaType = String((outputSchema as any)?.type ?? "").trim();
     const schemaProperties = isPlainObject((outputSchema as any)?.properties)
       ? ((outputSchema as any).properties as Record<string, unknown>)
@@ -1020,7 +1458,12 @@ function validateAdapterShape(tool: XappManifestTool) {
     if (schemaType === "object" && schemaProperties) {
       for (const mappedKey of Object.keys(responseMapping)) {
         if (!Object.prototype.hasOwnProperty.call(schemaProperties, mappedKey)) {
-          throw Object.assign(new Error(`Tool ${tool.tool_name} adapter.response_mapping key "${mappedKey}" is not declared in output_schema.properties`), { status: 400 });
+          throw Object.assign(
+            new Error(
+              `Tool ${tool.tool_name} adapter.response_mapping key "${mappedKey}" is not declared in output_schema.properties`,
+            ),
+            { status: 400 },
+          );
         }
       }
       const required = Array.isArray((outputSchema as any)?.required)
@@ -1030,25 +1473,48 @@ function validateAdapterShape(tool: XappManifestTool) {
         : [];
       for (const requiredField of required) {
         if (!Object.prototype.hasOwnProperty.call(responseMapping, requiredField)) {
-          throw Object.assign(new Error(`Tool ${tool.tool_name} adapter.response_mapping must include required output field "${requiredField}"`), { status: 400 });
+          throw Object.assign(
+            new Error(
+              `Tool ${tool.tool_name} adapter.response_mapping must include required output field "${requiredField}"`,
+            ),
+            { status: 400 },
+          );
         }
       }
     }
   }
 }
 
-export function parseXappManifest(input: unknown, options?: ParseXappManifestOptions): XappManifest {
+export function parseXappManifest(
+  input: unknown,
+  options?: ParseXappManifestOptions,
+): XappManifest {
   if (!validate(input)) {
-    throw Object.assign(new Error("Invalid manifest"), { status: 400, details: (validate as any).errors ?? null });
+    throw Object.assign(new Error("Invalid manifest"), {
+      status: 400,
+      details: (validate as any).errors ?? null,
+    });
   }
 
   const manifest = input as XappManifest;
-  const paymentDefinitions = Array.isArray(manifest.payment_guard_definitions) ? manifest.payment_guard_definitions : [];
-  const subjectProfileDefinitions = Array.isArray(manifest.subject_profile_guard_definitions) ? manifest.subject_profile_guard_definitions : [];
-  const notificationDefinitions = Array.isArray(manifest.notification_definitions) ? manifest.notification_definitions : [];
-  const notificationTemplates = Array.isArray(manifest.notification_templates) ? manifest.notification_templates : [];
-  const invoiceDefinitions = Array.isArray(manifest.invoice_definitions) ? manifest.invoice_definitions : [];
-  const invoiceTemplates = Array.isArray(manifest.invoice_templates) ? manifest.invoice_templates : [];
+  const paymentDefinitions = Array.isArray(manifest.payment_guard_definitions)
+    ? manifest.payment_guard_definitions
+    : [];
+  const subjectProfileDefinitions = Array.isArray(manifest.subject_profile_guard_definitions)
+    ? manifest.subject_profile_guard_definitions
+    : [];
+  const notificationDefinitions = Array.isArray(manifest.notification_definitions)
+    ? manifest.notification_definitions
+    : [];
+  const notificationTemplates = Array.isArray(manifest.notification_templates)
+    ? manifest.notification_templates
+    : [];
+  const invoiceDefinitions = Array.isArray(manifest.invoice_definitions)
+    ? manifest.invoice_definitions
+    : [];
+  const invoiceTemplates = Array.isArray(manifest.invoice_templates)
+    ? manifest.invoice_templates
+    : [];
   const paymentDefinitionNames = new Set<string>();
   const subjectProfileDefinitionNames = new Set<string>();
   const notificationDefinitionNames = new Set<string>();
@@ -1067,8 +1533,10 @@ export function parseXappManifest(input: unknown, options?: ParseXappManifestOpt
     const [definitions, names, label] = list;
     for (const def of definitions) {
       const name = String((def as any)?.name ?? "").trim();
-      if (!name) throw Object.assign(new Error(`${label} entries require non-empty name`), { status: 400 });
-      if (names.has(name)) throw Object.assign(new Error(`Duplicate ${label} name: ${name}`), { status: 400 });
+      if (!name)
+        throw Object.assign(new Error(`${label} entries require non-empty name`), { status: 400 });
+      if (names.has(name))
+        throw Object.assign(new Error(`Duplicate ${label} name: ${name}`), { status: 400 });
       names.add(name);
     }
   }
@@ -1088,20 +1556,33 @@ export function parseXappManifest(input: unknown, options?: ParseXappManifestOpt
     for (const [groupName, group] of Object.entries(manifest.endpoint_groups)) {
       for (const member of group.members) {
         if (!endpointNames.has(member)) {
-          throw Object.assign(new Error(`Endpoint group ${groupName} references unknown endpoint: ${member}`), { status: 400 });
+          throw Object.assign(
+            new Error(`Endpoint group ${groupName} references unknown endpoint: ${member}`),
+            { status: 400 },
+          );
         }
       }
     }
   }
 
-  const knownToolNames = new Set((manifest.tools ?? []).map((tool) => String(tool.tool_name || "").trim()));
+  const knownToolNames = new Set(
+    (manifest.tools ?? []).map((tool) => String(tool.tool_name || "").trim()),
+  );
   const referencedPaymentDefinitionNames = new Set<string>();
   const referencedSubjectProfileDefinitionNames = new Set<string>();
-  const notificationDefinitionRegistry = buildNotificationDefinitionRegistry(manifest.notification_definitions ?? []);
-  const notificationTemplateRegistry = buildNotificationTemplateRegistry(manifest.notification_templates ?? []);
-  const invoiceDefinitionRegistry = buildInvoiceDefinitionRegistry(manifest.invoice_definitions ?? []);
+  const notificationDefinitionRegistry = buildNotificationDefinitionRegistry(
+    manifest.notification_definitions ?? [],
+  );
+  const notificationTemplateRegistry = buildNotificationTemplateRegistry(
+    manifest.notification_templates ?? [],
+  );
+  const invoiceDefinitionRegistry = buildInvoiceDefinitionRegistry(
+    manifest.invoice_definitions ?? [],
+  );
   const invoiceTemplateRegistry = buildInvoiceTemplateRegistry(manifest.invoice_templates ?? []);
-  const subjectProfileDefinitionRegistry = buildSubjectProfileDefinitionRegistry(manifest.subject_profile_guard_definitions ?? []);
+  const subjectProfileDefinitionRegistry = buildSubjectProfileDefinitionRegistry(
+    manifest.subject_profile_guard_definitions ?? [],
+  );
   const referencedNotificationDefinitionNames = new Set<string>();
   const referencedNotificationTemplateNames = new Set<string>();
   const referencedInvoiceDefinitionNames = new Set<string>();
@@ -1112,7 +1593,12 @@ export function parseXappManifest(input: unknown, options?: ParseXappManifestOpt
     if (!templateRef) continue;
     referencedNotificationTemplateNames.add(templateRef);
     if (!notificationTemplateRegistry.has(templateRef)) {
-      throw Object.assign(new Error(`notification_definitions entry ${String((def as any)?.name ?? "unknown")} references unknown template_ref: ${templateRef}`), { status: 400 });
+      throw Object.assign(
+        new Error(
+          `notification_definitions entry ${String((def as any)?.name ?? "unknown")} references unknown template_ref: ${templateRef}`,
+        ),
+        { status: 400 },
+      );
     }
   }
   for (const def of invoiceDefinitions) {
@@ -1120,7 +1606,12 @@ export function parseXappManifest(input: unknown, options?: ParseXappManifestOpt
     if (!templateRef) continue;
     referencedInvoiceTemplateNames.add(templateRef);
     if (!invoiceTemplateRegistry.has(templateRef)) {
-      throw Object.assign(new Error(`invoice_definitions entry ${String((def as any)?.name ?? "unknown")} references unknown invoice_template_ref: ${templateRef}`), { status: 400 });
+      throw Object.assign(
+        new Error(
+          `invoice_definitions entry ${String((def as any)?.name ?? "unknown")} references unknown invoice_template_ref: ${templateRef}`,
+        ),
+        { status: 400 },
+      );
     }
   }
   for (const widget of manifest.widgets ?? []) validateWidgetResultPresentation(widget);
@@ -1138,7 +1629,12 @@ export function parseXappManifest(input: unknown, options?: ParseXappManifestOpt
         manifest.endpoints && isRecord(manifest.endpoints) ? Object.keys(manifest.endpoints) : [],
       );
       if (!endpointNames.has(endpointRef)) {
-        throw Object.assign(new Error(`Tool ${tool.tool_name} dispatch_policy.endpoint_ref references unknown endpoint: ${endpointRef}`), { status: 400 });
+        throw Object.assign(
+          new Error(
+            `Tool ${tool.tool_name} dispatch_policy.endpoint_ref references unknown endpoint: ${endpointRef}`,
+          ),
+          { status: 400 },
+        );
       }
     }
     const requiredPolicyFields = Array.isArray((policy as any).required_policy_fields)
@@ -1149,11 +1645,21 @@ export function parseXappManifest(input: unknown, options?: ParseXappManifestOpt
       .filter(Boolean);
     for (const field of normalizedRequired) {
       if (!CANONICAL_REQUIRED_POLICY_FIELDS.has(field)) {
-        throw Object.assign(new Error(`Tool ${tool.tool_name} dispatch_policy.required_policy_fields contains unknown policy field: ${field}`), { status: 400 });
+        throw Object.assign(
+          new Error(
+            `Tool ${tool.tool_name} dispatch_policy.required_policy_fields contains unknown policy field: ${field}`,
+          ),
+          { status: 400 },
+        );
       }
     }
     if (new Set(normalizedRequired).size !== normalizedRequired.length) {
-      throw Object.assign(new Error(`Tool ${tool.tool_name} dispatch_policy.required_policy_fields contains duplicates after normalization`), { status: 400 });
+      throw Object.assign(
+        new Error(
+          `Tool ${tool.tool_name} dispatch_policy.required_policy_fields contains duplicates after normalization`,
+        ),
+        { status: 400 },
+      );
     }
     validateJsonFormsStepDispatch(tool, knownToolNames);
   }
@@ -1168,7 +1674,9 @@ export function parseXappManifest(input: unknown, options?: ParseXappManifestOpt
         (guardConfig as any)?.guard_kind ??
         (guardConfig as any)?.policy_kind ??
         "",
-    ).trim().toLowerCase();
+    )
+      .trim()
+      .toLowerCase();
     const notificationRef = readNotificationRef(guardConfig);
     const invoiceRef = readInvoiceRef(guardConfig);
     if (notificationRef) referencedNotificationDefinitionNames.add(notificationRef);
@@ -1183,7 +1691,11 @@ export function parseXappManifest(input: unknown, options?: ParseXappManifestOpt
               source: "consumer_manifest",
               templates: notificationTemplateRegistry,
             });
-            if (!resolved.ok) throw Object.assign(new Error(resolved.message), { status: 400, details: resolved.details });
+            if (!resolved.ok)
+              throw Object.assign(new Error(resolved.message), {
+                status: 400,
+                details: resolved.details,
+              });
             return resolved.config;
           })()
         : null;
@@ -1196,7 +1708,11 @@ export function parseXappManifest(input: unknown, options?: ParseXappManifestOpt
               source: "consumer_manifest",
               templates: invoiceTemplateRegistry,
             });
-            if (!resolved.ok) throw Object.assign(new Error(resolved.message), { status: 400, details: resolved.details });
+            if (!resolved.ok)
+              throw Object.assign(new Error(resolved.message), {
+                status: 400,
+                details: resolved.details,
+              });
             return resolved.config;
           })()
         : null;
@@ -1208,7 +1724,12 @@ export function parseXappManifest(input: unknown, options?: ParseXappManifestOpt
     if (templateRef) {
       referencedNotificationTemplateNames.add(templateRef);
       if (!notificationTemplateRegistry.has(templateRef)) {
-        throw Object.assign(new Error(`Guard ${String((guard as any)?.slug || "unknown")} references unknown template_ref: ${templateRef}`), { status: 400 });
+        throw Object.assign(
+          new Error(
+            `Guard ${String((guard as any)?.slug || "unknown")} references unknown template_ref: ${templateRef}`,
+          ),
+          { status: 400 },
+        );
       }
     }
     const invoiceTemplateRef =
@@ -1218,7 +1739,12 @@ export function parseXappManifest(input: unknown, options?: ParseXappManifestOpt
     if (invoiceTemplateRef) {
       referencedInvoiceTemplateNames.add(invoiceTemplateRef);
       if (!invoiceTemplateRegistry.has(invoiceTemplateRef)) {
-        throw Object.assign(new Error(`Guard ${String((guard as any)?.slug || "unknown")} references unknown invoice_template_ref: ${invoiceTemplateRef}`), { status: 400 });
+        throw Object.assign(
+          new Error(
+            `Guard ${String((guard as any)?.slug || "unknown")} references unknown invoice_template_ref: ${invoiceTemplateRef}`,
+          ),
+          { status: 400 },
+        );
       }
     }
     validateGuardHookConfig(guard, resolvedHookFamilyConfig);
@@ -1230,7 +1756,11 @@ export function parseXappManifest(input: unknown, options?: ParseXappManifestOpt
               definition: subjectProfileDefinitionRegistry.get(subjectProfileGuardRef)!,
               source: "consumer_manifest",
             });
-            if (!resolved.ok) throw Object.assign(new Error(`Guard ${guardSlug}: ${resolved.message}`), { status: 400, details: resolved.details });
+            if (!resolved.ok)
+              throw Object.assign(new Error(`Guard ${guardSlug}: ${resolved.message}`), {
+                status: 400,
+                details: resolved.details,
+              });
             return resolved.config;
           })()
         : null;
@@ -1243,7 +1773,10 @@ export function parseXappManifest(input: unknown, options?: ParseXappManifestOpt
       explicitPolicyKind === "subject-profile" ||
       (subjectProfileRequirement.ok && subjectProfileRequirement.source !== "none");
     if (expectsSubjectProfileContract && !subjectProfileRequirement.ok) {
-      throw Object.assign(new Error(`Guard ${guardSlug}: ${subjectProfileRequirement.message}`), { status: 400, details: subjectProfileRequirement.details });
+      throw Object.assign(new Error(`Guard ${guardSlug}: ${subjectProfileRequirement.message}`), {
+        status: 400,
+        details: subjectProfileRequirement.details,
+      });
     }
     const ref = readPaymentGuardRef(guardConfig);
     if (!ref) continue;
@@ -1253,7 +1786,10 @@ export function parseXappManifest(input: unknown, options?: ParseXappManifestOpt
         String((guardConfig as any).tool_name ?? (guardConfig as any).toolName ?? "").trim(),
       );
       if (hasExplicitTool) continue;
-      throw Object.assign(new Error(`Guard ${guardSlug} references unknown payment_guard_ref: ${ref}`), { status: 400 });
+      throw Object.assign(
+        new Error(`Guard ${guardSlug} references unknown payment_guard_ref: ${ref}`),
+        { status: 400 },
+      );
     }
   }
 
@@ -1263,27 +1799,55 @@ export function parseXappManifest(input: unknown, options?: ParseXappManifestOpt
     emitWarning?.({ kind, details });
   };
 
-  const unreferencedPaymentDefinitions = Array.from(paymentDefinitionNames).filter((name) => !referencedPaymentDefinitionNames.has(name));
+  const unreferencedPaymentDefinitions = Array.from(paymentDefinitionNames).filter(
+    (name) => !referencedPaymentDefinitionNames.has(name),
+  );
   if (referencedPaymentDefinitionNames.size > 0 && unreferencedPaymentDefinitions.length > 0) {
-    warnIfNeeded("unreferenced_payment_guard_definitions", { definitions: unreferencedPaymentDefinitions });
+    warnIfNeeded("unreferenced_payment_guard_definitions", {
+      definitions: unreferencedPaymentDefinitions,
+    });
   }
-  const unreferencedSubjectProfileDefinitions = Array.from(subjectProfileDefinitionNames).filter((name) => !referencedSubjectProfileDefinitionNames.has(name));
-  if (referencedSubjectProfileDefinitionNames.size > 0 && unreferencedSubjectProfileDefinitions.length > 0) {
-    warnIfNeeded("unreferenced_subject_profile_guard_definitions", { definitions: unreferencedSubjectProfileDefinitions });
+  const unreferencedSubjectProfileDefinitions = Array.from(subjectProfileDefinitionNames).filter(
+    (name) => !referencedSubjectProfileDefinitionNames.has(name),
+  );
+  if (
+    referencedSubjectProfileDefinitionNames.size > 0 &&
+    unreferencedSubjectProfileDefinitions.length > 0
+  ) {
+    warnIfNeeded("unreferenced_subject_profile_guard_definitions", {
+      definitions: unreferencedSubjectProfileDefinitions,
+    });
   }
-  const unreferencedNotificationDefinitions = Array.from(notificationDefinitionNames).filter((name) => !referencedNotificationDefinitionNames.has(name));
-  if (referencedNotificationDefinitionNames.size > 0 && unreferencedNotificationDefinitions.length > 0) {
-    warnIfNeeded("unreferenced_notification_definitions", { definitions: unreferencedNotificationDefinitions });
+  const unreferencedNotificationDefinitions = Array.from(notificationDefinitionNames).filter(
+    (name) => !referencedNotificationDefinitionNames.has(name),
+  );
+  if (
+    referencedNotificationDefinitionNames.size > 0 &&
+    unreferencedNotificationDefinitions.length > 0
+  ) {
+    warnIfNeeded("unreferenced_notification_definitions", {
+      definitions: unreferencedNotificationDefinitions,
+    });
   }
-  const unreferencedNotificationTemplates = Array.from(notificationTemplateNames).filter((name) => !referencedNotificationTemplateNames.has(name));
+  const unreferencedNotificationTemplates = Array.from(notificationTemplateNames).filter(
+    (name) => !referencedNotificationTemplateNames.has(name),
+  );
   if (notificationTemplateNames.size > 0 && unreferencedNotificationTemplates.length > 0) {
-    warnIfNeeded("unreferenced_notification_templates", { templates: unreferencedNotificationTemplates });
+    warnIfNeeded("unreferenced_notification_templates", {
+      templates: unreferencedNotificationTemplates,
+    });
   }
-  const unreferencedInvoiceDefinitions = Array.from(invoiceDefinitionNames).filter((name) => !referencedInvoiceDefinitionNames.has(name));
+  const unreferencedInvoiceDefinitions = Array.from(invoiceDefinitionNames).filter(
+    (name) => !referencedInvoiceDefinitionNames.has(name),
+  );
   if (referencedInvoiceDefinitionNames.size > 0 && unreferencedInvoiceDefinitions.length > 0) {
-    warnIfNeeded("unreferenced_invoice_definitions", { definitions: unreferencedInvoiceDefinitions });
+    warnIfNeeded("unreferenced_invoice_definitions", {
+      definitions: unreferencedInvoiceDefinitions,
+    });
   }
-  const unreferencedInvoiceTemplates = Array.from(invoiceTemplateNames).filter((name) => !referencedInvoiceTemplateNames.has(name));
+  const unreferencedInvoiceTemplates = Array.from(invoiceTemplateNames).filter(
+    (name) => !referencedInvoiceTemplateNames.has(name),
+  );
   if (invoiceTemplateNames.size > 0 && unreferencedInvoiceTemplates.length > 0) {
     warnIfNeeded("unreferenced_invoice_templates", { templates: unreferencedInvoiceTemplates });
   }

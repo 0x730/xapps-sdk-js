@@ -42,7 +42,11 @@ export type SubjectProfileRemediationHandoff = {
 };
 
 export type SubjectProfileRequirementResolution =
-  | { ok: true; requirement: SubjectProfileRequirement | null; source: "inline" | "nested" | "none" }
+  | {
+      ok: true;
+      requirement: SubjectProfileRequirement | null;
+      source: "inline" | "nested" | "none";
+    }
   | {
       ok: false;
       reason: "subject_profile_guard_misconfigured";
@@ -69,16 +73,35 @@ function normalizeAllowedSource(value: unknown): SubjectProfileAllowedSource | n
   const normalized = String(value ?? "")
     .trim()
     .toLowerCase();
-  if (["request_payload", "request-payload", "payload", "explicit_payload", "explicit"].includes(normalized)) {
+  if (
+    ["request_payload", "request-payload", "payload", "explicit_payload", "explicit"].includes(
+      normalized,
+    )
+  ) {
     return "request_payload";
   }
-  if (["tenant_subject_profile", "tenant-subject-profile", "tenant_profile", "tenant"].includes(normalized)) {
+  if (
+    ["tenant_subject_profile", "tenant-subject-profile", "tenant_profile", "tenant"].includes(
+      normalized,
+    )
+  ) {
     return "tenant_subject_profile";
   }
-  if (["publisher_subject_profile", "publisher-subject-profile", "publisher_profile", "publisher"].includes(normalized)) {
+  if (
+    [
+      "publisher_subject_profile",
+      "publisher-subject-profile",
+      "publisher_profile",
+      "publisher",
+    ].includes(normalized)
+  ) {
     return "publisher_subject_profile";
   }
-  if (["subject_self_profile", "subject-self-profile", "self_profile", "self", "subject"].includes(normalized)) {
+  if (
+    ["subject_self_profile", "subject-self-profile", "self_profile", "self", "subject"].includes(
+      normalized,
+    )
+  ) {
     return "subject_self_profile";
   }
   return null;
@@ -97,13 +120,25 @@ function normalizeRemediationFlow(value: unknown): SubjectProfileRemediationFlow
   const normalized = String(value ?? "")
     .trim()
     .toLowerCase();
-  if (["internal_guard_ui", "internal-guard-ui", "internal", "guard_ui", "guard-ui"].includes(normalized)) {
+  if (
+    ["internal_guard_ui", "internal-guard-ui", "internal", "guard_ui", "guard-ui"].includes(
+      normalized,
+    )
+  ) {
     return "internal_guard_ui";
   }
   if (["hosted_capture", "hosted-capture", "hosted", "capture"].includes(normalized)) {
     return "hosted_capture";
   }
-  if (["external_endpoint", "external-endpoint", "external", "endpoint", "third_party_endpoint"].includes(normalized)) {
+  if (
+    [
+      "external_endpoint",
+      "external-endpoint",
+      "external",
+      "endpoint",
+      "third_party_endpoint",
+    ].includes(normalized)
+  ) {
     return "external_endpoint";
   }
   return null;
@@ -131,7 +166,11 @@ function normalizeSaveScope(value: unknown): SubjectProfileSaveScope | null {
     .trim()
     .toLowerCase();
   if (["none", "no_save", "no-save"].includes(normalized)) return "none";
-  if (["subject_private", "subject-private", "subject", "subject_only", "subject-only"].includes(normalized)) {
+  if (
+    ["subject_private", "subject-private", "subject", "subject_only", "subject-only"].includes(
+      normalized,
+    )
+  ) {
     return "subject_private";
   }
   return null;
@@ -158,7 +197,11 @@ function normalizeDirtyHandling(value: unknown): SubjectProfileDirtyHandling | n
   if (["discard_incomplete", "discard-incomplete", "discard"].includes(normalized)) {
     return "discard_incomplete";
   }
-  if (["allow_incomplete_draft", "allow-incomplete-draft", "allow_draft", "draft"].includes(normalized)) {
+  if (
+    ["allow_incomplete_draft", "allow-incomplete-draft", "allow_draft", "draft"].includes(
+      normalized,
+    )
+  ) {
     return "allow_incomplete_draft";
   }
   return null;
@@ -178,10 +221,18 @@ export function normalizeRequiredSubjectProfileFamily(
   if (["identity_basic", "identity-basic", "identity", "basic_identity"].includes(normalized)) {
     return "identity_basic";
   }
-  if (["billing_individual", "billing-individual", "individual", "person", "natural_person"].includes(normalized)) {
+  if (
+    ["billing_individual", "billing-individual", "individual", "person", "natural_person"].includes(
+      normalized,
+    )
+  ) {
     return "billing_individual";
   }
-  if (["billing_business", "billing-business", "business", "company", "organization"].includes(normalized)) {
+  if (
+    ["billing_business", "billing-business", "business", "company", "organization"].includes(
+      normalized,
+    )
+  ) {
     return "billing_business";
   }
   return null;

@@ -10,7 +10,11 @@ import {
   type HookIdempotencyScope,
   type HookProviderScope,
 } from "./hookContracts.js";
-import { getDefaultFailurePolicyForEffectKind, getHookRegistryEntry, type HookRegistryEntry } from "./hookRegistry.js";
+import {
+  getDefaultFailurePolicyForEffectKind,
+  getHookRegistryEntry,
+  type HookRegistryEntry,
+} from "./hookRegistry.js";
 
 export type HookResolutionInput = {
   slug: string;

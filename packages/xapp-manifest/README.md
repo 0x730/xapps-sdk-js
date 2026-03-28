@@ -16,6 +16,7 @@ It is the direct public home for:
 
 - `xappManifestJsonSchema`
 - `parseXappManifest(...)`
+- `resolveManifestLocalizedText(...)`
 - manifest-facing TypeScript types such as `XappManifest`
 
 ## What moved here
@@ -41,24 +42,48 @@ The current core wrapper in `src/validation/xappManifest.ts` exists only to:
 ## Minimal usage
 
 ```ts
-import { parseXappManifest, xappManifestJsonSchema } from "@xapps-platform/xapp-manifest";
+import {
+  parseXappManifest,
+  resolveManifestLocalizedText,
+  xappManifestJsonSchema,
+} from "@xapps-platform/xapp-manifest";
 
 const manifest = parseXappManifest({
+  title: { en: "Example Xapp", ro: "Xapp Exemplu" },
   name: "Example Xapp",
   slug: "example-xapp",
   version: "1.0.0",
-  tools: [],
+  tools: [
+    {
+      tool_name: "echo",
+      title: { en: "Echo", ro: "Ecou" },
+      input_schema: { type: "object", properties: {} },
+      output_schema: { type: "object", properties: {} },
+    },
+  ],
   widgets: [],
 });
 
 console.log(manifest.slug);
 console.log(xappManifestJsonSchema.type);
+console.log(resolveManifestLocalizedText(manifest.title, "ro-RO"));
 ```
+
+Existing plain-string manifests remain valid. Localized text is additive and falls back to English/default when the requested locale is missing.
+
+Notification and invoice templates also accept additive locale metadata:
+
+- `notification_templates[].locale`
+- `notification_templates[].family`
+- `invoice_templates[].locale`
+- `invoice_templates[].family`
+
+These fields do not change current template resolution by themselves. They are safe metadata for locale-aware template families and future variant selection.
 
 ## Relation to other packages
 
 - `@xapps-platform/server-sdk` re-exports this package for convenience in backend-oriented code.
-- `@xapps/cli` uses this validator through `@xapps-platform/server-sdk` so current CLI publish flows stay non-breaking.
+- `@xapps-platform/cli` uses this validator through `@xapps-platform/server-sdk` so current CLI publish flows stay non-breaking.
 
 ## Build
 
