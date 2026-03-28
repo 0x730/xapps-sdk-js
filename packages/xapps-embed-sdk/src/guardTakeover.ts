@@ -77,6 +77,7 @@ export function mergeGuardResolutionPayload(
 export async function openGuardWidgetOverlay(input: {
   embedUrl: string;
   theme?: Record<string, unknown> | null;
+  locale?: string | null;
 }): Promise<Record<string, unknown> | null> {
   if (typeof document === "undefined" || !document.body) {
     throw new Error("Guard widget overlay requires a browser document");
@@ -128,6 +129,7 @@ export async function openGuardWidgetOverlay(input: {
             {
               type: "XAPPS_WIDGET_CONTEXT",
               theme: input.theme && typeof input.theme === "object" ? input.theme : null,
+              locale: typeof input.locale === "string" ? input.locale : null,
             },
             "*",
           );

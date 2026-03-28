@@ -72,6 +72,8 @@ export type EmbedHostController = {
   openWidget: XappsHost["openWidget"];
   emitToCatalog: XappsHost["emitToCatalog"];
   emitSessionExpired: XappsHost["emitSessionExpired"];
+  emitLocaleChanged: XappsHost["emitLocaleChanged"];
+  setLocale: XappsHost["setLocale"];
   destroy: () => void;
   buildHostReturnUrl: (paymentParamsOverride?: URLSearchParams | null) => string;
   readPendingResumeTarget: () => EmbedHostPendingResumeTarget | null;
@@ -147,6 +149,7 @@ export type StandardMarketplaceRuntimeUi = {
 export type CreateStandardMarketplaceRuntimeOptions = {
   baseUrl: string;
   subjectId?: string | null;
+  locale?: string | null;
   paymentResumeState: ReturnType<typeof createHostPaymentResumeState>;
   hostUi: StandardMarketplaceRuntimeUi;
   widgetContext?: EmbedHostWidgetContextController;
@@ -200,6 +203,8 @@ export type StandardMarketplaceRuntimeController = {
   widgetContext: EmbedHostWidgetContextController;
   mount: (mode: StandardMarketplaceRuntimeMode) => Promise<void>;
   emitSessionExpired: (...args: Parameters<XappsHost["emitSessionExpired"]>) => void;
+  emitLocaleChanged: (...args: Parameters<XappsHost["emitLocaleChanged"]>) => void;
+  setLocale: (...args: Parameters<XappsHost["setLocale"]>) => void;
   destroy: () => void;
 };
 
@@ -474,6 +479,7 @@ export function createStandardMarketplaceRuntime(
       container: catalogMount,
       baseUrl: options.baseUrl,
       subjectId: String(options.subjectId || "").trim() || undefined,
+      locale: String(options.locale || "").trim() || undefined,
       theme: options.theme,
       ...(mode === "split-panel" && widgetMount ? { widgetMount: { container: widgetMount } } : {}),
       apiBasePath,
@@ -698,6 +704,12 @@ export function createStandardMarketplaceRuntime(
     },
     emitSessionExpired(...args) {
       currentEmbedHost?.emitSessionExpired(...args);
+    },
+    emitLocaleChanged(...args) {
+      currentEmbedHost?.emitLocaleChanged(...args);
+    },
+    setLocale(...args) {
+      currentEmbedHost?.setLocale(...args);
     },
     destroy() {
       try {
@@ -969,6 +981,8 @@ export function createEmbedHost(options: CreateEmbedHostOptions): EmbedHostContr
     openWidget: host.openWidget.bind(host),
     emitToCatalog: host.emitToCatalog.bind(host),
     emitSessionExpired: host.emitSessionExpired.bind(host),
+    emitLocaleChanged: host.emitLocaleChanged.bind(host),
+    setLocale: host.setLocale.bind(host),
     buildHostReturnUrl,
     readPendingResumeTarget: () => normalizeResumeTarget(paymentResumeState, buildHostReturnUrl),
     consumePendingResumeTarget: () => consumeResumeTarget(paymentResumeState, buildHostReturnUrl),

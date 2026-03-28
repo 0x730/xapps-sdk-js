@@ -20,6 +20,7 @@ export type CatalogOptions = {
   baseUrl: string;
   catalogUrl?: string;
   theme?: Theme;
+  locale?: string;
   subjectId?: string;
   onEvent?: (evt: CatalogEvent) => void;
   onError?: (err: Error) => void;
@@ -151,6 +152,7 @@ export type CatalogEvent =
       link_id?: string;
       error?: string;
     }
+  | { type: "XAPPS_LOCALE_CHANGED"; locale?: string | null }
   | { type: "XAPPS_SESSION_EXPIRED"; id?: string; data?: SessionExpiredPayload };
 
 export type MarketplaceMutationCall = (
@@ -487,7 +489,12 @@ export class XappsHost {
   private widgetIframe: HTMLIFrameElement | null = null;
   private options: CatalogOptions;
   private catalogOrigin: string;
-  private widgetContext: { token: string; baseUrl: string; theme?: Theme | null } | null = null;
+  private widgetContext: {
+    token: string;
+    baseUrl: string;
+    theme?: Theme | null;
+    locale?: string | null;
+  } | null = null;
   private destroyed = false;
   private lastCatalogContentHeight = 0;
   private lastWidgetContentHeight = 0;
@@ -989,7 +996,12 @@ export class XappsHost {
       }
     }
 
-    this.widgetContext = { token: session.token, baseUrl, theme: this.options.theme || null };
+    this.widgetContext = {
+      token: session.token,
+      baseUrl,
+      theme: this.options.theme || null,
+      locale: this.options.locale || null,
+    };
     this.activeWidget = { installationId: input.installationId, widgetId: input.widgetId };
 
     const iframe = document.createElement("iframe");
@@ -1083,6 +1095,40 @@ export class XappsHost {
         ...data,
         occurred_at: data.occurred_at || new Date().toISOString(),
       },
+    };
+    if ((target === "catalog" || target === "both") && this.catalogIframe?.contentWindow) {
+      try {
+        this.catalogIframe.contentWindow.postMessage(payload, this.catalogOrigin);
+      } catch (e: any) {
+        this.options.onError?.(e instanceof Error ? e : new Error(String(e)));
+      }
+    }
+    if ((target === "widget" || target === "both") && this.widgetIframe?.contentWindow) {
+      try {
+        this.widgetIframe.contentWindow.postMessage(payload, this.catalogOrigin);
+      } catch (e: any) {
+        this.options.onError?.(e instanceof Error ? e : new Error(String(e)));
+      }
+    }
+  }
+
+  setLocale(locale: string | null | undefined): void {
+    const normalized = typeof locale === "string" && locale.trim() ? locale.trim() : undefined;
+    this.options.locale = normalized;
+    if (this.widgetContext) {
+      this.widgetContext.locale = normalized || null;
+    }
+  }
+
+  emitLocaleChanged(
+    locale: string | null | undefined,
+    input?: { target?: "catalog" | "widget" | "both" },
+  ): void {
+    this.setLocale(locale);
+    const target = input?.target || "both";
+    const payload = {
+      type: "XAPPS_LOCALE_CHANGED" as const,
+      locale: this.options.locale || null,
     };
     if ((target === "catalog" || target === "both") && this.catalogIframe?.contentWindow) {
       try {
@@ -1201,7 +1247,12 @@ export class XappsHost {
     if (type === "XAPPS_WIDGET_CONTEXT_REQUEST" && fromCatalog) {
       const t = this.options.theme || {};
       this.catalogIframe?.contentWindow?.postMessage(
-        { type: "XAPPS_WIDGET_CONTEXT", theme: t, subjectId: this.options.subjectId || null },
+        {
+          type: "XAPPS_WIDGET_CONTEXT",
+          theme: t,
+          locale: this.options.locale || null,
+          subjectId: this.options.subjectId || null,
+        },
         this.catalogOrigin,
       );
       return;
@@ -1265,6 +1316,7 @@ export class XappsHost {
             token: this.widgetContext.token,
             baseUrl: this.widgetContext.baseUrl,
             theme: this.widgetContext.theme || null,
+            locale: this.widgetContext.locale || null,
           },
           this.catalogOrigin,
         );
@@ -1532,6 +1584,17 @@ export class XappsHost {
         ...(id ? { id } : {}),
         data: normalized,
       });
+      return;
+    }
+
+    if (type === "XAPPS_LOCALE_CHANGED") {
+      if (!fromCatalog && !fromWidget) return;
+      const source: "catalog" | "widget" = fromWidget ? "widget" : "catalog";
+      const payload = readMessageData(msg);
+      this.emitLocaleChanged(readRecordString(payload, "locale"), {
+        target: source === "widget" ? "catalog" : "widget",
+      });
+      this.options.onEvent?.(msg as CatalogEvent);
       return;
     }
 
