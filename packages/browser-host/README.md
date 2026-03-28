@@ -100,6 +100,15 @@ launchers such as `xconectc /catalog`, where the launcher resolves the subject
 first and the shared host surfaces should redirect back to that launcher after
 expiry or missing identity.
 
+When the host owns locale selection, pass `locale` in the local wrapper config.
+The shared browser-host/embed runtime now seeds that locale into widget context
+and exposes reactive locale updates through the shared `XAPPS_LOCALE_CHANGED`
+bridge path.
+
+For testing, the current tenant/reference hosts now expose this through launcher
+and header language selectors, and the same local seam can also be driven with
+`?locale=en` or `?locale=ro` on the host page URL.
+
 The package is intentionally actor-agnostic:
 
 - no tenant sample data

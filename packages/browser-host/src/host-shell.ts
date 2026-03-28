@@ -17,13 +17,20 @@ type ApplyThemePreferenceOptions = {
   persist?: boolean;
 };
 
+type ApplyLocalePreferenceOptions = {
+  persist?: boolean;
+};
+
 export type HostShellConfig = {
   modeCopy?: Record<string, HostShellModeCopyEntry> | null;
   headerCollapseStorageKey?: string | null;
   themeStorageKey?: string | null;
+  localeStorageKey?: string | null;
   themeAliases?: Record<string, string> | null;
   defaultTheme?: string | null;
   validThemes?: string[] | null;
+  defaultLocale?: string | null;
+  validLocales?: string[] | null;
 };
 
 export type HostShellApi = {
@@ -31,7 +38,12 @@ export type HostShellApi = {
     themeKey: string | null | undefined,
     options?: ApplyThemePreferenceOptions,
   ) => string;
+  applyLocalePreference: (
+    locale: string | null | undefined,
+    options?: ApplyLocalePreferenceOptions,
+  ) => string;
   readHeaderCollapsedPreference: () => boolean;
+  readLocalePreference: () => string;
   readModeFromUrl: () => HostMode;
   readStoredJson: (storageKey: string | null | undefined) => StoredJsonRecord | null;
   readThemePreference: () => string;
@@ -47,6 +59,7 @@ export type HostShellApi = {
   }) => void;
   renderSingleXappShell: () => void;
   setHeaderCollapsed: (collapsed: boolean) => void;
+  setLocaleInUrl: (locale: string | null | undefined) => void;
   setModeInUrl: (mode: HostMode) => void;
   setWidgetPlaceholder: (
     title: string | null | undefined,
@@ -59,15 +72,31 @@ export function createHostShellApi(config?: HostShellConfig | null): HostShellAp
   const modeCopy = config?.modeCopy && typeof config.modeCopy === "object" ? config.modeCopy : {};
   const headerCollapseStorageKey = String(config?.headerCollapseStorageKey || "").trim();
   const themeStorageKey = String(config?.themeStorageKey || "").trim();
+  const localeStorageKey = String(config?.localeStorageKey || "").trim();
   const legacyThemeAliases =
     config?.themeAliases && typeof config.themeAliases === "object" ? config.themeAliases : {};
   const defaultTheme = String(config?.defaultTheme || "default").trim() || "default";
   const validThemes = new Set(Array.isArray(config?.validThemes) ? config.validThemes : []);
+  const defaultLocale = String(config?.defaultLocale || "en").trim() || "en";
+  const validLocales = new Set(
+    Array.isArray(config?.validLocales) ? config.validLocales : ["en", "ro"],
+  );
 
   function normalizeThemeKey(themeKey: string | null | undefined): string {
     const raw = String(themeKey || "").trim();
     const aliased = legacyThemeAliases[raw] || raw;
     return validThemes.has(aliased) ? aliased : defaultTheme;
+  }
+
+  function normalizeLocale(locale: string | null | undefined): string {
+    const raw = String(locale || "")
+      .trim()
+      .replace(/_/g, "-")
+      .toLowerCase();
+    if (!raw) return defaultLocale;
+    if (raw === "ro" || raw.startsWith("ro-")) return validLocales.has("ro") ? "ro" : defaultLocale;
+    if (raw === "en" || raw.startsWith("en-")) return validLocales.has("en") ? "en" : defaultLocale;
+    return validLocales.has(raw) ? raw : defaultLocale;
   }
 
   function setText(id: string, value: string | null | undefined): void {
@@ -104,6 +133,12 @@ export function createHostShellApi(config?: HostShellConfig | null): HostShellAp
     window.history.replaceState({ mode }, "", next.toString());
   }
 
+  function setLocaleInUrl(locale: string | null | undefined): void {
+    const next = new URL(window.location.href);
+    next.searchParams.set("locale", normalizeLocale(locale));
+    window.history.replaceState({ locale: next.searchParams.get("locale") }, "", next.toString());
+  }
+
   function readThemePreference(): string {
     try {
       const stored = String(window.localStorage.getItem(themeStorageKey) || "").trim();
@@ -124,6 +159,40 @@ export function createHostShellApi(config?: HostShellConfig | null): HostShellAp
     if (options.persist === false) return resolved;
     try {
       window.localStorage.setItem(themeStorageKey, resolved);
+    } catch {
+      // ignore localStorage failures
+    }
+    return resolved;
+  }
+
+  function readLocalePreference(): string {
+    const currentUrl = new URL(window.location.href);
+    const queryLocale = String(currentUrl.searchParams.get("locale") || "").trim();
+    if (queryLocale) return normalizeLocale(queryLocale);
+    try {
+      const stored = String(window.localStorage.getItem(localeStorageKey) || "").trim();
+      if (stored) return normalizeLocale(stored);
+    } catch {
+      // ignore localStorage failures
+    }
+    const browserLocale =
+      typeof navigator !== "undefined"
+        ? String((navigator.languages && navigator.languages[0]) || navigator.language || "").trim()
+        : "";
+    return normalizeLocale(browserLocale || defaultLocale);
+  }
+
+  function applyLocalePreference(
+    locale: string | null | undefined,
+    options: ApplyLocalePreferenceOptions = {},
+  ): string {
+    const resolved = normalizeLocale(locale);
+    document.documentElement.lang = resolved;
+    const select = document.getElementById("host-locale-select");
+    if (select instanceof HTMLSelectElement) select.value = resolved;
+    if (options.persist === false) return resolved;
+    try {
+      window.localStorage.setItem(localeStorageKey, resolved);
     } catch {
       // ignore localStorage failures
     }
@@ -235,7 +304,8 @@ export function createHostShellApi(config?: HostShellConfig | null): HostShellAp
     const message =
       String(input?.message || "This hosted session expired and could not be renewed.").trim() ||
       "This hosted session expired and could not be renewed.";
-    const restartLabel = String(input?.restartLabel || "Restart Session").trim() || "Restart Session";
+    const restartLabel =
+      String(input?.restartLabel || "Restart Session").trim() || "Restart Session";
     const backHref = String(input?.backHref || "/").trim() || "/";
     const backLabel = String(input?.backLabel || "Back to launcher").trim() || "Back to launcher";
 
@@ -281,7 +351,9 @@ export function createHostShellApi(config?: HostShellConfig | null): HostShellAp
 
   return {
     applyThemePreference,
+    applyLocalePreference,
     readHeaderCollapsedPreference,
+    readLocalePreference,
     readModeFromUrl,
     readStoredJson,
     readThemePreference,
@@ -291,6 +363,7 @@ export function createHostShellApi(config?: HostShellConfig | null): HostShellAp
     renderSessionExpiredShell,
     renderSingleXappShell,
     setHeaderCollapsed,
+    setLocaleInUrl,
     setModeInUrl,
     setWidgetPlaceholder,
     toggleHeaderCollapsed,

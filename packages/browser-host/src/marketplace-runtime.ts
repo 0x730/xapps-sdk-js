@@ -26,6 +26,7 @@ type MarketplaceRuntimeOptions = {
   createStandardMarketplaceRuntime: (input: {
     baseUrl: string;
     subjectId: string;
+    locale?: string | null;
     paymentResumeState: unknown;
     hostUi: unknown;
     theme: ReferenceTheme;
@@ -41,6 +42,7 @@ type MarketplaceRuntimeOptions = {
   }) => unknown;
   gatewayBaseUrl: string;
   currentSubjectId: string;
+  locale?: string | null;
   paymentResumeState: unknown;
   hostDomUi: unknown;
   theme: ReferenceTheme;
@@ -73,6 +75,7 @@ export function createMarketplaceRuntime(options: MarketplaceRuntimeOptions): un
   return options.createStandardMarketplaceRuntime({
     baseUrl: options.gatewayBaseUrl,
     subjectId: options.currentSubjectId,
+    locale: options.locale || null,
     paymentResumeState: options.paymentResumeState,
     hostUi: options.hostDomUi,
     theme: options.theme,

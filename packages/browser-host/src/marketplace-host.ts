@@ -8,6 +8,12 @@ export async function bootMarketplaceHost(config) {
   let currentIdentity = null;
   let refreshInFlight = null;
   let sessionExpiredShown = false;
+  const initialLocale =
+    typeof config.locale === "string" && config.locale.trim()
+      ? config.locale.trim()
+      : typeof config.readLocalePreference === "function"
+        ? String(config.readLocalePreference() || "").trim() || null
+        : null;
 
   async function tryRefreshIdentity() {
     if (typeof config.refreshStoredJson !== "function") return null;
@@ -47,9 +53,12 @@ export async function bootMarketplaceHost(config) {
   }
 
   function isBootstrapRetryableMessage(message) {
-    const normalized = String(message || "").trim().toLowerCase();
+    const normalized = String(message || "")
+      .trim()
+      .toLowerCase();
     return (
-      normalized.includes("host bootstrap token expired") || normalized.includes("missing bootstrap")
+      normalized.includes("host bootstrap token expired") ||
+      normalized.includes("missing bootstrap")
     );
   }
 
@@ -66,7 +75,9 @@ export async function bootMarketplaceHost(config) {
     try {
       runtime?.destroy?.();
     } catch {}
-    const normalizedReason = String(reason || "").trim().toLowerCase();
+    const normalizedReason = String(reason || "")
+      .trim()
+      .toLowerCase();
     const copy =
       normalizedReason === "logout"
         ? {
@@ -75,7 +86,8 @@ export async function bootMarketplaceHost(config) {
           }
         : {
             title: "Widget session expired",
-            message: "The hosted widget session could not be renewed. Restart the session to continue.",
+            message:
+              "The hosted widget session could not be renewed. Restart the session to continue.",
           };
     config.renderSessionExpiredShell?.({
       ...copy,
@@ -172,6 +184,7 @@ export async function bootMarketplaceHost(config) {
     createStandardMarketplaceRuntime,
     gatewayBaseUrl,
     currentSubjectId: String(identity.subjectId || "").trim() || null,
+    locale: initialLocale,
     themeKey,
     paymentResumeState: createHostPaymentResumeState(window.location.href, {
       autoCleanUrl: true,
@@ -262,6 +275,26 @@ export async function bootMarketplaceHost(config) {
     config.applyThemePreference(nextTheme);
     window.location.reload();
   });
+
+  const localeSelect = document.getElementById(config.localeSelectId || "host-locale-select");
+  if (localeSelect instanceof HTMLSelectElement) {
+    if (typeof config.applyLocalePreference === "function") {
+      config.applyLocalePreference(initialLocale, { persist: false });
+    } else if (initialLocale) {
+      localeSelect.value = initialLocale;
+    }
+    localeSelect.addEventListener("change", () => {
+      const nextLocale =
+        typeof config.applyLocalePreference === "function"
+          ? config.applyLocalePreference(localeSelect.value)
+          : String(localeSelect.value || "").trim();
+      if (typeof config.setLocaleInUrl === "function") {
+        config.setLocaleInUrl(nextLocale);
+      }
+      runtime?.setLocale?.(nextLocale);
+      runtime?.emitLocaleChanged?.(nextLocale);
+    });
+  }
 
   window.addEventListener("beforeunload", () => {
     runtime.destroy();

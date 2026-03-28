@@ -8,6 +8,12 @@ export async function bootSingleXappHost(config) {
   let currentIdentity = null;
   let refreshInFlight = null;
   let sessionExpiredShown = false;
+  const initialLocale =
+    typeof config.locale === "string" && config.locale.trim()
+      ? config.locale.trim()
+      : typeof config.readLocalePreference === "function"
+        ? String(config.readLocalePreference() || "").trim() || null
+        : null;
 
   async function tryRefreshIdentity() {
     if (typeof config.refreshStoredJson !== "function") return null;
@@ -137,7 +143,9 @@ export async function bootSingleXappHost(config) {
     try {
       widgetContext.reset?.();
     } catch {}
-    const normalizedReason = String(reason || "").trim().toLowerCase();
+    const normalizedReason = String(reason || "")
+      .trim()
+      .toLowerCase();
     const copy =
       normalizedReason === "logout"
         ? {
@@ -146,7 +154,8 @@ export async function bootSingleXappHost(config) {
           }
         : {
             title: "Widget session expired",
-            message: "The hosted widget session could not be renewed. Restart the session to continue.",
+            message:
+              "The hosted widget session could not be renewed. Restart the session to continue.",
           };
     config.renderSessionExpiredShell?.({
       ...copy,
@@ -173,6 +182,7 @@ export async function bootSingleXappHost(config) {
       baseUrl: gatewayBaseUrl,
       catalogUrl: `${gatewayBaseUrl}/embed/catalog?embedMode=true`,
       subjectId: String(identity.subjectId || "").trim() || undefined,
+      locale: initialLocale || undefined,
       theme,
       apiBasePath: resolveHostApiBasePath(config),
       apiClient: hostApiClient,
@@ -247,6 +257,26 @@ export async function bootSingleXappHost(config) {
     config.applyThemePreference(nextTheme);
     window.location.reload();
   });
+
+  const localeSelect = document.getElementById(config.localeSelectId || "host-locale-select");
+  if (localeSelect instanceof HTMLSelectElement) {
+    if (typeof config.applyLocalePreference === "function") {
+      config.applyLocalePreference(initialLocale, { persist: false });
+    } else if (initialLocale) {
+      localeSelect.value = initialLocale;
+    }
+    localeSelect.addEventListener("change", () => {
+      const nextLocale =
+        typeof config.applyLocalePreference === "function"
+          ? config.applyLocalePreference(localeSelect.value)
+          : String(localeSelect.value || "").trim();
+      if (typeof config.setLocaleInUrl === "function") {
+        config.setLocaleInUrl(nextLocale);
+      }
+      controller?.setLocale?.(nextLocale);
+      controller?.emitLocaleChanged?.(nextLocale);
+    });
+  }
 
   document.getElementById("host-header-toggle")?.addEventListener("click", () => {
     config.toggleHeaderCollapsed();

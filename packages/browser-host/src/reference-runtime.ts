@@ -122,6 +122,7 @@ type CreateReferenceMarketplaceRuntimeOptions = {
   createStandardMarketplaceRuntime: (input: {
     baseUrl: string;
     subjectId: string;
+    locale?: string | null;
     paymentResumeState: unknown;
     hostUi: unknown;
     theme: ReferenceTheme;
@@ -137,6 +138,7 @@ type CreateReferenceMarketplaceRuntimeOptions = {
   }) => unknown;
   gatewayBaseUrl: string;
   currentSubjectId: string;
+  locale?: string | null;
   paymentResumeState: unknown;
   hostDomUi: unknown;
   themeKey?: string | null;
@@ -172,12 +174,13 @@ export function createReferenceMarketplaceRuntime(
     createStandardMarketplaceRuntime: options.createStandardMarketplaceRuntime,
     gatewayBaseUrl: options.gatewayBaseUrl,
     currentSubjectId: options.currentSubjectId,
+    locale: options.locale || null,
     paymentResumeState: options.paymentResumeState,
     hostDomUi: options.hostDomUi,
     theme:
       resolveReferenceTheme(options.themeKey, {
         defaultThemeKey: options.defaultThemeKey,
-    }) || REFERENCE_THEMES.harbor,
+      }) || REFERENCE_THEMES.harbor,
     apiBasePath: options.apiBasePath || "/api",
     apiClient: options.apiClient,
     hostApiHeadersProvider: options.hostApiHeadersProvider || undefined,
