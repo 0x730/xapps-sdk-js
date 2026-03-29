@@ -1,17 +1,31 @@
 // @vitest-environment jsdom
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import React from "react";
+import { createRoot } from "react-dom/client";
+import { act } from "react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createWindowXappsHostAdapter } from "../src/createWindowXappsHostAdapter";
 import {
   attachReturnedPaymentEvidence,
   hasReturnedPaidPaymentEvidence,
 } from "../src/paymentEvidence";
 import { formatRequestErrorMessage } from "../src/errorMessages";
+import { WidgetRuntime } from "../src/WidgetRuntime";
+
+function waitForTick() {
+  return new Promise((resolve) => setTimeout(resolve, 0));
+}
 
 describe("widget-runtime", () => {
   beforeEach(() => {
+    (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
     window.history.replaceState({}, "", "/");
     delete (window as Window & { XappsHost?: unknown }).XappsHost;
+    document.body.innerHTML = "";
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("creates a window host adapter over window.XappsHost", async () => {
@@ -98,4 +112,162 @@ describe("widget-runtime", () => {
     expect(message).toContain("Action: complete payment");
     expect(message).toContain("Payment requires additional action");
   });
+
+  it("renders loading state while widget session is being minted", async () => {
+    let resolveSession: ((value: any) => void) | null = null;
+    const createWidgetSession = vi.fn(
+      () =>
+        new Promise((resolve) => {
+          resolveSession = resolve;
+        }),
+    );
+    const host = {
+      showNotification: vi.fn(),
+      showAlert: vi.fn(),
+      openModal: vi.fn(),
+      closeModal: vi.fn(),
+      navigate: vi.fn(),
+      refresh: vi.fn(),
+    };
+
+    const el = document.createElement("div");
+    document.body.appendChild(el);
+    const root = createRoot(el);
+
+    await act(async () => {
+      root.render(
+        React.createElement(WidgetRuntime, {
+          apiBaseUrl: "http://localhost:3000",
+          installationId: "inst_1",
+          widgetId: "wid_1",
+          createWidgetSession,
+          host,
+        }),
+      );
+      await waitForTick();
+    });
+
+    expect(el.textContent).toContain("Loading");
+
+    await act(async () => {
+      resolveSession?.({
+        token: "wid_tok_1",
+        embedUrl: "/embed/widgets/wid_1?token=wid_tok_1",
+        widget: { id: "wid_1", renderer: "platform" },
+        tool: null,
+      });
+      await waitForTick();
+    });
+
+    expect(el.querySelector("iframe")?.getAttribute("src")).toContain("/embed/widgets/wid_1");
+    await act(async () => {
+      root.unmount();
+    });
+  });
+
+  it("renders retry UI when initial widget session mint fails and recovers on retry", async () => {
+    const createWidgetSession = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("Session mint failed"))
+      .mockResolvedValueOnce({
+        token: "wid_tok_retry",
+        embedUrl: "/embed/widgets/wid_1?token=wid_tok_retry",
+        widget: { id: "wid_1", renderer: "platform" },
+        tool: null,
+      });
+    const host = {
+      showNotification: vi.fn(),
+      showAlert: vi.fn(),
+      openModal: vi.fn(),
+      closeModal: vi.fn(),
+      navigate: vi.fn(),
+      refresh: vi.fn(),
+    };
+
+    const el = document.createElement("div");
+    document.body.appendChild(el);
+    const root = createRoot(el);
+
+    await act(async () => {
+      root.render(
+        React.createElement(WidgetRuntime, {
+          apiBaseUrl: "http://localhost:3000",
+          installationId: "inst_1",
+          widgetId: "wid_1",
+          createWidgetSession,
+          host,
+        }),
+      );
+      await waitForTick();
+      await waitForTick();
+    });
+
+    expect(el.textContent).toContain("Widget unavailable");
+    expect(el.textContent).toContain("Session mint failed");
+
+    const retry = Array.from(el.querySelectorAll("button")).find((node) =>
+      node.textContent?.includes("Retry"),
+    );
+    expect(retry).toBeTruthy();
+
+    await act(async () => {
+      retry?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await waitForTick();
+      await waitForTick();
+    });
+
+    expect(createWidgetSession).toHaveBeenCalledTimes(2);
+    expect(el.querySelector("iframe")?.getAttribute("src")).toContain("wid_tok_retry");
+    await act(async () => {
+      root.unmount();
+    });
+  });
+
+  it("recovers from a stuck initial widget-session mint", async () => {
+    vi.useFakeTimers();
+    const createWidgetSession = vi.fn(
+      () =>
+        new Promise(() => {
+          // intentionally unresolved to trigger timeout
+        }),
+    );
+    const host = {
+      showNotification: vi.fn(),
+      showAlert: vi.fn(),
+      openModal: vi.fn(),
+      closeModal: vi.fn(),
+      navigate: vi.fn(),
+      refresh: vi.fn(),
+    };
+
+    const el = document.createElement("div");
+    document.body.appendChild(el);
+    const root = createRoot(el);
+
+    await act(async () => {
+      root.render(
+        React.createElement(WidgetRuntime, {
+          apiBaseUrl: "http://localhost:3000",
+          installationId: "inst_1",
+          widgetId: "wid_1",
+          createWidgetSession,
+          host,
+        }),
+      );
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(12050);
+      await Promise.resolve();
+    });
+
+    expect(el.textContent).toContain("Widget unavailable");
+    expect(el.textContent).toContain("taking longer than expected");
+
+    await act(async () => {
+      root.unmount();
+    });
+  });
+
 });
