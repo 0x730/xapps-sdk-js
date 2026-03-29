@@ -268,8 +268,8 @@ export type HostedGatewayPaymentUrlResult = {
 export type PaymentGuardAction = {
   kind: "complete_payment";
   url: string;
-  label: string;
-  title: string;
+  label: string | Record<string, string | null | undefined>;
+  title: string | Record<string, string | null | undefined>;
   target?: string;
 };
 
@@ -354,6 +354,23 @@ function readAnyString(...values: unknown[]): string {
     if (normalized) return normalized;
   }
   return "";
+}
+
+function readLocalizedTextValue(
+  value: unknown,
+): string | Record<string, string | null | undefined> | undefined {
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed ? trimmed : undefined;
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const record = value as Record<string, unknown>;
+  for (const candidate of Object.values(record)) {
+    if (typeof candidate === "string" && candidate.trim()) {
+      return record as Record<string, string | null | undefined>;
+    }
+  }
+  return undefined;
 }
 
 function isPlaceholderToken(value: unknown): boolean {
@@ -947,8 +964,8 @@ export function buildPaymentGuardAction(action: Record<string, unknown>): Paymen
   return {
     kind: "complete_payment",
     url: String(action.url || ""),
-    label: readAnyString(action.label, "Open Payment"),
-    title: readAnyString(action.title, "Complete Payment"),
+    label: readLocalizedTextValue(action.label) ?? "Open Payment",
+    title: readLocalizedTextValue(action.title) ?? "Complete Payment",
     ...(readString(action.target) ? { target: readString(action.target) } : {}),
   };
 }

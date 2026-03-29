@@ -80,6 +80,7 @@ export type WidgetSessionInput = {
   installationId: string;
   widgetId: string;
   origin?: string | null;
+  locale?: string | null;
   xappId?: string | null;
   subjectId?: string | null;
   requestId?: string | null;
@@ -697,6 +698,7 @@ export function createGatewayApiClient(options: GatewayApiClientOptions) {
         {
           installationId: input.installationId,
           widgetId: input.widgetId,
+          ...(input.locale ? { locale: input.locale } : {}),
           ...(input.xappId ? { xappId: input.xappId } : {}),
           ...(input.subjectId ? { subjectId: input.subjectId } : {}),
           ...(input.requestId ? { requestId: input.requestId } : {}),

@@ -83,4 +83,19 @@ describe("server-sdk payment policy support helpers", () => {
       target: "_blank",
     });
   });
+
+  it("preserves localized payment action text additively", () => {
+    expect(
+      buildPaymentGuardAction({
+        url: "https://tenant.example.test/pay",
+        label: { en: "Pay now", ro: "Plătește acum" },
+        title: { en: "Complete payment", ro: "Finalizează plata" },
+      }),
+    ).toEqual({
+      kind: "complete_payment",
+      url: "https://tenant.example.test/pay",
+      label: { en: "Pay now", ro: "Plătește acum" },
+      title: { en: "Complete payment", ro: "Finalizează plata" },
+    });
+  });
 });
