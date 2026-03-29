@@ -3,6 +3,7 @@ import {
   buildPaymentGuardAction,
   hasUpstreamPaymentVerified as hasUpstreamPaymentVerifiedFromSdk,
   normalizePaymentAllowedIssuers as normalizePaymentAllowedIssuersFromSdk,
+  resolveManifestLocalizedText,
   resolveMergedPaymentGuardContext,
   resolvePaymentGuardPriceAmount,
 } from "@xapps-platform/server-sdk";
@@ -223,7 +224,10 @@ export async function buildPaymentPolicyInput({
   }
 
   const baseReason = String(policy.reason || "payment_required").trim() || "payment_required";
-  const baseMessage = String(policy.message || "Payment is required before continuing.").trim();
+  const locale = String(context.locale || payload.locale || "en").trim() || "en";
+  const baseMessage =
+    resolveManifestLocalizedText(policy.message, locale) ||
+    "Payment is required before continuing.";
   const failReason = verificationFailure?.ok === false ? verificationFailure.reason : baseReason;
   return {
     payload: payloadWithContext,
