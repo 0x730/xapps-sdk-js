@@ -882,11 +882,13 @@ export class XappsHost {
   }
 
   async mountCatalog(filters?: { publishers?: string[]; tags?: string[] }): Promise<void> {
+    this.lastCatalogContentHeight = 0;
     return this.mountInternal(undefined, filters);
   }
 
   async mountXapp(xappId: string): Promise<void> {
     if (!xappId) throw new Error("xappId is required");
+    this.lastCatalogContentHeight = 0;
     return this.mountInternal(xappId);
   }
 
@@ -1003,6 +1005,7 @@ export class XappsHost {
       locale: this.options.locale || null,
     };
     this.activeWidget = { installationId: input.installationId, widgetId: input.widgetId };
+    this.lastWidgetContentHeight = 0;
 
     const iframe = document.createElement("iframe");
     const src = session.embedUrl.startsWith("http") ? session.embedUrl : baseUrl + session.embedUrl;
