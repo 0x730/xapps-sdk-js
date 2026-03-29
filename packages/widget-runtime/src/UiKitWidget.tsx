@@ -1,7 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { GuardUiDescriptor, UiKitWidgetProps } from "./types";
 import { formatRequestErrorMessage } from "./errorMessages";
-import { getDefaultWidgetRuntimeLocale, translateWidgetRuntime } from "./i18n";
+import {
+  getDefaultWidgetRuntimeLocale,
+  resolveWidgetRuntimeText,
+  translateWidgetRuntime,
+} from "./i18n";
 import { attachReturnedPaymentEvidence, hasReturnedPaidPaymentEvidence } from "./paymentEvidence";
 import { readGuardBlocked, readGuardChallengeToken } from "./guardParsing";
 import { asRecord, readFirstString, readString, readTrimmedString } from "./runtimeReaders";
@@ -258,6 +262,7 @@ export function UiKitWidget(props: UiKitWidgetProps) {
     const session = await props.createWidgetSession({
       installationId: input.installationId,
       widgetId: input.widgetId,
+      locale: runtimeLocale,
       guardUi: input.guardUi,
     });
     return new Promise((resolve, reject) => {
@@ -512,6 +517,7 @@ export function UiKitWidget(props: UiKitWidgetProps) {
               body: JSON.stringify({
                 installationId: props.installationId,
                 toolName,
+                ...(runtimeLocale ? { locale: runtimeLocale } : {}),
                 payload: requestedPayload,
                 ...(currentOrchestration && Object.keys(currentOrchestration).length
                   ? { guardOrchestration: currentOrchestration }
@@ -548,12 +554,12 @@ export function UiKitWidget(props: UiKitWidgetProps) {
           }
           const approved = await confirmGuardAction({
             title:
-              (typeof action.title === "string" ? action.title : "") ||
-              (typeof action.label === "string" ? action.label : "") ||
+              resolveWidgetRuntimeText(action.title, runtimeLocale) ||
+              resolveWidgetRuntimeText(action.label, runtimeLocale) ||
               translateWidgetRuntime("guard_action_required", runtimeLocale),
             message: guard.message,
             confirmLabel:
-              (typeof action.label === "string" ? action.label : "") ||
+              resolveWidgetRuntimeText(action.label, runtimeLocale) ||
               translateWidgetRuntime("continue", runtimeLocale),
             cancelLabel: translateWidgetRuntime("cancel", runtimeLocale),
             action,

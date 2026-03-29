@@ -111,6 +111,7 @@ export type UiKitWidgetProps = {
   createWidgetSession?: (input: {
     installationId: string;
     widgetId: string;
+    locale?: string;
     resultPresentation?: WidgetResultPresentation;
     guardUi?: GuardUiDescriptor;
   }) => Promise<{
@@ -141,6 +142,7 @@ export type AppShellWidgetProps = {
   createWidgetSession: (input: {
     installationId: string;
     widgetId: string;
+    locale?: string;
     resultPresentation?: WidgetResultPresentation;
     guardUi?: GuardUiDescriptor;
   }) => Promise<{

@@ -1,3 +1,5 @@
+import { resolveWidgetRuntimeText, translateWidgetRuntime } from "./i18n";
+
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
 }
@@ -69,7 +71,7 @@ function renderActionHint(action: Record<string, unknown>, locale?: string | nul
       : translateWidgetRuntime("action_confirm_action", locale);
   }
   if (kind === "complete_subject_profile") {
-    const title = readString(action.title);
+    const title = resolveWidgetRuntimeText(action.title, locale);
     return title
       ? translateWidgetRuntime("action_custom", locale, { title })
       : translateWidgetRuntime("action_complete_subject_profile", locale);
@@ -136,4 +138,3 @@ export function formatRequestErrorMessage(
   }
   return details.length > 0 ? `${message} (${details.join("; ")})` : message;
 }
-import { translateWidgetRuntime } from "./i18n";

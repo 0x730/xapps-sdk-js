@@ -1,6 +1,10 @@
 import { useEffect } from "react";
 import type { GuardDecision, WidgetExpandResult, WidgetHostAdapter } from "./types";
-import { getDefaultWidgetRuntimeLocale, translateWidgetRuntime } from "./i18n";
+import {
+  getDefaultWidgetRuntimeLocale,
+  resolveWidgetRuntimeText,
+  translateWidgetRuntime,
+} from "./i18n";
 import {
   asRecord,
   normalizeExpandStage,
@@ -90,7 +94,9 @@ function defaultGuardDecision(message: UiBridgeMessage): GuardDecision {
   const policy = asRecord(configRecord.policy);
   const kind = inferPolicyKind(guardSlug, context, configRecord);
   const defaultReason = readFirstString(policy.reason, configRecord.reason);
-  const defaultMessage = readFirstString(policy.message, configRecord.message);
+  const defaultMessage =
+    resolveWidgetRuntimeText(policy.message, locale) ||
+    resolveWidgetRuntimeText(configRecord.message, locale);
   const failReason = defaultReason || "guard_not_satisfied";
   const failMessage =
     defaultMessage || translateWidgetRuntime("guard_requirements_not_satisfied", locale);

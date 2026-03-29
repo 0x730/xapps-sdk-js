@@ -14,6 +14,7 @@ export type WidgetRuntimeProps = {
   createWidgetSession: (i: {
     installationId: string;
     widgetId: string;
+    locale?: string;
     resultPresentation?: "runtime_default" | "inline" | "publisher_managed";
     guardUi?: GuardUiDescriptor;
   }) => Promise<WidgetSessionResult>;

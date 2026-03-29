@@ -162,6 +162,32 @@ export function getDefaultWidgetRuntimeLocale(): string {
   return normalizeWidgetRuntimeLocale(navigator.language || "en");
 }
 
+export function resolveWidgetRuntimeText(
+  value: unknown,
+  locale?: string | null,
+  fallback = "",
+): string {
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed || fallback;
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value)) return fallback;
+  const record = value as Record<string, unknown>;
+  const effectiveLocale = locale || getDefaultWidgetRuntimeLocale();
+  for (const candidate of getLocaleCandidates(effectiveLocale)) {
+    const resolved = record[candidate];
+    if (typeof resolved === "string" && resolved.trim()) {
+      return resolved.trim();
+    }
+  }
+  for (const resolved of Object.values(record)) {
+    if (typeof resolved === "string" && resolved.trim()) {
+      return resolved.trim();
+    }
+  }
+  return fallback;
+}
+
 export function translateWidgetRuntime(
   key: keyof typeof catalogs.en,
   locale?: string | null,
