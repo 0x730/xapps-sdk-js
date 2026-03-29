@@ -197,11 +197,25 @@ export function CatalogPage() {
       }
 
       if (!qq) return true;
-      const hay =
-        `${x.manifest?.title ?? x.name} ${x.manifest?.description ?? x.description ?? ""} ${x.slug}`.toLowerCase();
+      const manifest = asRecord(x.manifest);
+      const title =
+        resolveMarketplaceText(manifest.title as any, locale) || readFirstString(x.name);
+      const description =
+        resolveMarketplaceText(manifest.description as any, locale) ||
+        readFirstString(x.description);
+      const hay = `${title} ${description} ${x.slug}`.toLowerCase();
       return hay.includes(qq);
     });
-  }, [items, installationsByXappId, installedOnly, q, selectedTag, env?.tags, env?.publishers]);
+  }, [
+    env?.publishers,
+    env?.tags,
+    installationsByXappId,
+    installedOnly,
+    items,
+    locale,
+    q,
+    selectedTag,
+  ]);
 
   return (
     <div className={`mx-catalog-container ${isEmbedded ? "is-embedded" : ""}`}>

@@ -563,17 +563,37 @@ export function useMarketplaceI18n() {
 }
 
 export function resolveMarketplaceText(value: LocalizedText, locale?: string | null): string {
-  if (typeof value === "string") return value;
-  if (!value || typeof value !== "object" || Array.isArray(value)) return "";
+  let candidateValue: LocalizedText = value;
+  if (typeof candidateValue === "string") {
+    const trimmed = candidateValue.trim();
+    if (!trimmed) return "";
+    if (trimmed.startsWith("{")) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+          candidateValue = parsed as Record<string, string | null | undefined>;
+        } else {
+          return trimmed;
+        }
+      } catch {
+        return trimmed;
+      }
+    } else {
+      return trimmed;
+    }
+  }
+  if (!candidateValue || typeof candidateValue !== "object" || Array.isArray(candidateValue)) {
+    return "";
+  }
   const currentLocale = String(locale || "en").trim() || "en";
-  const direct = value[currentLocale];
+  const direct = candidateValue[currentLocale];
   if (typeof direct === "string" && direct.trim()) return direct;
   const base = currentLocale.split("-")[0];
-  const baseValue = value[base];
+  const baseValue = candidateValue[base];
   if (typeof baseValue === "string" && baseValue.trim()) return baseValue;
-  const english = value.en;
+  const english = candidateValue.en;
   if (typeof english === "string" && english.trim()) return english;
-  for (const localized of Object.values(value)) {
+  for (const localized of Object.values(candidateValue)) {
     if (typeof localized === "string" && localized.trim()) return localized;
   }
   return "";

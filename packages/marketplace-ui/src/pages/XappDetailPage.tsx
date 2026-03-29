@@ -329,7 +329,7 @@ export function XappDetailPage() {
   const termsTitle =
     resolveMarketplaceText(terms?.title as any, locale) ||
     t("xapp.terms_title", undefined, "Terms & Conditions");
-  const termsText = readString(terms?.text);
+  const termsText = resolveMarketplaceText(terms?.text as any, locale) || readString(terms?.text);
   const termsUrl = readString(terms?.url);
   const hasTermsContent = Boolean(termsText || termsUrl);
   const requiresTerms = Boolean(terms || action === "install" || action === "update");
@@ -372,7 +372,7 @@ export function XappDetailPage() {
       xappId: String(xappId ?? ""),
       xappTitle: String(title),
       widgetName:
-        readString(widget?.title) ||
+        resolveMarketplaceText(widget?.title as any, locale) ||
         readString(widget?.widget_name) ||
         readString(widget?.name) ||
         t("common.widget", undefined, "Widget"),
@@ -383,6 +383,7 @@ export function XappDetailPage() {
     env?.embedMode,
     host,
     installation,
+    locale,
     queryToolName,
     requestedWidget,
     title,
@@ -687,7 +688,7 @@ export function XappDetailPage() {
                   <div className="mx-detail-widget-list">
                     {widgets.map((w, idx) => {
                       const name =
-                        readString(w.title) ||
+                        resolveMarketplaceText(w.title as any, locale) ||
                         readString(w.widget_name) ||
                         readString(w.name) ||
                         readString(w.id) ||
@@ -1138,7 +1139,7 @@ export function XappDetailPage() {
                       xappId: String(xappId ?? ""),
                       xappTitle: String(title),
                       widgetName:
-                        readString(defaultWidget?.title) ||
+                        resolveMarketplaceText(defaultWidget?.title as any, locale) ||
                         readString(defaultWidget?.widget_name) ||
                         readString(defaultWidget?.name) ||
                         t("common.widget", undefined, "Widget"),

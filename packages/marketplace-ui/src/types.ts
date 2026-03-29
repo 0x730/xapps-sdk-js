@@ -1,3 +1,5 @@
+import type { LocalizedText } from "@xapps-platform/platform-i18n";
+
 export type CatalogXapp = {
   id: string;
   name: string;
@@ -10,8 +12,8 @@ export type CatalogXapp = {
     slug: string;
   };
   manifest?: {
-    title?: string;
-    description?: string;
+    title?: LocalizedText;
+    description?: LocalizedText;
     image?: string;
     tags?: string[];
     [k: string]: unknown;
@@ -31,7 +33,7 @@ export type CatalogXappDetail = {
     id: string;
     default?: boolean;
     widget_name?: string;
-    title?: string;
+    title?: LocalizedText;
     bind_tool_name?: string | null;
   }[];
   usage_credit_summary?: {

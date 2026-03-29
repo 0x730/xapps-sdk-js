@@ -338,7 +338,9 @@ export function RequestsPage() {
                     </td>
                     <td data-label={t("common.tool", undefined, "Tool")}>
                       <div className="mx-cell-bold">
-                        {readFirstString(request.tool_name) || "—"}
+                        {resolveMarketplaceText(request.tool_title as any, locale) ||
+                          readFirstString(request.tool_name) ||
+                          "—"}
                       </div>
                       {tags.length > 0 && (
                         <div className="mx-card-tags mx-card-tags-inline">

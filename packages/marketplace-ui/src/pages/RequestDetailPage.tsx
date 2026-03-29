@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
-import { useMarketplaceI18n } from "../i18n";
+import { resolveMarketplaceText, useMarketplaceI18n } from "../i18n";
 import { useMarketplace } from "../MarketplaceContext";
 import { SchemaOutputView } from "../components/SchemaOutputView";
 import {
@@ -30,7 +30,7 @@ function useQuery(): URLSearchParams {
 
 export function RequestDetailPage() {
   const { client, host, env } = useMarketplace();
-  const { t } = useMarketplaceI18n();
+  const { t, locale } = useMarketplaceI18n();
   const { id } = useParams();
   const token = useQueryToken();
   const query = useQuery();
@@ -49,10 +49,13 @@ export function RequestDetailPage() {
   const dataRecord = asRecord(data);
   const requestRecord = asRecord(dataRecord.request);
   const toolRecord = asRecord(dataRecord.tool);
+  const manifestRecord = asRecord(dataRecord.manifest);
   const status = readFirstString(requestRecord.status) || undefined;
   const isTerminal = status === "COMPLETED" || status === "FAILED";
   const effectiveXappId = readFirstString(requestRecord.xapp_id, xappIdFilter);
-  const effectiveXappTitle = readFirstString(requestRecord.xapp_name);
+  const effectiveXappTitle =
+    resolveMarketplaceText(manifestRecord.title as any, locale) ||
+    readFirstString(requestRecord.xapp_name);
   const xappCrumbLabel = effectiveXappTitle || effectiveXappId;
   const isEmbedded = typeof window !== "undefined" && window.location.pathname.startsWith("/embed");
 
@@ -167,7 +170,8 @@ export function RequestDetailPage() {
   const emptyState = error === "Subject required" || error === "Session token required";
 
   const title =
-    readFirstString(toolRecord.title, requestRecord.tool_name) ||
+    resolveMarketplaceText(toolRecord.title as any, locale) ||
+    readFirstString(requestRecord.tool_name) ||
     t("activity.request_detail_title", undefined, "Request Details");
   const artifacts = Array.isArray(dataRecord.artifacts) ? dataRecord.artifacts : [];
 
@@ -504,7 +508,7 @@ export function RequestDetailPage() {
                 <div>
                   <h2 className="mx-title mx-request-section-title">{title}</h2>
                   <div className="mx-request-meta-row">
-                    <span>{readString(requestRecord.xapp_name)}</span>
+                    <span>{effectiveXappTitle || "—"}</span>
                     {readString(requestRecord.xapp_version) && (
                       <>
                         <span>·</span>
@@ -526,7 +530,7 @@ export function RequestDetailPage() {
                 <div className="mx-meta-item">
                   <span className="mx-meta-label">{t("common.tool", undefined, "Tool")}</span>
                   <span className="mx-meta-value">
-                    {readFirstString(requestRecord.tool_name) || "—"}
+                    {title || readFirstString(requestRecord.tool_name) || "—"}
                   </span>
                 </div>
                 <div className="mx-meta-item">
@@ -933,7 +937,8 @@ export function RequestDetailPage() {
                             const installationId = readFirstString(requestRecord.installation_id);
                             const widgetId = readFirstString(widget.id);
                             const widgetName =
-                              readFirstString(widget.title, widget.widget_name) ||
+                              resolveMarketplaceText(widget.title as any, locale) ||
+                              readFirstString(widget.widget_name) ||
                               t("common.widget", undefined, "Widget");
                             if (!installationId || !widgetId) return;
 
@@ -951,7 +956,7 @@ export function RequestDetailPage() {
                               installationId,
                               widgetId,
                               xappId: readString(requestRecord.xapp_id),
-                              xappTitle: readString(requestRecord.xapp_name),
+                              xappTitle: effectiveXappTitle,
                               widgetName,
                               toolName: readString(requestRecord.tool_name),
                             });
@@ -961,10 +966,15 @@ export function RequestDetailPage() {
                             "activity.open_widget",
                             {
                               widget:
-                                readFirstString(widget.title, widget.widget_name) ||
+                                resolveMarketplaceText(widget.title as any, locale) ||
+                                readFirstString(widget.widget_name) ||
                                 t("common.widget", undefined, "Widget"),
                             },
-                            `Open ${readFirstString(widget.title, widget.widget_name) || t("common.widget", undefined, "Widget")}`,
+                            `Open ${
+                              resolveMarketplaceText(widget.title as any, locale) ||
+                              readFirstString(widget.widget_name) ||
+                              t("common.widget", undefined, "Widget")
+                            }`,
                           )}
                         </button>
                       );

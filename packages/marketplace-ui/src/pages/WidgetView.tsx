@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import type { TranslationParams } from "@xapps-platform/platform-i18n";
-import { useMarketplaceI18n } from "../i18n";
+import { resolveMarketplaceText, useMarketplaceI18n } from "../i18n";
 import { useMarketplace } from "../MarketplaceContext";
 import type { CatalogXappDetail } from "../types";
 import { buildTokenSearch, readHostReturnUrl } from "../utils/embedSearch";
@@ -106,7 +106,7 @@ function toSessionExpiredUi(
 
 export function WidgetView() {
   const { client, host, env } = useMarketplace();
-  const { t } = useMarketplaceI18n();
+  const { t, locale } = useMarketplaceI18n();
   const { installationId, widgetId } = useParams();
   const token = useQueryToken();
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -178,7 +178,9 @@ export function WidgetView() {
           setXappDetail(res);
           const detail = asRecord(res);
           setXappTitle(
-            readFirstString(asRecord(detail.manifest).title, asRecord(detail.xapp).name) || "App",
+            resolveMarketplaceText(asRecord(detail.manifest).title as any, locale) ||
+              readFirstString(asRecord(detail.xapp).name) ||
+              "App",
           );
         }
       } catch {}
@@ -186,7 +188,7 @@ export function WidgetView() {
     return () => {
       alive = false;
     };
-  }, [installationId, client, host]);
+  }, [installationId, client, host, locale]);
 
   useEffect(() => {
     if (!xappId) {
