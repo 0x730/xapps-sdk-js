@@ -52,6 +52,16 @@ const gatewayClient = createGatewayApiClient({
       });
     }
 
+    if (
+      String(url).includes(
+        "/v1/requests/latest?installationId=inst_123&toolName=submit_certificate_request_async&subjectId=subject_123",
+      )
+    ) {
+      return jsonResponse({
+        requestId: "req_latest_123",
+      });
+    }
+
     return jsonResponse({});
   },
 });
@@ -77,6 +87,15 @@ const catalog = await gatewayClient.createCatalogSession({
 assert(catalog.token === "catalog_token", "createCatalogSession token mismatch");
 assert(catalog.embedUrl.includes("/embed/catalog"), "createCatalogSession embedUrl mismatch");
 assert(requests[0]?.apiKey === "gateway_key", "gateway api client should forward x-api-key");
+
+const verified = await gatewayClient.verifyBrowserWidgetContext({
+  hostOrigin: "https://tenant.example.test",
+  installationId: "inst_123",
+  bindToolName: "submit_certificate_request_async",
+  subjectId: subject.subjectId,
+});
+assert(verified.verified === true, "verifyBrowserWidgetContext should verify");
+assert(verified.latestRequestId === "req_latest_123", "verifyBrowserWidgetContext request id mismatch");
 
 const hostProxy = createEmbedHostProxyService({
   gatewayClient,

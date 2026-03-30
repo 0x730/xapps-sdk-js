@@ -97,6 +97,20 @@ export type WidgetSessionResult = {
   tool?: Record<string, unknown> | null;
 };
 
+export type VerifyBrowserWidgetContextInput = {
+  hostOrigin: string;
+  installationId?: string | null;
+  bindToolName?: string | null;
+  toolName?: string | null;
+  subjectId?: string | null;
+};
+
+export type VerifyBrowserWidgetContextResult = {
+  verified: true;
+  latestRequestId: string | null;
+  result: Record<string, unknown>;
+};
+
 export type InstallationRecord = Record<string, unknown> & {
   id?: string;
   xapp_id?: string;
@@ -367,6 +381,13 @@ function appendOptionalSubjectId(pathname: string, subjectId?: string | null): s
   if (!resolved) return pathname;
   const separator = pathname.includes("?") ? "&" : "?";
   return `${pathname}${separator}subjectId=${encodeURIComponent(resolved)}`;
+}
+
+function appendOptionalQuery(pathname: string, key: string, value?: string | null): string {
+  const resolved = String(value || "").trim();
+  if (!resolved) return pathname;
+  const separator = pathname.includes("?") ? "&" : "?";
+  return `${pathname}${separator}${encodeURIComponent(key)}=${encodeURIComponent(resolved)}`;
 }
 
 function extractResultObject<T = Record<string, unknown>>(payload: unknown): T {
@@ -735,6 +756,39 @@ export function createGatewayApiClient(options: GatewayApiClientOptions) {
             : result.tool === null
               ? null
               : undefined,
+      };
+    },
+
+    async verifyBrowserWidgetContext(
+      input: VerifyBrowserWidgetContextInput,
+    ): Promise<VerifyBrowserWidgetContextResult> {
+      const hostOrigin = String(input.hostOrigin || "").trim();
+      if (!hostOrigin) {
+        throw new GatewayApiClientError({
+          code: "GATEWAY_API_INVALID_RESPONSE",
+          message: "hostOrigin is required",
+        });
+      }
+      let pathname = "/v1/requests/latest";
+      pathname = appendOptionalQuery(pathname, "installationId", input.installationId);
+      pathname = appendOptionalQuery(
+        pathname,
+        "toolName",
+        input.bindToolName ?? input.toolName,
+      );
+      pathname = appendOptionalSubjectId(pathname, input.subjectId);
+      const payload = await requestJson("GET", pathname, undefined, { Origin: hostOrigin });
+      const result = extractResultObject<Record<string, unknown>>(payload);
+      const latestRequestId =
+        typeof result.requestId === "string"
+          ? result.requestId
+          : typeof result.id === "string"
+            ? result.id
+            : null;
+      return {
+        verified: true,
+        latestRequestId,
+        result,
       };
     },
 

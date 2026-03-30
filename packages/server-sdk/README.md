@@ -18,6 +18,7 @@ npm install @xapps-platform/server-sdk
 - `buildCanonicalString`
 - `createCallbackClient`
 - `createGatewayApiClient`
+- `GatewayApiClient.verifyBrowserWidgetContext(...)`
 - `XappsServerSdkError`
 - `parsePaymentReturnEvidence`
 - `parsePaymentReturnEvidenceFromSearch`
@@ -79,6 +80,7 @@ the framework-neutral embed host proxy service:
     - `resolveSubject(...)`
     - `createCatalogSession(...)`
     - `createWidgetSession(...)`
+    - `verifyBrowserWidgetContext(...)`
     - `listInstallations(...)`
     - `installXapp(...)`
     - `updateInstallation(...)`
@@ -154,6 +156,12 @@ const subject = await hostProxy.resolveSubject({
 });
 const catalog = await hostProxy.createCatalogSession({
   origin: "https://tenant.example.test",
+  subjectId: subject.subjectId,
+});
+const verified = await gateway.verifyBrowserWidgetContext({
+  hostOrigin: "https://tenant.example.test",
+  installationId: "inst_123",
+  bindToolName: "submit_form",
   subjectId: subject.subjectId,
 });
 ```

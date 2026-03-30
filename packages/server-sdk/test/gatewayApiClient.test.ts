@@ -130,6 +130,20 @@ describe("server-sdk gatewayApiClient", () => {
       }
 
       if (
+        href ===
+          "https://gateway.example.test/v1/requests/latest?installationId=inst_123&toolName=submit_certificate_request_async&subjectId=sub_123" &&
+        method === "GET"
+      ) {
+        expect(new Headers(init?.headers).get("origin")).toBe("https://tenant.example.test");
+        return new Response(
+          JSON.stringify({
+            requestId: "req_latest_123",
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        );
+      }
+
+      if (
         href === "https://gateway.example.test/v1/installations?subjectId=sub_123" &&
         method === "GET"
       ) {
@@ -239,6 +253,19 @@ describe("server-sdk gatewayApiClient", () => {
       embedUrl: "/embed/widgets/widget_123?token=widget_token",
       context: { installationId: "inst_123" },
       widget: { id: "widget_123" },
+    });
+
+    await expect(
+      client.verifyBrowserWidgetContext({
+        hostOrigin: "https://tenant.example.test",
+        installationId: "inst_123",
+        bindToolName: "submit_certificate_request_async",
+        subjectId: "sub_123",
+      }),
+    ).resolves.toEqual({
+      verified: true,
+      latestRequestId: "req_latest_123",
+      result: { requestId: "req_latest_123" },
     });
 
     await expect(client.listInstallations({ subjectId: "sub_123" })).resolves.toEqual({
