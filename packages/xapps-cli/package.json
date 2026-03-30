@@ -1,6 +1,6 @@
 {
   "name": "@xapps-platform/cli",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "license": "MIT",
   "author": "Daniel Vladescu <daniel.vladescu@gmail.com>",
   "description": "Xapps developer CLI",
