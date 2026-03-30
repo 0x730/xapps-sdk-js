@@ -1,4 +1,4 @@
-import { createBackendKit } from "../../dist/index.js";
+import { createBackendKit, verifyBrowserWidgetContext } from "../../dist/index.js";
 import registerHealthRoutes from "../../dist/backend/routes/health.js";
 
 function assert(condition, message) {
@@ -100,5 +100,25 @@ assert(
   Array.isArray(healthResponse.tools) && healthResponse.tools.length === 2,
   "health tools mismatch",
 );
+
+const verified = await verifyBrowserWidgetContext(
+  {
+    async verifyBrowserWidgetContext(input) {
+      return {
+        verified: true,
+        latestRequestId: "req_latest_123",
+        result: input,
+      };
+    },
+  },
+  {
+    hostOrigin: "https://tenant.example.test",
+    installationId: "inst_123",
+    bindToolName: "submit_certificate_request_async",
+    subjectId: "sub_123",
+  },
+);
+assert(verified.verified === true, "backend-kit verifyBrowserWidgetContext should verify");
+assert(verified.latestRequestId === "req_latest_123", "backend-kit verifyBrowserWidgetContext request mismatch");
 
 console.log("backend-kit smoke: ok");

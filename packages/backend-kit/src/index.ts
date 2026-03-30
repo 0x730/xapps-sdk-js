@@ -70,6 +70,25 @@ export type BackendKit = {
   applyNotFoundHandler: (app: RegisterableApp) => void;
 };
 
+export type VerifyBrowserWidgetContextInput = {
+  hostOrigin: string;
+  installationId?: string | null;
+  bindToolName?: string | null;
+  toolName?: string | null;
+  subjectId?: string | null;
+};
+
+export async function verifyBrowserWidgetContext(
+  gatewayClient: {
+    verifyBrowserWidgetContext: (
+      input: VerifyBrowserWidgetContextInput,
+    ) => Promise<Record<string, unknown>>;
+  },
+  input: VerifyBrowserWidgetContextInput,
+) {
+  return gatewayClient.verifyBrowserWidgetContext(input);
+}
+
 export async function createBackendKit(
   input: StringRecord = {},
   deps: BackendKitDeps = {},
