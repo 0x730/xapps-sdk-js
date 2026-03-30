@@ -185,7 +185,15 @@ paths:
 
 run(
   installedBinPath,
-  ["import", "--from", openApiPath, "--out", importedManifestPath, "--endpoint", "https://api.example.com"],
+  [
+    "import",
+    "--from",
+    openApiPath,
+    "--out",
+    importedManifestPath,
+    "--endpoint",
+    "https://api.example.com",
+  ],
   tmpRoot,
 );
 run(installedBinPath, ["validate", "--from", importedManifestPath], tmpRoot);

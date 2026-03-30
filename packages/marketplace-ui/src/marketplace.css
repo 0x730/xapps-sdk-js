@@ -1,21 +1,30 @@
 :root {
-  --mx-primary: #126bf1;
-  --mx-primary-hover: #0f5be0;
-  --mx-bg: #f8fafc;
-  --mx-card-bg: #ffffff;
-  --mx-border: #e2e8f0;
-  --mx-text-main: #0f172a;
-  --mx-text-muted: #64748b;
-  --mx-danger: #b91c1c;
-  --mx-danger-hover: #991b1b;
-  --mx-danger-soft: #fff5f5;
-  --mx-danger-border: rgba(239, 68, 68, 0.24);
+  --mx-primary: var(--xapps-accent, var(--cx-primary, #126bf1));
+  --mx-primary-hover: var(--xapps-accent-strong, var(--cx-primary-dark, #0f5be0));
+  --mx-bg: var(--xapps-surface-subtle, var(--cx-bg, #f8fafc));
+  --mx-card-bg: var(--xapps-surface-bg, var(--cx-card, #ffffff));
+  --mx-border: var(--xapps-border-color, var(--cx-border, #e2e8f0));
+  --mx-text-main: var(--xapps-text-primary, var(--cx-text, #0f172a));
+  --mx-text-muted: var(--xapps-text-secondary, var(--cx-muted, #64748b));
+  --mx-danger: var(--xapps-danger, #b91c1c);
+  --mx-success: var(--xapps-success, #15803d);
+  --mx-warning: color-mix(in srgb, var(--mx-primary) 50%, #8a5a00);
+  --mx-danger-hover: color-mix(in srgb, var(--mx-danger) 84%, black);
+  --mx-danger-soft: color-mix(in srgb, var(--mx-danger) 7%, var(--mx-card-bg));
+  --mx-danger-border: color-mix(in srgb, var(--mx-danger) 24%, transparent);
   --mx-shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
   --mx-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
   --mx-shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
   --mx-radius-lg: 1rem;
   --mx-radius-md: 0.75rem;
   --mx-radius-sm: 0.5rem;
+  --mx-font-family: var(--xapps-font-family, system-ui, sans-serif);
+}
+
+:root[data-xapps-theme-mode="dark"] {
+  --mx-shadow-sm: 0 1px 2px 0 rgb(2 6 23 / 0.22);
+  --mx-shadow: 0 8px 18px -8px rgb(2 6 23 / 0.45), 0 6px 12px -10px rgb(2 6 23 / 0.38);
+  --mx-shadow-lg: 0 18px 38px -18px rgb(2 6 23 / 0.58), 0 12px 22px -18px rgb(2 6 23 / 0.42);
 }
 
 .mx-catalog-container {
@@ -24,6 +33,8 @@
   padding: 2rem 1.75rem;
   container-type: inline-size;
   container-name: marketplace;
+  font-family: var(--mx-font-family);
+  color: var(--mx-text-main);
 }
 
 .mx-header {
@@ -406,18 +417,18 @@
 }
 
 .mx-badge-success {
-  background: #dcfce7;
-  color: #166534;
+  background: color-mix(in srgb, var(--mx-success) 14%, var(--mx-card-bg));
+  color: color-mix(in srgb, var(--mx-success) 78%, var(--mx-text-main));
 }
 
 .mx-badge-danger {
-  background: #fee2e2;
-  color: #991b1b;
+  background: var(--mx-danger-soft);
+  color: color-mix(in srgb, var(--mx-danger) 80%, var(--mx-text-main));
 }
 
 .mx-badge-warning {
-  background: #fef3c7;
-  color: #92400e;
+  background: color-mix(in srgb, var(--mx-primary) 14%, var(--mx-card-bg));
+  color: color-mix(in srgb, var(--mx-warning) 76%, var(--mx-text-main));
 }
 
 .mx-table-container {
@@ -3194,7 +3205,7 @@
 
 .mx-request-code {
   font-size: 0.75rem;
-  background: #f1f5f9;
+  background: color-mix(in srgb, var(--mx-bg) 78%, var(--mx-card-bg));
   padding: 2px 4px;
   border-radius: 4px;
 }
@@ -3203,22 +3214,42 @@
 
 .mx-payment-lock-banner {
   margin-bottom: 1rem;
-  padding: 0.9rem;
-  border-radius: 10px;
-  border: 1px solid #fcd34d;
-  background: #fffbeb;
+  padding: 1rem 1.05rem;
+  border-radius: 16px;
+  border: 1px solid color-mix(in srgb, var(--mx-primary) 18%, var(--mx-border));
+  background:
+    radial-gradient(
+      circle at top right,
+      color-mix(in srgb, var(--mx-primary) 12%, transparent),
+      transparent 40%
+    ),
+    radial-gradient(
+      circle at bottom left,
+      color-mix(in srgb, var(--mx-primary) 8%, transparent),
+      transparent 46%
+    ),
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--mx-primary) 7%, var(--mx-card-bg)) 0%,
+      color-mix(in srgb, var(--mx-bg) 58%, var(--mx-card-bg)) 100%
+    );
   display: grid;
-  gap: 0.5rem;
+  gap: 0.65rem;
+  box-shadow:
+    0 16px 30px -24px color-mix(in srgb, var(--mx-primary) 40%, transparent),
+    var(--mx-shadow-sm);
 }
 
 .mx-payment-lock-title {
-  font-weight: 700;
-  color: #92400e;
+  font-weight: 800;
+  color: color-mix(in srgb, var(--mx-primary) 66%, var(--mx-text-main));
+  letter-spacing: -0.01em;
 }
 
 .mx-payment-lock-message {
   font-size: 0.9rem;
-  color: #78350f;
+  color: var(--mx-text-muted);
+  line-height: 1.55;
 }
 
 .mx-payment-lock-actions {
@@ -3229,7 +3260,7 @@
 
 .mx-payment-lock-error {
   font-size: 0.85rem;
-  color: #991b1b;
+  color: var(--mx-danger);
 }
 
 /* ── Execution Timeline ──────────────────────────────── */

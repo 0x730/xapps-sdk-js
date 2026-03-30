@@ -35,7 +35,7 @@
   },
   "sideEffects": false,
   "scripts": {
-    "build": "node ../../scripts/build-openapi-import.mjs",
+    "build": "node ../../scripts/build/build-openapi-import.mjs",
     "smoke": "npm run build && node examples/smoke/smoke.mjs"
   },
   "dependencies": {

@@ -269,5 +269,4 @@ describe("widget-runtime", () => {
       root.unmount();
     });
   });
-
 });

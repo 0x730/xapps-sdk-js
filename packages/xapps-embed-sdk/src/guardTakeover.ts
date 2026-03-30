@@ -84,6 +84,24 @@ export async function openGuardWidgetOverlay(input: {
   }
 
   return await new Promise<Record<string, unknown> | null>((resolve, reject) => {
+    const normalizeLocale = (value: unknown) =>
+      String(value || "")
+        .trim()
+        .replace(/_/g, "-")
+        .toLowerCase();
+    const localeTag = normalizeLocale(input.locale);
+    const overlayCatalog =
+      localeTag === "ro" || localeTag.startsWith("ro-")
+        ? {
+            title: "Completează pasul necesar",
+            close: "Închide",
+            loading: "Se încarcă...",
+          }
+        : {
+            title: "Complete required step",
+            close: "Close",
+            loading: "Loading...",
+          };
     let settled = false;
     const overlay = document.createElement("div");
     overlay.className = "xapps-guard-overlay-root";
@@ -181,11 +199,11 @@ export async function openGuardWidgetOverlay(input: {
     const headerTitle = document.createElement("span");
     headerTitle.style.cssText =
       "flex:1;font:600 0.8125rem/1 system-ui,sans-serif;color:#334155;letter-spacing:-0.01em";
-    headerTitle.textContent = "Complete required step";
+    headerTitle.textContent = overlayCatalog.title;
     header.appendChild(headerTitle);
     const closeBtn = document.createElement("button");
     closeBtn.type = "button";
-    closeBtn.setAttribute("aria-label", "Close");
+    closeBtn.setAttribute("aria-label", overlayCatalog.close);
     closeBtn.style.cssText =
       "appearance:none;border:none;background:none;cursor:pointer;padding:4px;border-radius:6px;color:#94a3b8;display:flex;align-items:center;justify-content:center;transition:color 0.15s,background 0.15s";
     closeBtn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
@@ -207,7 +225,7 @@ export async function openGuardWidgetOverlay(input: {
     const loader = document.createElement("div");
     loader.style.cssText =
       "position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:10px;background:#fafbfc;z-index:1;transition:opacity 0.3s ease";
-    loader.innerHTML = `<div style="width:20px;height:20px;border:2.5px solid #e2e8f0;border-top-color:#3b82f6;border-radius:50%;animation:xapps-spin 0.7s linear infinite"></div><span style="font:500 0.8125rem system-ui,sans-serif;color:#64748b">Loading...</span>`;
+    loader.innerHTML = `<div style="width:20px;height:20px;border:2.5px solid #e2e8f0;border-top-color:#3b82f6;border-radius:50%;animation:xapps-spin 0.7s linear infinite"></div><span style="font:500 0.8125rem system-ui,sans-serif;color:#64748b">${overlayCatalog.loading}</span>`;
 
     iframe.style.cssText = "border:0;width:100%;height:100%";
     iframe.allow =

@@ -124,7 +124,7 @@ const HOOK_REGISTRY: HookRegistryEntry[] = [
     trigger: "after:request_created",
     implemented: true,
     blockingDefault: false,
-    allowedEffectKinds: ["notification", "integration_call"],
+    allowedEffectKinds: ["policy", "notification", "integration_call"],
     allowsDelegatedExecution: true,
     auditCategory: "request",
   },

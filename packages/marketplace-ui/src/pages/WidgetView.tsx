@@ -722,6 +722,11 @@ export function WidgetView() {
     const params = new URLSearchParams({ token: widgetToken });
     const hostReturnUrl = readHostReturnUrl(loc.search);
     if (hostReturnUrl) params.set("xapps_host_return_url", hostReturnUrl);
+    if (env?.embedMode && hostNestedExpandStage !== "inline") {
+      params.set("xapps_host_overlay", "1");
+    } else {
+      params.delete("xapps_host_overlay");
+    }
     const paymentParams = readPaymentEvidenceParams(loc.search);
     for (const [k, v] of paymentParams.entries()) {
       params.set(k, v);

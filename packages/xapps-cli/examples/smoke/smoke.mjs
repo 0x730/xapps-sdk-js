@@ -56,15 +56,23 @@ execFileSync(process.execPath, [cliPath, "validate", "--from", manifestPath], {
   stdio: "inherit",
 });
 
-execFileSync(process.execPath, [cliPath, "test", "--from", manifestPath, "--vectors", vectorsPath], {
-  cwd: tmpRoot,
-  stdio: "inherit",
-});
+execFileSync(
+  process.execPath,
+  [cliPath, "test", "--from", manifestPath, "--vectors", vectorsPath],
+  {
+    cwd: tmpRoot,
+    stdio: "inherit",
+  },
+);
 
-execFileSync(process.execPath, [cliPath, "publish", "--yes", "--from", manifestPath, "--out", bundlePath], {
-  cwd: tmpRoot,
-  stdio: "inherit",
-});
+execFileSync(
+  process.execPath,
+  [cliPath, "publish", "--yes", "--from", manifestPath, "--out", bundlePath],
+  {
+    cwd: tmpRoot,
+    stdio: "inherit",
+  },
+);
 
 execFileSync(process.execPath, [cliPath, "logs", "--from", bundlePath, "--json"], {
   cwd: tmpRoot,

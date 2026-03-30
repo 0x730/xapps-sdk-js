@@ -152,4 +152,61 @@ describe("@xapps-platform/browser-host bootstrap helpers", () => {
       }),
     );
   });
+
+  it("retries marketplace host-config after bootstrap expiry using refreshed identity", async () => {
+    setMockWindow("http://localhost:3412/marketplace.html?mode=single-panel");
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        json: async () => ({ message: "Host bootstrap token expired" }),
+      })
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        json: async () => ({ message: "stop after retry" }),
+      });
+    globalThis.fetch = fetchMock as any;
+
+    await expect(
+      bootMarketplaceHost({
+        identityStorageKey: "xconect_reference_host_identity_v1",
+        readStoredJson: () => ({
+          email: "daniel@example.com",
+          subjectId: "sub_123",
+          bootstrapToken: "stale_token",
+        }),
+        refreshStoredJson: async () => ({
+          email: "daniel@example.com",
+          subjectId: "sub_123",
+          bootstrapToken: "fresh_token",
+        }),
+        applyThemePreference: () => "harbor",
+        readThemePreference: () => "harbor",
+        renderIdentity: () => {},
+        setHeaderCollapsed: () => {},
+        readHeaderCollapsedPreference: () => false,
+        readModeFromUrl: () => "single-panel",
+        renderMode: () => {},
+        renderModeShell: () => {},
+        setModeInUrl: () => {},
+        toggleHeaderCollapsed: () => {},
+        createMarketplaceRuntime: () => ({
+          mount: async () => {},
+          destroy: () => {},
+        }),
+      } as any),
+    ).rejects.toThrow("stop after retry");
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({
+      method: "GET",
+      headers: { "X-Xapps-Host-Bootstrap": "stale_token" },
+    });
+    expect(fetchMock.mock.calls[1]?.[1]).toMatchObject({
+      method: "GET",
+      headers: { "X-Xapps-Host-Bootstrap": "fresh_token" },
+    });
+  });
 });

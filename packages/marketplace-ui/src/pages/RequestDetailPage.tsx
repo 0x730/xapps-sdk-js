@@ -8,6 +8,7 @@ import {
   type PaymentReconcileState,
 } from "../utils/paymentLock";
 import { buildTokenSearch, readHostReturnUrl } from "../utils/embedSearch";
+import { buildOperationalSurfaceHref } from "../utils/operationalSurfaces";
 import {
   asRecord,
   formatDateTime,
@@ -26,6 +27,20 @@ function useQueryToken(): string {
 function useQuery(): URLSearchParams {
   const loc = useLocation();
   return useMemo(() => new URLSearchParams(loc.search), [loc.search]);
+}
+
+function navigateToExternalOrHost(url: string): void {
+  const next = String(url || "").trim();
+  if (!next || typeof window === "undefined") return;
+  try {
+    if (window.parent && window.parent !== window) {
+      window.parent.postMessage({ type: "XAPPS_UI_NAVIGATE", data: { path: next } }, "*");
+      return;
+    }
+  } catch {
+    // fall through to top-level navigation
+  }
+  window.location.href = next;
 }
 
 export function RequestDetailPage() {
@@ -50,6 +65,8 @@ export function RequestDetailPage() {
   const requestRecord = asRecord(dataRecord.request);
   const toolRecord = asRecord(dataRecord.tool);
   const manifestRecord = asRecord(dataRecord.manifest);
+  const requestPayment = asRecord(requestRecord.payment);
+  const requestPaymentSummary = asRecord(requestRecord.payment_summary);
   const status = readFirstString(requestRecord.status) || undefined;
   const isTerminal = status === "COMPLETED" || status === "FAILED";
   const effectiveXappId = readFirstString(requestRecord.xapp_id, xappIdFilter);
@@ -95,6 +112,8 @@ export function RequestDetailPage() {
         !resolvePaymentLockStateFromGuardSummary(
           asRecord(asRecord(res).request).guard_summary ?? null,
           {
+            requestStatus: readFirstString(asRecord(asRecord(res).request).status),
+            paymentStatus: readFirstString(asRecord(asRecord(res).request).payment_status),
             t: (key, fallback) => t(key, undefined, fallback),
           },
         ).isLocked
@@ -105,31 +124,6 @@ export function RequestDetailPage() {
       setError(readFirstString(asRecord(e).message) || String(e));
     } finally {
       setBusy(false);
-    }
-  }
-
-  async function reconcilePaymentFinality() {
-    if (!id || reconcileBusy || !client.reconcileMyRequestPayment) return;
-    setReconcileError(null);
-    setReconcileState("confirming_payment");
-    setReconcileBusy(true);
-    try {
-      const res = await client.reconcileMyRequestPayment({
-        requestId: String(id),
-        paymentSessionId: requestPaymentLock.paymentSessionId,
-      });
-      setReconcileState(res?.finality_state || "none");
-      const redirectUrl = String(res?.redirect_url || "").trim();
-      if (redirectUrl) {
-        window.location.href = redirectUrl;
-        return;
-      }
-      await refreshOnce();
-    } catch (e) {
-      setReconcileError(readFirstString(asRecord(e).message) || String(e));
-      setReconcileState("failed");
-    } finally {
-      setReconcileBusy(false);
     }
   }
 
@@ -249,11 +243,67 @@ export function RequestDetailPage() {
   const requestPaymentLock = useMemo(
     () =>
       resolvePaymentLockStateFromGuardSummary(requestRecord.guard_summary ?? null, {
+        requestStatus: readFirstString(requestRecord.status),
+        paymentStatus: readFirstString(requestRecord.payment_status),
         reconcileState,
         t: (key, fallback) => t(key, undefined, fallback),
       }),
     [requestRecord.guard_summary, reconcileState, t],
   );
+  const isPaymentPending =
+    String(status || "")
+      .trim()
+      .toUpperCase() === "PAYMENT_PENDING";
+  const showPaymentWaitState = requestPaymentLock.isLocked || isPaymentPending;
+  const eventPaymentSessionId = useMemo(() => {
+    const events = Array.isArray(dataRecord.events) ? dataRecord.events : [];
+    for (let index = events.length - 1; index >= 0; index -= 1) {
+      const candidate = readPaymentSessionIdFromUnknown(getEventPayload(events[index]));
+      if (candidate) return candidate;
+    }
+    return "";
+  }, [dataRecord.events]);
+  const effectivePaymentSessionId =
+    readFirstString(
+      requestPaymentLock.paymentSessionId,
+      requestRecord.payment_session_id,
+      requestRecord.paymentSessionId,
+      requestPayment.payment_session_id,
+      requestPayment.paymentSessionId,
+      requestPaymentSummary.payment_session_id,
+      requestPaymentSummary.paymentSessionId,
+      eventPaymentSessionId,
+    ) || "";
+  const directPaymentUrl =
+    readFirstString(
+      requestRecord.payment_resume_url,
+      requestRecord.paymentResumeUrl,
+      requestPayment.resume_url,
+      requestPayment.resumeUrl,
+      requestPaymentSummary.payment_resume_url,
+      requestPaymentSummary.paymentResumeUrl,
+      requestPaymentLock.actionUrl,
+    ) || "";
+  const paymentSurfaceHref = (() => {
+    if (!effectivePaymentSessionId) return "";
+    const installationId = readFirstString(requestRecord.installation_id) || undefined;
+    if (effectiveXappId) {
+      return buildOperationalSurfaceHref({
+        surface: "payments",
+        xappId: effectiveXappId,
+        installationId,
+        paymentSessionId: effectivePaymentSessionId,
+        token: token || undefined,
+        isEmbedded,
+      });
+    }
+    const params = new URLSearchParams({
+      paymentSessionId: effectivePaymentSessionId,
+      ...(installationId ? { installationId } : {}),
+      ...(token ? { token } : {}),
+    });
+    return `${isEmbedded ? "/payments" : "/marketplace/payments"}?${params.toString()}`;
+  })();
 
   function getEventPayload(ev: unknown): unknown | null {
     const eventRecord = asRecord(ev);
@@ -270,6 +320,42 @@ export function RequestDetailPage() {
       if (err.meta) return err.meta;
     }
     return null;
+  }
+
+  function readPaymentSessionIdFromUnknown(value: unknown): string {
+    const record = asRecord(value);
+    const direct = readFirstString(
+      record.payment_session_id,
+      record.paymentSessionId,
+      asRecord(record.action).payment_session_id,
+      asRecord(record.action).paymentSessionId,
+      asRecord(record.guard).payment_session_id,
+      asRecord(asRecord(record.guard).action).payment_session_id,
+      asRecord(asRecord(record.guard).action).paymentSessionId,
+    );
+    if (direct) return direct;
+    const url = readFirstString(
+      record.url,
+      record.payment_url,
+      record.paymentUrl,
+      asRecord(record.action).url,
+      asRecord(asRecord(record.guard).action).url,
+    );
+    if (!url) return "";
+    try {
+      const parsed = new URL(
+        url,
+        typeof window !== "undefined" ? window.location.href : "http://localhost",
+      );
+      return (
+        readFirstString(
+          parsed.searchParams.get("payment_session_id"),
+          parsed.searchParams.get("paymentSessionId"),
+        ) || ""
+      );
+    } catch {
+      return "";
+    }
   }
 
   function extractGuardSummary(payload: unknown): {
@@ -406,13 +492,60 @@ export function RequestDetailPage() {
 
   function StatusBadge({ status }: { status: string }) {
     const s = String(status || "");
+    const normalized = s.trim().toUpperCase();
     const className =
       s === "COMPLETED"
         ? "mx-badge-success"
         : s === "FAILED"
           ? "mx-badge-danger"
           : "mx-badge-warning";
-    return <span className={`mx-badge ${className}`}>{s || "—"}</span>;
+    const label =
+      normalized === "PAYMENT_PENDING"
+        ? t("activity.payment_pending", undefined, "Payment Pending")
+        : s || "—";
+    return <span className={`mx-badge ${className}`}>{label}</span>;
+  }
+
+  async function continuePayment() {
+    if (client.reconcileMyRequestPayment && isPaymentPending) {
+      setReconcileError(null);
+      setReconcileState("confirming_payment");
+      setReconcileBusy(true);
+      try {
+        const hostReturnUrl = readHostReturnUrl(loc.search);
+        const currentReturnUrl = String(
+          hostReturnUrl || (typeof window !== "undefined" ? window.location.href : "") || "",
+        ).trim();
+        const res = await client.reconcileMyRequestPayment({
+          requestId: String(id),
+          paymentSessionId: effectivePaymentSessionId || undefined,
+          returnUrl: currentReturnUrl || undefined,
+          cancelUrl: currentReturnUrl || undefined,
+        });
+        setReconcileState(res?.finality_state || "none");
+        const redirectUrl = String(res?.redirect_url || "").trim();
+        if (redirectUrl) {
+          navigateToExternalOrHost(redirectUrl);
+          return;
+        }
+        await refreshOnce();
+        return;
+      } catch (e) {
+        setReconcileError(readFirstString(asRecord(e).message) || String(e));
+        setReconcileState("failed");
+        return;
+      } finally {
+        setReconcileBusy(false);
+      }
+    }
+
+    if (directPaymentUrl) {
+      navigateToExternalOrHost(directPaymentUrl);
+      return;
+    }
+    if (paymentSurfaceHref) {
+      void navigate(paymentSurfaceHref);
+    }
   }
 
   return (
@@ -556,33 +689,33 @@ export function RequestDetailPage() {
               <h3 className="mx-section-title mx-section-title-md">
                 {t("activity.response_title", undefined, "Response")}
               </h3>
-              {requestPaymentLock.isLocked && requestPaymentLock.actionUrl ? (
+              {showPaymentWaitState ? (
                 <div className="mx-payment-lock-banner">
                   <div className="mx-payment-lock-title">
-                    {t("activity.payment_required", undefined, "Payment Required")}
+                    {isPaymentPending
+                      ? t("activity.payment_pending", undefined, "Payment Pending")
+                      : t("activity.payment_required", undefined, "Payment Required")}
                   </div>
-                  <div className="mx-payment-lock-message">{requestPaymentLock.message}</div>
+                  <div className="mx-payment-lock-message">
+                    {requestPaymentLock.isLocked
+                      ? requestPaymentLock.message
+                      : t(
+                          "activity.waiting_for_payment",
+                          undefined,
+                          "Waiting for payment confirmation…",
+                        )}
+                  </div>
                   <div className="mx-payment-lock-actions">
-                    <button
-                      className="mx-btn mx-btn-primary"
-                      onClick={() => {
-                        window.location.href = requestPaymentLock.actionUrl;
-                      }}
-                    >
-                      {requestPaymentLock.ctaLabel ||
-                        t("activity.complete_payment", undefined, "Complete Payment")}
-                    </button>
-                    {client.reconcileMyRequestPayment && requestPaymentLock.paymentSessionId ? (
+                    {isPaymentPending ||
+                    effectivePaymentSessionId ||
+                    directPaymentUrl ||
+                    paymentSurfaceHref ? (
                       <button
-                        className="mx-btn mx-btn-secondary"
-                        onClick={() => void reconcilePaymentFinality()}
-                        disabled={
-                          reconcileBusy || requestPaymentLock.reconcileState === "confirmed_paid"
-                        }
+                        className="mx-btn mx-btn-primary"
+                        onClick={() => void continuePayment()}
+                        disabled={reconcileBusy}
                       >
-                        {reconcileBusy
-                          ? t("activity.confirming_payment", undefined, "Confirming...")
-                          : t("activity.confirm_payment", undefined, "Confirm Payment")}
+                        {t("activity.complete_payment", undefined, "Complete Payment")}
                       </button>
                     ) : null}
                     <button className="mx-btn mx-btn-secondary" onClick={() => void refreshOnce()}>
@@ -595,9 +728,19 @@ export function RequestDetailPage() {
                 </div>
               ) : null}
               {!isTerminal ? (
-                <div className="mx-waiting-state">
-                  {t("activity.waiting_for_response", undefined, "Waiting for response…")}
-                </div>
+                showPaymentWaitState ? (
+                  <div className="mx-waiting-state">
+                    {t(
+                      "activity.waiting_for_payment",
+                      undefined,
+                      "Waiting for payment confirmation…",
+                    )}
+                  </div>
+                ) : (
+                  <div className="mx-waiting-state">
+                    {t("activity.waiting_for_response", undefined, "Waiting for response…")}
+                  </div>
+                )
               ) : (
                 <SchemaOutputView schema={outputSchema} value={responsePayload} />
               )}

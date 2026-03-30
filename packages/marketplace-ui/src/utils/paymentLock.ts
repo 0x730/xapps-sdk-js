@@ -19,6 +19,12 @@ export type PaymentLockResolution = {
 };
 
 type PaymentLockTranslate = (key: string, fallback: string) => string;
+type PaymentLockOptions = {
+  reconcileState?: PaymentReconcileState | null;
+  requestStatus?: string | null;
+  paymentStatus?: string | null;
+  t?: PaymentLockTranslate;
+};
 
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
@@ -46,6 +52,16 @@ function normalizeActionKind(raw: string): string {
 
 function resolveText(t: PaymentLockTranslate | undefined, key: string, fallback: string): string {
   return typeof t === "function" ? t(key, fallback) : fallback;
+}
+
+function isSettledPaymentStatus(value: unknown): boolean {
+  const normalized = readString(value).toLowerCase();
+  return (
+    normalized === "paid" ||
+    normalized === "settled" ||
+    normalized === "succeeded" ||
+    normalized === "completed"
+  );
 }
 
 function resolveCtaLabel(actionKind: string, t?: PaymentLockTranslate): string {
@@ -137,7 +153,7 @@ function resolveLockMessage(
 
 export function resolvePaymentLockStateFromGuardSummary(
   summaryInput: unknown,
-  options?: { reconcileState?: PaymentReconcileState | null; t?: PaymentLockTranslate },
+  options?: PaymentLockOptions,
 ): PaymentLockResolution {
   const summary = asRecord(summaryInput);
   const action = resolveAction(summary);
@@ -165,7 +181,11 @@ export function resolvePaymentLockStateFromGuardSummary(
     reason === "payment_required" ||
     reason === "payment_evidence_missing" ||
     reason === "payment_receipt_already_used";
-  const isLocked = isPaymentKind || isPaymentReason;
+  const requestStatus = readString(options?.requestStatus).toUpperCase();
+  const paymentSettled = isSettledPaymentStatus(options?.paymentStatus);
+  const isHeldForPayment = requestStatus === "PAYMENT_PENDING";
+  const isResolvedPastHold = paymentSettled && requestStatus !== "" && !isHeldForPayment;
+  const isLocked = !isResolvedPastHold && (isPaymentKind || isPaymentReason);
 
   return {
     isLocked,

@@ -51,6 +51,7 @@ export type XappsMessageType =
   | "XAPPS_TOKEN_REFRESH"
   | "XAPPS_SESSION_EXPIRED"
   | "XAPPS_THEME_CHANGED"
+  | "XAPPS_LOCALE_CHANGED"
   | "XAPPS_SIGN_REQUEST"
   | "XAPPS_SIGN_RESULT"
   | "XAPPS_VENDOR_ASSERTION_REQUEST"
@@ -82,6 +83,7 @@ export interface XappsWidgetContext {
   type: "XAPPS_WIDGET_CONTEXT";
   token: string;
   baseUrl: string;
+  hostOrigin?: string | null;
   installationId: string;
   clientId: string;
   xappId: string;
@@ -90,6 +92,7 @@ export interface XappsWidgetContext {
   email: string | null;
   bindToolName: string | null;
   theme?: unknown;
+  locale?: string | null;
 }
 
 export interface XappsBridgeOptions {
@@ -285,6 +288,7 @@ export type SessionExpiredCallback = (payload: unknown) => void;
 export type RequestStatusCallback = (payload: unknown) => void;
 export type GuardStatusCallback = (payload: unknown) => void;
 export type ThemeChangedCallback = (payload: unknown) => void;
+export type LocaleChangedCallback = (locale: string | null, raw: XappsBridgeMessage) => void;
 export type FocusRequestCallback = (payload: unknown) => void;
 export type FocusTrapCallback = (payload: unknown) => void;
 
@@ -684,6 +688,7 @@ function toWidgetContext(message: XappsBridgeMessage): XappsWidgetContext | null
     type: "XAPPS_WIDGET_CONTEXT",
     token: message.token,
     baseUrl: message.baseUrl,
+    hostOrigin: typeof message.hostOrigin === "string" ? message.hostOrigin : null,
     installationId: message.installationId,
     clientId: message.clientId,
     xappId: message.xappId,
@@ -692,6 +697,7 @@ function toWidgetContext(message: XappsBridgeMessage): XappsWidgetContext | null
     email: typeof message.email === "string" ? message.email : null,
     bindToolName: typeof message.bindToolName === "string" ? message.bindToolName : null,
     theme: message.theme,
+    locale: typeof message.locale === "string" ? message.locale : null,
   };
 }
 
@@ -740,6 +746,7 @@ export interface XappsBridge {
   onGuardStatus(callback: GuardStatusCallback): () => void;
   onExpandResult(callback: ExpandResultCallback): () => void;
   onThemeChanged(callback: ThemeChangedCallback): () => void;
+  onLocaleChanged(callback: LocaleChangedCallback): () => void;
   onFocusRequest(callback: FocusRequestCallback): () => void;
   onFocusTrap(callback: FocusTrapCallback): () => void;
   requestTokenRefresh(): Promise<unknown>;
@@ -845,6 +852,7 @@ export function createBridge(options: XappsBridgeOptions = {}): XappsBridge {
   const guardStatusListeners = new Set<GuardStatusCallback>();
   const expandResultListeners = new Set<ExpandResultCallback>();
   const themeChangedListeners = new Set<ThemeChangedCallback>();
+  const localeChangedListeners = new Set<LocaleChangedCallback>();
   const focusRequestListeners = new Set<FocusRequestCallback>();
   const focusTrapListeners = new Set<FocusTrapCallback>();
   let contextCache: XappsWidgetContext | null = null;
@@ -856,6 +864,10 @@ export function createBridge(options: XappsBridgeOptions = {}): XappsBridge {
     type: "XAPPS_WIDGET_CONTEXT",
     token: options.standaloneContext?.token ?? "",
     baseUrl: options.standaloneContext?.baseUrl ?? window.location.origin,
+    hostOrigin:
+      typeof options.standaloneContext?.hostOrigin === "string"
+        ? options.standaloneContext.hostOrigin
+        : null,
     installationId: options.standaloneContext?.installationId ?? "",
     clientId: options.standaloneContext?.clientId ?? "",
     xappId: options.standaloneContext?.xappId ?? "",
@@ -864,6 +876,7 @@ export function createBridge(options: XappsBridgeOptions = {}): XappsBridge {
     email: options.standaloneContext?.email ?? null,
     bindToolName: options.standaloneContext?.bindToolName ?? null,
     theme: options.standaloneContext?.theme,
+    locale: options.standaloneContext?.locale ?? null,
   };
 
   function failPending(error: Error) {
@@ -979,6 +992,18 @@ export function createBridge(options: XappsBridgeOptions = {}): XappsBridge {
 
     if (message.type === "XAPPS_THEME_CHANGED") {
       for (const callback of themeChangedListeners) callback(message.data);
+      return;
+    }
+
+    if (message.type === "XAPPS_LOCALE_CHANGED") {
+      const locale =
+        typeof message.data === "object" &&
+        message.data &&
+        "locale" in (message.data as Record<string, unknown>)
+          ? String((message.data as Record<string, unknown>).locale ?? "").trim() || null
+          : null;
+      if (contextCache) contextCache = { ...contextCache, locale };
+      for (const callback of localeChangedListeners) callback(locale, message);
       return;
     }
 
@@ -1290,6 +1315,10 @@ export function createBridge(options: XappsBridgeOptions = {}): XappsBridge {
       themeChangedListeners.add(callback);
       return () => themeChangedListeners.delete(callback);
     },
+    onLocaleChanged(callback) {
+      localeChangedListeners.add(callback);
+      return () => localeChangedListeners.delete(callback);
+    },
     onFocusRequest(callback) {
       focusRequestListeners.add(callback);
       return () => focusRequestListeners.delete(callback);
@@ -1348,6 +1377,7 @@ export function createBridge(options: XappsBridgeOptions = {}): XappsBridge {
       guardStatusListeners.clear();
       expandResultListeners.clear();
       themeChangedListeners.clear();
+      localeChangedListeners.clear();
       focusRequestListeners.clear();
       focusTrapListeners.clear();
     },

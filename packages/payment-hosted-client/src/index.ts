@@ -12,24 +12,26 @@ export type HostedPaymentAcceptEntry = {
   metadata?: Record<string, unknown> | null;
 };
 
+export type HostedPaymentLocalizedText = string | { en?: string; ro?: string };
+
 export type HostedPaymentUiContract = {
   brand?: {
-    name?: string | null;
+    name?: HostedPaymentLocalizedText | null;
     logo_url?: string | null;
     accent?: string | null;
     mode?: string | null;
   } | null;
   copy?: {
-    title?: string | null;
-    subtitle?: string | null;
+    title?: HostedPaymentLocalizedText | null;
+    subtitle?: HostedPaymentLocalizedText | null;
   } | null;
   schemes?: Array<{
     scheme: string;
-    title?: string | null;
-    subtitle?: string | null;
-    badge?: string | null;
-    cta_label?: string | null;
-    help_text?: string | null;
+    title?: HostedPaymentLocalizedText | null;
+    subtitle?: HostedPaymentLocalizedText | null;
+    badge?: HostedPaymentLocalizedText | null;
+    cta_label?: HostedPaymentLocalizedText | null;
+    help_text?: HostedPaymentLocalizedText | null;
     accent?: string | null;
     mode?: string | null;
   }> | null;

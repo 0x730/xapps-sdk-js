@@ -111,6 +111,9 @@ export type MarketplaceClient = {
   reconcileMyRequestPayment?(input: {
     requestId: string;
     paymentSessionId?: string | null;
+    returnUrl?: string | null;
+    cancelUrl?: string | null;
+    xappsResume?: string | null;
   }): Promise<{
     status: string;
     payment_session_id: string;

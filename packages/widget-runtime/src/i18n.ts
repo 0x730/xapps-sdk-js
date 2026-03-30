@@ -34,10 +34,10 @@ const catalogs = {
     untitled: "(untitled)",
     retry: "Retry",
     widget_unavailable: "Widget unavailable",
-    widget_took_too_long_to_start: "The widget is taking longer than expected to start. Please retry.",
+    widget_took_too_long_to_start:
+      "The widget is taking longer than expected to start. Please retry.",
     embedded_widget_could_not_be_loaded: "The embedded widget could not be loaded. Please retry.",
-    embedded_widget_load_timed_out:
-      "The embedded widget took too long to load. Please retry.",
+    embedded_widget_load_timed_out: "The embedded widget took too long to load. Please retry.",
     loading: "Loading…",
     working: "Working…",
     submit: "Submit",
@@ -105,10 +105,8 @@ const catalogs = {
     untitled: "(fără titlu)",
     retry: "Reîncearcă",
     widget_unavailable: "Widget indisponibil",
-    widget_took_too_long_to_start:
-      "Widgetul pornește mai greu decât era de așteptat. Reîncercați.",
-    embedded_widget_could_not_be_loaded:
-      "Widgetul integrat nu a putut fi încărcat. Reîncercați.",
+    widget_took_too_long_to_start: "Widgetul pornește mai greu decât era de așteptat. Reîncercați.",
+    embedded_widget_could_not_be_loaded: "Widgetul integrat nu a putut fi încărcat. Reîncercați.",
     embedded_widget_load_timed_out:
       "Încărcarea widgetului integrat a durat prea mult. Reîncercați.",
     loading: "Se încarcă…",

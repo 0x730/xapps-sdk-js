@@ -28,7 +28,7 @@
     "url": "https://github.com/0x730/xapps-sdk-js/issues"
   },
   "scripts": {
-    "build": "node ../../scripts/build-payment-hosted-client.mjs",
+    "build": "node ../../scripts/build/build-payment-hosted-client.mjs",
     "smoke": "npm run build && node examples/smoke/smoke.mjs"
   }
 }

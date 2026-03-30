@@ -1,5 +1,4 @@
-import type * as React from "react";
-import type { JSX } from "react";
+import type { JSX, ReactNode } from "react";
 export type LocalizedText = string | Record<string, string | null | undefined> | null | undefined;
 export type TranslationParams = Record<string, string | number | boolean | null | undefined>;
 export type TranslationCatalog = Record<string, string>;
@@ -51,7 +50,7 @@ export declare function I18nProvider(props: {
   supportedLocales?: readonly string[];
   fallbackLocale?: string;
   setLocale?: (nextLocale: string) => void;
-  children: React.ReactNode;
+  children: ReactNode;
 }): JSX.Element;
 export declare function useI18n(): I18nContextValue;
 export {};

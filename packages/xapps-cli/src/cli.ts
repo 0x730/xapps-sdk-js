@@ -2671,7 +2671,7 @@ export async function runCli(argv: string[]) {
 }
 
 function shouldAutoRunCliEntrypoint(filePath: string): boolean {
-  return /(?:^|[\\/])(?:xapps|cli(?:\.(?:cjs|mjs|js))?)$/.test(String(filePath || ""));
+  return /(?:^|[\\/])(?:xapps|cli(?:\.(?:cts|mts|ts|cjs|mjs|js))?)$/.test(String(filePath || ""));
 }
 
 if (shouldAutoRunCliEntrypoint(String(process.argv[1] || ""))) {

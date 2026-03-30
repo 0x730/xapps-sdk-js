@@ -31,6 +31,7 @@ const manifest = buildManifestFromOpenApiText(openApiText, {
 ## Notes
 
 - Supports JSON and YAML OpenAPI input.
-- Publishes independently from the other first-wave JS packages; a metadata/docs-only change here should not force a full wave republish.
+- Publishes independently from the other public JS packages; a metadata/docs-only change here should not force a full package-set republish.
 - Used by CLI import and publisher OpenAPI import routes.
+- Generated manifests still have to pass the Xapp manifest validator. Very large OpenAPI specs can exceed current manifest limits such as the `tools[]` / `widgets[]` `maxItems: 50` cap, so they may need to be split or curated before publish.
 - See package/runtime ownership: `docs/guides/12-package-usage-and-ownership.md`.

@@ -28,10 +28,9 @@ function useQuery(): URLSearchParams {
 function renderGuardActionHint(summary: Record<string, unknown>): string {
   const action = asRecord(summary.action);
   const kind = readString(action.kind);
-  const url = readString(action.url);
-  if (kind === "upgrade_subscription") return `Upgrade subscription${url ? ` (${url})` : ""}`;
-  if (kind === "complete_payment") return `Complete payment${url ? ` (${url})` : ""}`;
-  if (kind === "step_up_auth") return `Complete step-up authentication${url ? ` (${url})` : ""}`;
+  if (kind === "upgrade_subscription") return "Upgrade subscription";
+  if (kind === "complete_payment") return "Complete payment";
+  if (kind === "step_up_auth") return "Complete step-up authentication";
   if (kind === "confirm_action") {
     const msg = readString(action.message);
     return msg ? `Confirm action (${msg})` : "Confirm action";
@@ -147,13 +146,18 @@ export function RequestsPage() {
 
   function StatusBadge({ status }: { status: string }) {
     const s = String(status || "");
+    const normalized = s.trim().toUpperCase();
     const className =
       s === "COMPLETED"
         ? "mx-badge-success"
         : s === "FAILED"
           ? "mx-badge-danger"
           : "mx-badge-warning";
-    return <span className={`mx-badge ${className}`}>{s || "—"}</span>;
+    const label =
+      normalized === "PAYMENT_PENDING"
+        ? t("activity.payment_pending", undefined, "Payment Pending")
+        : s || "—";
+    return <span className={`mx-badge ${className}`}>{label}</span>;
   }
 
   if (env?.requestsEnabled === false) {
