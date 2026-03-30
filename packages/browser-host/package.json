@@ -1,6 +1,6 @@
 {
   "name": "@xapps-platform/browser-host",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "license": "MIT",
   "author": "Daniel Vladescu <daniel.vladescu@gmail.com>",
   "type": "module",
