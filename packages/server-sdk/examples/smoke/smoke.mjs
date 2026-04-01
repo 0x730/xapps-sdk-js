@@ -95,7 +95,10 @@ const verified = await gatewayClient.verifyBrowserWidgetContext({
   subjectId: subject.subjectId,
 });
 assert(verified.verified === true, "verifyBrowserWidgetContext should verify");
-assert(verified.latestRequestId === "req_latest_123", "verifyBrowserWidgetContext request id mismatch");
+assert(
+  verified.latestRequestId === "req_latest_123",
+  "verifyBrowserWidgetContext request id mismatch",
+);
 
 const hostProxy = createEmbedHostProxyService({
   gatewayClient,

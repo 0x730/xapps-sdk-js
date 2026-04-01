@@ -18,6 +18,7 @@ npm install @xapps-platform/server-sdk
 - `buildCanonicalString`
 - `createCallbackClient`
 - `createGatewayApiClient`
+- `createPublisherApiClient`
 - `GatewayApiClient.verifyBrowserWidgetContext(...)`
 - `XappsServerSdkError`
 - `parsePaymentReturnEvidence`
@@ -163,6 +164,73 @@ const verified = await gateway.verifyBrowserWidgetContext({
   installationId: "inst_123",
   bindToolName: "submit_form",
   subjectId: subject.subjectId,
+});
+```
+
+## Request-capable publisher widget bootstrap
+
+For `widgets[].entry.kind = "iframe_url"` request-capable widgets, the current
+shipped contract is:
+
+- keep `iframe_url` as a public/bootstrap shell
+- do not put secrets or long-lived tokens in the manifest URL
+- send the short-lived widget token and current widget context to your backend
+- let your backend call `GatewayApiClient.verifyBrowserWidgetContext(...)`
+- expose private request-capable runtime only after that verification succeeds
+- if the page is opened directly outside an Xapps host/embed, keep private
+  runtime blocked and show a clear host-required message
+
+This keeps compatibility with the current bridge model while letting publishers
+keep real request/runtime access private.
+
+Optional stronger bootstrap transport already supported:
+
+- `widgets[].config.xapps.bootstrap_transport = "signed_ticket"`
+- current first slice reuses the short-lived signed widget token as a bootstrap
+  ticket and carries it through the iframe URL hash
+- browser widgets can forward it to the backend as `bootstrapTicket`
+- `GatewayApiClient.verifyBrowserWidgetContext(...)` will then use:
+  - `Origin: <hostOrigin>`
+  - `Authorization: Bearer <bootstrapTicket>`
+
+Example:
+
+```ts
+const verified = await gateway.verifyBrowserWidgetContext({
+  hostOrigin: "https://tenant.example.test",
+  installationId: "inst_123",
+  bindToolName: "submit_form",
+  subjectId: "sub_123",
+  bootstrapTicket: "bst_123",
+});
+```
+
+## Publisher linking + bridge helpers
+
+`createPublisherApiClient(...)` now covers the publisher-side linking helpers used
+around publisher-rendered and bridge-enabled integrations:
+
+- `completeLink(...)`
+- `revokeLink(...)`
+- `getLinkStatus()`
+- `exchangeBridgeToken(...)`
+
+These helpers are additive to the existing import/publish/endpoints surface.
+They belong in the publisher API client, not in the backend kits.
+
+```ts
+import { createPublisherApiClient } from "@xapps-platform/server-sdk";
+
+const publisher = createPublisherApiClient({
+  baseUrl: process.env.XAPPS_BASE_URL ?? "http://localhost:3000",
+  apiKey: process.env.XAPPS_PUBLISHER_API_KEY ?? "",
+});
+
+await publisher.completeLink({
+  subjectId: "sub_123",
+  xappId: "xapp_123",
+  publisherUserId: "publisher-user-123",
+  metadata: { email: "user@example.test" },
 });
 ```
 

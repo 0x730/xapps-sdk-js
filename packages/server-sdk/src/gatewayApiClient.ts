@@ -99,6 +99,7 @@ export type WidgetSessionResult = {
 
 export type VerifyBrowserWidgetContextInput = {
   hostOrigin: string;
+  bootstrapTicket?: string | null;
   installationId?: string | null;
   bindToolName?: string | null;
   toolName?: string | null;
@@ -763,6 +764,7 @@ export function createGatewayApiClient(options: GatewayApiClientOptions) {
       input: VerifyBrowserWidgetContextInput,
     ): Promise<VerifyBrowserWidgetContextResult> {
       const hostOrigin = String(input.hostOrigin || "").trim();
+      const bootstrapTicket = String(input.bootstrapTicket || "").trim();
       if (!hostOrigin) {
         throw new GatewayApiClientError({
           code: "GATEWAY_API_INVALID_RESPONSE",
@@ -771,13 +773,12 @@ export function createGatewayApiClient(options: GatewayApiClientOptions) {
       }
       let pathname = "/v1/requests/latest";
       pathname = appendOptionalQuery(pathname, "installationId", input.installationId);
-      pathname = appendOptionalQuery(
-        pathname,
-        "toolName",
-        input.bindToolName ?? input.toolName,
-      );
+      pathname = appendOptionalQuery(pathname, "toolName", input.bindToolName ?? input.toolName);
       pathname = appendOptionalSubjectId(pathname, input.subjectId);
-      const payload = await requestJson("GET", pathname, undefined, { Origin: hostOrigin });
+      const payload = await requestJson("GET", pathname, undefined, {
+        Origin: hostOrigin,
+        ...(bootstrapTicket ? { Authorization: `Bearer ${bootstrapTicket}` } : {}),
+      });
       const result = extractResultObject<Record<string, unknown>>(payload);
       const latestRequestId =
         typeof result.requestId === "string"

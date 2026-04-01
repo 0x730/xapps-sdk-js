@@ -78,6 +78,46 @@ export type CreateEndpointCredentialResult = {
 export type ListEndpointCredentialsResult = {
   items: Array<Record<string, unknown>>;
 };
+export type CompletePublisherLinkInput = {
+  subjectId: string;
+  xappId: string;
+  publisherUserId: string;
+  realm?: string;
+  metadata?: Record<string, unknown>;
+};
+export type CompletePublisherLinkResult = {
+  success: boolean;
+  link_id?: string;
+};
+export type RevokePublisherLinkInput = {
+  subjectId: string;
+  xappId: string;
+  publisherUserId: string;
+  reason?: string;
+};
+export type RevokePublisherLinkResult = {
+  revoked: boolean;
+  alreadyRevoked?: boolean;
+  deleted?: number;
+};
+export type PublisherLinkStatusResult = {
+  linked: boolean;
+  reason?: string;
+  publisherUserId?: string;
+  link_id?: string;
+};
+export type ExchangePublisherBridgeTokenInput = {
+  publisher_id: string;
+  scopes?: string[];
+  link_required?: boolean;
+};
+export type ExchangePublisherBridgeTokenResult = {
+  vendor_assertion: string;
+  issuer?: string;
+  subject_id?: string;
+  link_id?: string;
+  expires_in?: number;
+};
 
 function normalizeBaseUrl(input: string): string {
   const value = String(input || "").trim();
@@ -515,6 +555,121 @@ export function createPublisherApiClient(options: PublisherApiClientOptions) {
         });
       }
       return { items };
+    },
+
+    async completeLink(input: CompletePublisherLinkInput): Promise<CompletePublisherLinkResult> {
+      const subjectId = String(input?.subjectId || "").trim();
+      const xappId = String(input?.xappId || "").trim();
+      const publisherUserId = String(input?.publisherUserId || "").trim();
+      if (!subjectId || !xappId || !publisherUserId) {
+        throw new PublisherApiClientError({
+          code: "PUBLISHER_API_INVALID_RESPONSE",
+          message: "subjectId, xappId, and publisherUserId are required",
+          details: input,
+        });
+      }
+      const payload = await postJson("/v1/publisher/links/complete", {
+        subjectId,
+        xappId,
+        publisherUserId,
+        ...(typeof input.realm === "string" && input.realm.trim()
+          ? { realm: input.realm.trim() }
+          : {}),
+        ...(input.metadata && typeof input.metadata === "object"
+          ? { metadata: input.metadata }
+          : {}),
+      });
+      if (
+        !payload ||
+        typeof payload !== "object" ||
+        typeof (payload as any).success !== "boolean"
+      ) {
+        throw new PublisherApiClientError({
+          code: "PUBLISHER_API_INVALID_RESPONSE",
+          message: "Publisher completeLink returned malformed response",
+          details: payload,
+        });
+      }
+      return payload as CompletePublisherLinkResult;
+    },
+
+    async revokeLink(input: RevokePublisherLinkInput): Promise<RevokePublisherLinkResult> {
+      const subjectId = String(input?.subjectId || "").trim();
+      const xappId = String(input?.xappId || "").trim();
+      const publisherUserId = String(input?.publisherUserId || "").trim();
+      if (!subjectId || !xappId || !publisherUserId) {
+        throw new PublisherApiClientError({
+          code: "PUBLISHER_API_INVALID_RESPONSE",
+          message: "subjectId, xappId, and publisherUserId are required",
+          details: input,
+        });
+      }
+      const payload = await postJson("/v1/publisher/links/revoke", {
+        subjectId,
+        xappId,
+        publisherUserId,
+        ...(typeof input.reason === "string" && input.reason.trim()
+          ? { reason: input.reason.trim() }
+          : {}),
+      });
+      if (
+        !payload ||
+        typeof payload !== "object" ||
+        typeof (payload as any).revoked !== "boolean"
+      ) {
+        throw new PublisherApiClientError({
+          code: "PUBLISHER_API_INVALID_RESPONSE",
+          message: "Publisher revokeLink returned malformed response",
+          details: payload,
+        });
+      }
+      return payload as RevokePublisherLinkResult;
+    },
+
+    async getLinkStatus(): Promise<PublisherLinkStatusResult> {
+      const payload = await getJson("/v1/publisher/links/status");
+      if (!payload || typeof payload !== "object" || typeof (payload as any).linked !== "boolean") {
+        throw new PublisherApiClientError({
+          code: "PUBLISHER_API_INVALID_RESPONSE",
+          message: "Publisher getLinkStatus returned malformed response",
+          details: payload,
+        });
+      }
+      return payload as PublisherLinkStatusResult;
+    },
+
+    async exchangeBridgeToken(
+      input: ExchangePublisherBridgeTokenInput,
+    ): Promise<ExchangePublisherBridgeTokenResult> {
+      const publisherId = String(input?.publisher_id || "").trim();
+      if (!publisherId) {
+        throw new PublisherApiClientError({
+          code: "PUBLISHER_API_INVALID_RESPONSE",
+          message: "publisher_id is required",
+          details: input,
+        });
+      }
+      const payload = await postJson("/v1/publisher/bridge/token", {
+        publisher_id: publisherId,
+        ...(Array.isArray(input.scopes)
+          ? {
+              scopes: input.scopes.map((value) => String(value || "").trim()).filter(Boolean),
+            }
+          : {}),
+        ...(typeof input.link_required === "boolean" ? { link_required: input.link_required } : {}),
+      });
+      if (
+        !payload ||
+        typeof payload !== "object" ||
+        typeof (payload as any).vendor_assertion !== "string"
+      ) {
+        throw new PublisherApiClientError({
+          code: "PUBLISHER_API_INVALID_RESPONSE",
+          message: "Publisher exchangeBridgeToken returned malformed response",
+          details: payload,
+        });
+      }
+      return payload as ExchangePublisherBridgeTokenResult;
     },
   };
 }
