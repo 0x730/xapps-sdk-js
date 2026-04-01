@@ -63,7 +63,9 @@ npm install -D @xapps-platform/cli
 Note:
 
 - This package is now in first public release-candidate shape for the supported non-breaking publish subset.
-- Current published patch line is `@xapps-platform/cli@0.1.2` for that supported subset.
+- Current published patch line is `@xapps-platform/cli@0.1.3` for that supported subset.
+- The next additive refresh planned from current source is `@xapps-platform/cli@0.2.0`
+  together with the current bootstrap/linking SDK wave.
 - This README documents only that supported external contract; it does not claim the whole CLI surface is public/stable.
 
 ## Commands (baseline)
