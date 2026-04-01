@@ -1,6 +1,6 @@
 {
   "name": "@xapps-platform/xapp-manifest",
-  "version": "0.1.3",
+  "version": "0.2.0",
   "license": "MIT",
   "author": "Daniel Vladescu <daniel.vladescu@gmail.com>",
   "description": "Shared Xapp manifest schema and validator",

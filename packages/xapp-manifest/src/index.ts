@@ -131,6 +131,10 @@ export type XappManifestWidget = {
     xapps?: Record<string, unknown> & {
       result_presentation?: "runtime_default" | "inline" | "publisher_managed";
       resultPresentation?: "runtime_default" | "inline" | "publisher_managed";
+      publisher_runtime_mode?: "bridge" | "passive";
+      publisherRuntimeMode?: "bridge" | "passive";
+      bootstrap_transport?: "public" | "signed_ticket";
+      bootstrapTransport?: "public" | "signed_ticket";
     };
   };
 };
@@ -1234,6 +1238,28 @@ function normalizeResultPresentation(value: unknown) {
   return "__invalid__";
 }
 
+function normalizePublisherRuntimeMode(value: unknown) {
+  const normalized = String(value || "")
+    .trim()
+    .toLowerCase();
+  if (!normalized) return "";
+  if (normalized === "bridge" || normalized === "passive") {
+    return normalized;
+  }
+  return "__invalid__";
+}
+
+function normalizePublisherBootstrapTransport(value: unknown) {
+  const normalized = String(value || "")
+    .trim()
+    .toLowerCase();
+  if (!normalized) return "";
+  if (normalized === "public" || normalized === "signed_ticket") {
+    return normalized;
+  }
+  return "__invalid__";
+}
+
 function validateWidgetResultPresentation(widget: XappManifestWidget) {
   const config = isPlainObject(widget.config) ? widget.config : null;
   if (!config) return;
@@ -1251,6 +1277,50 @@ function validateWidgetResultPresentation(widget: XappManifestWidget) {
       throw Object.assign(
         new Error(
           `Widget ${widget.widget_name} ${fieldPath} must be one of: runtime_default, inline, publisher_managed`,
+        ),
+        { status: 400 },
+      );
+    }
+  }
+}
+
+function validateWidgetPublisherRuntimeMode(widget: XappManifestWidget) {
+  const config = isPlainObject(widget.config) ? widget.config : null;
+  if (!config) return;
+  const xapps = isPlainObject(config.xapps) ? config.xapps : null;
+  if (!xapps) return;
+  const entries: Array<[string, unknown]> = [
+    ["config.xapps.publisher_runtime_mode", (xapps as any).publisher_runtime_mode],
+    ["config.xapps.publisherRuntimeMode", (xapps as any).publisherRuntimeMode],
+  ];
+  for (const [fieldPath, rawValue] of entries) {
+    if (rawValue === undefined || rawValue === null || String(rawValue).trim() === "") continue;
+    const normalized = normalizePublisherRuntimeMode(rawValue);
+    if (normalized === "__invalid__") {
+      throw Object.assign(
+        new Error(`Widget ${widget.widget_name} ${fieldPath} must be one of: bridge, passive`),
+        { status: 400 },
+      );
+    }
+  }
+}
+
+function validateWidgetPublisherBootstrapTransport(widget: XappManifestWidget) {
+  const config = isPlainObject(widget.config) ? widget.config : null;
+  if (!config) return;
+  const xapps = isPlainObject(config.xapps) ? config.xapps : null;
+  if (!xapps) return;
+  const entries: Array<[string, unknown]> = [
+    ["config.xapps.bootstrap_transport", (xapps as any).bootstrap_transport],
+    ["config.xapps.bootstrapTransport", (xapps as any).bootstrapTransport],
+  ];
+  for (const [fieldPath, rawValue] of entries) {
+    if (rawValue === undefined || rawValue === null || String(rawValue).trim() === "") continue;
+    const normalized = normalizePublisherBootstrapTransport(rawValue);
+    if (normalized === "__invalid__") {
+      throw Object.assign(
+        new Error(
+          `Widget ${widget.widget_name} ${fieldPath} must be one of: public, signed_ticket`,
         ),
         { status: 400 },
       );
@@ -1614,7 +1684,11 @@ export function parseXappManifest(
       );
     }
   }
-  for (const widget of manifest.widgets ?? []) validateWidgetResultPresentation(widget);
+  for (const widget of manifest.widgets ?? []) {
+    validateWidgetResultPresentation(widget);
+    validateWidgetPublisherRuntimeMode(widget);
+    validateWidgetPublisherBootstrapTransport(widget);
+  }
 
   for (const tool of manifest.tools ?? []) {
     validateAdapterShape(tool);

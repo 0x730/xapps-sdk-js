@@ -62,6 +62,10 @@ export type XappManifestWidget = {
     xapps?: Record<string, unknown> & {
       result_presentation?: "runtime_default" | "inline" | "publisher_managed";
       resultPresentation?: "runtime_default" | "inline" | "publisher_managed";
+      publisher_runtime_mode?: "bridge" | "passive";
+      publisherRuntimeMode?: "bridge" | "passive";
+      bootstrap_transport?: "public" | "signed_ticket";
+      bootstrapTransport?: "public" | "signed_ticket";
     };
   };
 };
