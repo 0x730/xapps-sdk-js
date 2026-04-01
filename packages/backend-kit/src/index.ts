@@ -72,11 +72,83 @@ export type BackendKit = {
 
 export type VerifyBrowserWidgetContextInput = {
   hostOrigin: string;
+  bootstrapTicket?: string | null;
   installationId?: string | null;
   bindToolName?: string | null;
   toolName?: string | null;
   subjectId?: string | null;
 };
+
+export type WidgetBootstrapOriginPolicyInput = {
+  hostOrigin: string | null | undefined;
+  allowedOrigins?: string[] | string | null | undefined;
+};
+
+export type WidgetBootstrapOriginPolicyResult =
+  | {
+      ok: true;
+      hostOrigin: string;
+      allowedOrigins: string[];
+    }
+  | {
+      ok: false;
+      code: "HOST_ORIGIN_REQUIRED" | "HOST_ORIGIN_NOT_ALLOWED";
+      message: string;
+      hostOrigin: string | null;
+      allowedOrigins: string[];
+    };
+
+function normalizeOrigin(value: string | null | undefined) {
+  const raw = String(value || "").trim();
+  if (!raw) return null;
+  try {
+    const parsed = new URL(raw);
+    if (!parsed.protocol || !parsed.host) return null;
+    return parsed.origin;
+  } catch {
+    return null;
+  }
+}
+
+export function normalizeWidgetBootstrapAllowedOrigins(
+  value: string[] | string | null | undefined,
+): string[] {
+  const entries = Array.isArray(value) ? value : String(value || "").split(/[,\n]/);
+  const normalized = entries
+    .map((entry) => normalizeOrigin(entry))
+    .filter((entry): entry is string => Boolean(entry));
+  return Array.from(new Set(normalized));
+}
+
+export function evaluateWidgetBootstrapOriginPolicy(
+  input: WidgetBootstrapOriginPolicyInput,
+): WidgetBootstrapOriginPolicyResult {
+  const hostOrigin = normalizeOrigin(input.hostOrigin);
+  const allowedOrigins = normalizeWidgetBootstrapAllowedOrigins(input.allowedOrigins);
+  if (!hostOrigin) {
+    return {
+      ok: false,
+      code: "HOST_ORIGIN_REQUIRED",
+      message: "Host origin is required to verify browser widget context",
+      hostOrigin: null,
+      allowedOrigins,
+    };
+  }
+  if (allowedOrigins.length > 0 && !allowedOrigins.includes(hostOrigin)) {
+    return {
+      ok: false,
+      code: "HOST_ORIGIN_NOT_ALLOWED",
+      message: "Host origin is not allowed for widget bootstrap verification",
+      hostOrigin,
+      allowedOrigins,
+    };
+  }
+  return {
+    ok: true,
+    hostOrigin,
+    allowedOrigins,
+  };
+}
 
 export async function verifyBrowserWidgetContext(
   gatewayClient: {

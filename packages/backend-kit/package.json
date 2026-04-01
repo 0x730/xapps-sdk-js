@@ -1,6 +1,6 @@
 {
   "name": "@xapps-platform/backend-kit",
-  "version": "0.1.7",
+  "version": "0.2.0",
   "license": "MIT",
   "author": "Daniel Vladescu <daniel.vladescu@gmail.com>",
   "description": "Modular Node backend kit for the current Xapps backend contract (tenant surface today, shared actor-adapter direction later)",

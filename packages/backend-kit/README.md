@@ -38,15 +38,61 @@ verify browser widget context server-side before exposing private runtime
 behavior:
 
 ```ts
-import { verifyBrowserWidgetContext } from "@xapps-platform/backend-kit";
+import {
+  evaluateWidgetBootstrapOriginPolicy,
+  verifyBrowserWidgetContext,
+} from "@xapps-platform/backend-kit";
+
+const originPolicy = evaluateWidgetBootstrapOriginPolicy({
+  hostOrigin: request.body?.hostOrigin,
+  allowedOrigins: config.widgetBootstrap.allowedOrigins,
+});
+
+if (!originPolicy.ok) {
+  reply.code(originPolicy.code === "HOST_ORIGIN_REQUIRED" ? 400 : 403).send({
+    ok: false,
+    error: {
+      code: originPolicy.code,
+      message: originPolicy.message,
+    },
+  });
+  return;
+}
 
 const verified = await verifyBrowserWidgetContext(gatewayClient, {
-  hostOrigin: "https://tenant.example.test",
+  hostOrigin: originPolicy.hostOrigin,
   installationId: "inst_123",
   bindToolName: "submit_form",
   subjectId: "sub_123",
+  bootstrapTicket: request.body?.bootstrapTicket ?? null,
 });
 ```
+
+Recommended shared local config contract for publisher-rendered bootstrap
+routes:
+
+- `widgetBootstrap.allowedOrigins`
+- optional app env:
+  - `XAPPS_WIDGET_ALLOWED_ORIGINS=https://host.example.test,https://host-b.example.test`
+
+This stays local/app-owned on purpose. The package helper standardizes the
+policy behavior without forcing a repo-wide env parser or backend shape.
+
+Recommended request-widget posture:
+
+- treat the widget asset URL as a public/bootstrap shell
+- keep request-capable UI blocked until widget context is verified server-side
+- do not place private keys, secrets, or durable bearer tokens in `entry.url`
+- direct raw browser hits should stay blocked instead of unlocking private runtime
+
+Optional stronger bootstrap transport already supported:
+
+- `widgets[].config.xapps.bootstrap_transport = "signed_ticket"`
+- current first slice reuses the short-lived signed widget token as a bootstrap
+  ticket and carries it in the iframe URL hash
+- browser widget code can forward it to your backend as `bootstrapTicket`
+- the backend kit verification passthrough accepts that field without changing
+  the current default/public bootstrap contract
 
 This is now a real package, not a placeholder or extraction stub. Keep the
 public entry surface stable and split internal package code behind it.

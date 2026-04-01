@@ -1,4 +1,8 @@
-import { createBackendKit, verifyBrowserWidgetContext } from "../../dist/index.js";
+import {
+  createBackendKit,
+  evaluateWidgetBootstrapOriginPolicy,
+  verifyBrowserWidgetContext,
+} from "../../dist/index.js";
 import registerHealthRoutes from "../../dist/backend/routes/health.js";
 
 function assert(condition, message) {
@@ -119,6 +123,29 @@ const verified = await verifyBrowserWidgetContext(
   },
 );
 assert(verified.verified === true, "backend-kit verifyBrowserWidgetContext should verify");
-assert(verified.latestRequestId === "req_latest_123", "backend-kit verifyBrowserWidgetContext request mismatch");
+assert(
+  verified.latestRequestId === "req_latest_123",
+  "backend-kit verifyBrowserWidgetContext request mismatch",
+);
+
+const widgetBootstrapPolicy = evaluateWidgetBootstrapOriginPolicy({
+  hostOrigin: "https://tenant.example.test/path",
+  allowedOrigins: "https://tenant.example.test,https://tenant-b.example.test",
+});
+assert(widgetBootstrapPolicy.ok === true, "widget bootstrap policy should allow normalized host");
+assert(
+  widgetBootstrapPolicy.ok && widgetBootstrapPolicy.hostOrigin === "https://tenant.example.test",
+  "widget bootstrap policy normalized host mismatch",
+);
+
+const widgetBootstrapPolicyRejected = evaluateWidgetBootstrapOriginPolicy({
+  hostOrigin: "https://tenant-c.example.test",
+  allowedOrigins: ["https://tenant.example.test"],
+});
+assert(
+  widgetBootstrapPolicyRejected.ok === false &&
+    widgetBootstrapPolicyRejected.code === "HOST_ORIGIN_NOT_ALLOWED",
+  "widget bootstrap policy should reject unknown host origin",
+);
 
 console.log("backend-kit smoke: ok");
