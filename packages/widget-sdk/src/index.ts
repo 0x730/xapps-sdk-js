@@ -103,6 +103,21 @@ export interface XappsBridgeOptions {
   standaloneContext?: Partial<Omit<XappsWidgetContext, "type">>;
 }
 
+export interface VerifyWidgetBootstrapInput {
+  bridge: Pick<XappsBridge, "getContext">;
+  endpoint: string;
+  body?: Record<string, unknown>;
+  bootstrapTicket?: string | null;
+  headers?: Record<string, string>;
+  fetchImpl?: typeof fetch;
+}
+
+export interface VerifyWidgetBootstrapResult<T = Record<string, unknown>> {
+  verified: true;
+  context: XappsWidgetContext;
+  payload: T;
+}
+
 export type XappsUiExpandStage = "inline" | "focus" | "fullscreen";
 
 export interface XappsUiExpandRequest {
@@ -1382,4 +1397,120 @@ export function createBridge(options: XappsBridgeOptions = {}): XappsBridge {
       focusTrapListeners.clear();
     },
   };
+}
+
+export async function verifyWidgetBootstrap<T = Record<string, unknown>>(
+  input: VerifyWidgetBootstrapInput,
+): Promise<VerifyWidgetBootstrapResult<T>> {
+  const fetchImpl = input.fetchImpl ?? globalThis.fetch;
+  if (typeof fetchImpl !== "function") {
+    throw new XappsBridgeError("Fetch is required to verify widget bootstrap", {
+      code: "FETCH_UNAVAILABLE",
+    });
+  }
+
+  const context = await input.bridge.getContext();
+  const bootstrapTicket =
+    typeof input.bootstrapTicket === "string"
+      ? input.bootstrapTicket.trim() || null
+      : consumeWidgetBootstrapTicketFromLocation();
+  const response = await fetchImpl(input.endpoint, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(input.headers || {}),
+    },
+    body: JSON.stringify({
+      token: context.token,
+      installationId: context.installationId,
+      clientId: context.clientId,
+      xappId: context.xappId,
+      subjectId: context.subjectId,
+      publisherUserId: context.publisherUserId,
+      bindToolName: context.bindToolName,
+      hostOrigin: context.hostOrigin || null,
+      locale: context.locale || null,
+      bootstrapTicket,
+      ...(input.body || {}),
+    }),
+  });
+
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok || !payload || payload.ok === false) {
+    const errorRecord =
+      payload && typeof payload === "object" && payload.error && typeof payload.error === "object"
+        ? (payload.error as Record<string, unknown>)
+        : {};
+    throw new XappsBridgeError(
+      String(
+        errorRecord.message || (payload as any)?.message || "Widget bootstrap verification failed",
+      ),
+      {
+        code: String(errorRecord.code || (payload as any)?.code || "WIDGET_BOOTSTRAP_REJECTED"),
+        status: response.status,
+        data: payload,
+      },
+    );
+  }
+
+  return {
+    verified: true,
+    context,
+    payload: payload as T,
+  };
+}
+
+function consumeWidgetBootstrapTicketFromLocation(): string | null {
+  if (typeof window === "undefined" || !window.location) return null;
+  try {
+    const current = new URL(window.location.href);
+    let ticket: string | null = null;
+
+    const directSearchTicket =
+      current.searchParams.get("xapps_bootstrap_ticket") ||
+      current.searchParams.get("xappsBootstrapTicket");
+    if (typeof directSearchTicket === "string" && directSearchTicket.trim()) {
+      ticket = directSearchTicket.trim();
+      current.searchParams.delete("xapps_bootstrap_ticket");
+      current.searchParams.delete("xappsBootstrapTicket");
+    } else {
+      const rawHash = String(current.hash || "").replace(/^#/, "");
+      if (rawHash) {
+        let nextHash = rawHash;
+        if (rawHash.includes("?")) {
+          const [hashPath, hashQuery = ""] = rawHash.split("?");
+          const params = new URLSearchParams(hashQuery);
+          const found =
+            params.get("xapps_bootstrap_ticket") || params.get("xappsBootstrapTicket") || "";
+          if (found.trim()) {
+            ticket = found.trim();
+            params.delete("xapps_bootstrap_ticket");
+            params.delete("xappsBootstrapTicket");
+            const nextQuery = params.toString();
+            nextHash = nextQuery ? `${hashPath}?${nextQuery}` : hashPath;
+          }
+        } else if (rawHash.includes("=") || rawHash.includes("&")) {
+          const params = new URLSearchParams(rawHash);
+          const found =
+            params.get("xapps_bootstrap_ticket") || params.get("xappsBootstrapTicket") || "";
+          if (found.trim()) {
+            ticket = found.trim();
+            params.delete("xapps_bootstrap_ticket");
+            params.delete("xappsBootstrapTicket");
+            nextHash = params.toString();
+          }
+        }
+        if (ticket) {
+          current.hash = nextHash ? `#${nextHash}` : "";
+        }
+      }
+    }
+
+    if (ticket && typeof window.history?.replaceState === "function") {
+      window.history.replaceState(window.history.state, "", current.toString());
+    }
+    return ticket;
+  } catch {
+    return null;
+  }
 }

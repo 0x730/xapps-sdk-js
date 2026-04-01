@@ -79,6 +79,10 @@ Operational surfaces:
 
 - `openOperationalSurface(...)`
 
+Bootstrap verification helper:
+
+- `verifyWidgetBootstrap(...)`
+
 ## Expand / Focus / Fullscreen (Widget -> Host)
 
 Widgets can request a larger host-managed presentation mode (for example overlay/focus mode, then fullscreen).
@@ -182,6 +186,41 @@ expand.onChange((state) => {
   document.body.classList.toggle("host-overlay-active", state.hostManaged && state.expanded);
 });
 ```
+
+Request-widget bootstrap verification helper:
+
+```ts
+import { createBridge, verifyWidgetBootstrap } from "@xapps-platform/widget-sdk";
+
+const bridge = createBridge();
+
+const verified = await verifyWidgetBootstrap({
+  bridge,
+  endpoint: "/widgets/my-private-widget/bootstrap-verify",
+  body: {
+    widgetKind: "request_capable",
+  },
+});
+
+console.log(verified.context.hostOrigin);
+console.log(verified.payload);
+```
+
+Recommended contract:
+
+- load public `iframe_url` bootstrap without secrets
+- use `verifyWidgetBootstrap(...)` to send current widget context to your backend
+- let your backend verify the short-lived widget token against the gateway before exposing private request-capable runtime state
+- if the page is opened directly outside an Xapps host/embed, keep private runtime blocked and show a clear "open from Xapps" message instead of treating direct access as a valid request-capable session
+
+Optional stronger bootstrap transport already supported:
+
+- set `widgets[].config.xapps.bootstrap_transport = "signed_ticket"`
+- the publisher wrapper will append `xapps_bootstrap_ticket=...` to the iframe
+  URL hash
+- `verifyWidgetBootstrap(...)` will consume that ticket from the URL and forward
+  it as `bootstrapTicket` to your backend verify endpoint
+- this stays additive; the current default remains a public bootstrap shell
 
 ## Guard helpers
 
