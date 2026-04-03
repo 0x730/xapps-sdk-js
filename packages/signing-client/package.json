@@ -1,6 +1,6 @@
 {
   "name": "@xapps-platform/signing-client",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "license": "MIT",
   "author": "Daniel Vladescu <daniel.vladescu@gmail.com>",
   "description": "Browser-side signing SDK for Xapps platform",
