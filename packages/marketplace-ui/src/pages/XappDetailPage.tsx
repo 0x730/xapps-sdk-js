@@ -6,12 +6,20 @@ import { useMarketplace } from "../MarketplaceContext";
 import { ConfirmActionModal } from "../components/ConfirmActionModal";
 import { buildTokenSearch } from "../utils/embedSearch";
 import {
+  hasMarketplaceCatalogMonetization,
+  resolveMarketplaceDefaultAccessState,
+} from "../utils/monetizationAccess";
+import {
   buildOperationalSurfaceHref,
   discoverOperationalSurfaceData,
   getVisibleOperationalSurfaces,
   type OperationalSurfaceKey,
 } from "../utils/operationalSurfaces";
-import type { CatalogXappDetail } from "../types";
+import type {
+  CatalogXappDetail,
+  MarketplaceMonetizationAccessProjection,
+  MarketplaceXappMonetizationState,
+} from "../types";
 import "../marketplace.css";
 
 type GuardInfo = {
@@ -92,6 +100,24 @@ function readBoolean(value: unknown, fallback: boolean): boolean {
 
 function readNumber(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function formatDateTime(value: unknown, locale: string): string {
+  const raw = readString(value);
+  if (!raw) return "";
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return raw;
+  try {
+    return parsed.toLocaleString(locale || undefined, {
+      year: "numeric",
+      month: "short",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return parsed.toISOString();
+  }
 }
 
 function normalizeUsageCreditSummary(value: unknown): UsageCreditSummary | null {
@@ -220,6 +246,7 @@ export function XappDetailPage() {
   const openAppLabel = env?.copy?.openAppLabel || t("xapp.open_app", undefined, "Open app");
 
   const [data, setData] = useState<Record<string, unknown> | null>(null);
+  const [monetization, setMonetization] = useState<MarketplaceXappMonetizationState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(true);
   const [discoveredOperationalSurfaces, setDiscoveredOperationalSurfaces] = useState<
@@ -289,6 +316,30 @@ export function XappDetailPage() {
       cancelled = true;
     };
   }, [client, installation?.installationId, xappId]);
+
+  useEffect(() => {
+    const currentXappId = String(xappId ?? "").trim();
+    if (!currentXappId || !host.subjectId || typeof client.getMyXappMonetization !== "function") {
+      setMonetization(null);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const next = await client.getMyXappMonetization!(currentXappId);
+        if (!cancelled) {
+          setMonetization(next);
+        }
+      } catch {
+        if (!cancelled) {
+          setMonetization(null);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [client, host.subjectId, xappId]);
 
   const manifest = asRecord(data?.manifest);
   const xappRecord = asRecord(data?.xapp);
@@ -471,6 +522,70 @@ export function XappDetailPage() {
   const usageCreditSummary = useMemo(
     () => normalizeUsageCreditSummary(data?.usage_credit_summary),
     [data?.usage_credit_summary],
+  );
+  const monetizationAccessProjection =
+    (monetization?.access_projection as
+      | MarketplaceMonetizationAccessProjection
+      | null
+      | undefined) ?? null;
+  const hasCatalogMonetization = hasMarketplaceCatalogMonetization(manifest);
+  const monetizationAccess = asRecord(monetization?.access_projection);
+  const monetizationSubscription = asRecord(monetization?.current_subscription);
+  const overduePolicy = asRecord(monetizationSubscription?.overdue_policy);
+  const currentTier =
+    readString(monetizationSubscription?.tier) || readString(monetizationAccess?.tier);
+  const balanceState = readString(monetizationAccess?.balance_state);
+  const subscriptionStatus = readString(monetizationSubscription?.status);
+  const subscriptionCoverage =
+    typeof overduePolicy?.has_current_access === "boolean"
+      ? overduePolicy.has_current_access
+        ? t("xapp.subscription_coverage_active", undefined, "Still covered")
+        : t("xapp.subscription_coverage_inactive", undefined, "Not covered")
+      : null;
+  const subscriptionReasonKey = readString(overduePolicy?.effective_status_reason);
+  const subscriptionReason =
+    subscriptionReasonKey === "grace_covered_past_due"
+      ? t(
+          "xapp.subscription_reason_grace_covered_past_due",
+          undefined,
+          "Coverage remains during grace period",
+        )
+      : subscriptionReasonKey === "past_due_after_period_end"
+        ? t(
+            "xapp.subscription_reason_past_due_after_period_end",
+            undefined,
+            "Current period ended without successful renewal",
+          )
+        : subscriptionReasonKey === "expired_after_boundary"
+          ? t(
+              "xapp.subscription_reason_expired_after_boundary",
+              undefined,
+              "Expiry boundary reached",
+            )
+          : null;
+  const overdueSince = formatDateTime(overduePolicy?.overdue_since, locale);
+  const expiryBoundaryAt = formatDateTime(overduePolicy?.expiry_boundary_at, locale);
+  const renewsAt = formatDateTime(monetizationSubscription?.renews_at, locale);
+  const expiresAt =
+    formatDateTime(monetizationSubscription?.expired_at, locale) ||
+    formatDateTime(monetizationSubscription?.current_period_ends_at, locale);
+  const creditsRemaining = readString(monetizationAccess?.credits_remaining);
+  const accessState = resolveMarketplaceDefaultAccessState({
+    projection: monetizationAccessProjection,
+    hasCatalogMonetization,
+    availableLabel: t("xapp.access_state_available", undefined, "available"),
+  });
+  const hasMonetizationState = Boolean(
+    currentTier ||
+    accessState ||
+    subscriptionStatus ||
+    subscriptionCoverage ||
+    subscriptionReason ||
+    overdueSince ||
+    expiryBoundaryAt ||
+    renewsAt ||
+    expiresAt ||
+    creditsRemaining,
   );
   const manifestScreenshots = Array.isArray(manifest?.screenshots)
     ? manifest.screenshots.map((shot) => readString(shot)).filter(Boolean)
@@ -1012,6 +1127,94 @@ export function XappDetailPage() {
             </main>
 
             <aside className="mx-detail-sidebar">
+              {hasMonetizationState ? (
+                <div className="mx-sidebar-card">
+                  <h3 className="mx-section-title mx-detail-sidebar-title">
+                    {t("xapp.current_access_title", undefined, "Current Access")}
+                  </h3>
+                  {currentTier ? (
+                    <div className="mx-meta-item">
+                      <span className="mx-meta-label">
+                        {t("xapp.current_plan_label", undefined, "Current plan")}
+                      </span>
+                      <span className="mx-meta-value">{currentTier}</span>
+                    </div>
+                  ) : null}
+                  {accessState ? (
+                    <div className="mx-meta-item">
+                      <span className="mx-meta-label">
+                        {t("xapp.access_state_label", undefined, "Access state")}
+                      </span>
+                      <span className="mx-meta-value">{accessState}</span>
+                    </div>
+                  ) : null}
+                  {subscriptionStatus ? (
+                    <div className="mx-meta-item">
+                      <span className="mx-meta-label">
+                        {t("xapp.subscription_status_label", undefined, "Subscription status")}
+                      </span>
+                      <span className="mx-meta-value">{subscriptionStatus}</span>
+                    </div>
+                  ) : null}
+                  {subscriptionCoverage ? (
+                    <div className="mx-meta-item">
+                      <span className="mx-meta-label">
+                        {t("xapp.subscription_coverage_label", undefined, "Coverage")}
+                      </span>
+                      <span className="mx-meta-value">{subscriptionCoverage}</span>
+                    </div>
+                  ) : null}
+                  {subscriptionReason ? (
+                    <div className="mx-meta-item mx-meta-item-top">
+                      <span className="mx-meta-label">
+                        {t("xapp.subscription_reason_label", undefined, "Status reason")}
+                      </span>
+                      <span className="mx-meta-value">{subscriptionReason}</span>
+                    </div>
+                  ) : null}
+                  {overdueSince ? (
+                    <div className="mx-meta-item">
+                      <span className="mx-meta-label">
+                        {t("xapp.subscription_overdue_since_label", undefined, "Overdue since")}
+                      </span>
+                      <span className="mx-meta-value">{overdueSince}</span>
+                    </div>
+                  ) : null}
+                  {expiryBoundaryAt ? (
+                    <div className="mx-meta-item">
+                      <span className="mx-meta-label">
+                        {t("xapp.subscription_expiry_boundary_label", undefined, "Expiry boundary")}
+                      </span>
+                      <span className="mx-meta-value">{expiryBoundaryAt}</span>
+                    </div>
+                  ) : null}
+                  {renewsAt ? (
+                    <div className="mx-meta-item">
+                      <span className="mx-meta-label">
+                        {t("xapp.renews_at_label", undefined, "Renews at")}
+                      </span>
+                      <span className="mx-meta-value">{renewsAt}</span>
+                    </div>
+                  ) : null}
+                  {expiresAt ? (
+                    <div className="mx-meta-item">
+                      <span className="mx-meta-label">
+                        {t("xapp.expires_at_label", undefined, "Expires at")}
+                      </span>
+                      <span className="mx-meta-value">{expiresAt}</span>
+                    </div>
+                  ) : null}
+                  {creditsRemaining ? (
+                    <div className="mx-meta-item">
+                      <span className="mx-meta-label">
+                        {t("xapp.credits_remaining_label", undefined, "Credits remaining")}
+                      </span>
+                      <span className="mx-meta-value">{creditsRemaining}</span>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+
               {usageCreditSummary ? (
                 <div className="mx-sidebar-card">
                   <h3 className="mx-section-title mx-detail-sidebar-title">

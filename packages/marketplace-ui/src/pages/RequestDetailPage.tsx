@@ -7,6 +7,7 @@ import {
   resolvePaymentLockStateFromGuardSummary,
   type PaymentReconcileState,
 } from "../utils/paymentLock";
+import { describeGuardCurrentAccess } from "../utils/guardMonetization";
 import { buildTokenSearch, readHostReturnUrl } from "../utils/embedSearch";
 import { buildOperationalSurfaceHref } from "../utils/operationalSurfaces";
 import {
@@ -255,6 +256,13 @@ export function RequestDetailPage() {
       .trim()
       .toUpperCase() === "PAYMENT_PENDING";
   const showPaymentWaitState = requestPaymentLock.isLocked || isPaymentPending;
+  const requestGuardCurrentAccess = describeGuardCurrentAccess(
+    requestRecord.guard_summary ?? null,
+    {
+      available: t("common.available", undefined, "Available"),
+      unavailable: t("xapp.subscription_coverage_inactive", undefined, "Not covered"),
+    },
+  );
   const eventPaymentSessionId = useMemo(() => {
     const events = Array.isArray(dataRecord.events) ? dataRecord.events : [];
     for (let index = events.length - 1; index >= 0; index -= 1) {
@@ -518,7 +526,7 @@ export function RequestDetailPage() {
         ).trim();
         const res = await client.reconcileMyRequestPayment({
           requestId: String(id),
-          paymentSessionId: effectivePaymentSessionId || undefined,
+          paymentSessionId: isPaymentPending ? undefined : effectivePaymentSessionId || undefined,
           returnUrl: currentReturnUrl || undefined,
           cancelUrl: currentReturnUrl || undefined,
         });
@@ -705,6 +713,15 @@ export function RequestDetailPage() {
                           "Waiting for payment confirmation…",
                         )}
                   </div>
+                  {requestGuardCurrentAccess ? (
+                    <div className="mx-payment-lock-message">
+                      {t(
+                        "activity.current_access_detail",
+                        { value: requestGuardCurrentAccess },
+                        "Current access: {value}",
+                      )}
+                    </div>
+                  ) : null}
                   <div className="mx-payment-lock-actions">
                     {isPaymentPending ||
                     effectivePaymentSessionId ||
@@ -889,6 +906,19 @@ export function RequestDetailPage() {
                             extractGuardSummary(getEventPayload(ev)) ??
                             extractGuardSummary(eventRecord.payload);
                           const guardActionLabel = renderGuardActionLabel(guardSummary);
+                          const guardMonetizationSource =
+                            getEventPayload(ev) ?? eventRecord.payload ?? ev;
+                          const guardCurrentAccess = describeGuardCurrentAccess(
+                            guardMonetizationSource,
+                            {
+                              available: t("common.available", undefined, "Available"),
+                              unavailable: t(
+                                "xapp.subscription_coverage_inactive",
+                                undefined,
+                                "Not covered",
+                              ),
+                            },
+                          );
 
                           return (
                             <li
@@ -993,6 +1023,15 @@ export function RequestDetailPage() {
                                             "activity.outcome_badge",
                                             { value: guardSummary.outcome },
                                             "outcome: {value}",
+                                          )}
+                                        </span>
+                                      )}
+                                      {guardCurrentAccess && (
+                                        <span className="mx-badge mx-badge-warning">
+                                          {t(
+                                            "activity.current_access_badge",
+                                            { value: guardCurrentAccess },
+                                            "access: {value}",
                                           )}
                                         </span>
                                       )}

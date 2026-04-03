@@ -59,6 +59,47 @@ export type CatalogXappDetail = {
   operational_surfaces?: OperationalSurfacesDescriptor | null;
 };
 
+export type MarketplaceMonetizationAccessProjection = {
+  entitlement_state?: string | null;
+  balance_state?: string | null;
+  has_current_access?: boolean;
+  tier?: string | null;
+  credits_remaining?: string | null;
+  source_ref?: string | null;
+  [k: string]: unknown;
+};
+
+export type MarketplaceCurrentSubscription = {
+  id?: string | null;
+  status?: string | null;
+  tier?: string | null;
+  billing_period?: string | null;
+  billing_period_count?: number | null;
+  current_period_starts_at?: string | null;
+  current_period_ends_at?: string | null;
+  renews_at?: string | null;
+  cancelled_at?: string | null;
+  expired_at?: string | null;
+  overdue_policy?: {
+    has_current_access?: boolean;
+    effective_status_reason?: string | null;
+    expiry_boundary_at?: string | null;
+    expiry_boundary_source?: string | null;
+    overdue_since?: string | null;
+    [k: string]: unknown;
+  } | null;
+  source_ref?: string | null;
+  [k: string]: unknown;
+};
+
+export type MarketplaceXappMonetizationState = {
+  xapp_id: string;
+  version_id: string;
+  subject_id?: string | null;
+  access_projection?: MarketplaceMonetizationAccessProjection | null;
+  current_subscription?: MarketplaceCurrentSubscription | null;
+};
+
 export type OperationalSurfaceDescriptor = {
   enabled: boolean;
   scope: "xapp";
@@ -96,6 +137,10 @@ export type MarketplaceClient = {
     xappId: string,
     options?: { installationId?: string | null },
   ): Promise<CatalogXappDetail>;
+  getMyXappMonetization?(
+    xappId: string,
+    options?: { subjectId?: string | null },
+  ): Promise<MarketplaceXappMonetizationState>;
 
   // Requests (read-only)
   listMyRequests(query?: {
@@ -171,7 +216,19 @@ export type MarketplaceClient = {
   getWidgetToken(
     installationId: string,
     widgetId: string,
-  ): Promise<{ token: string; expires_in?: number }>;
+  ): Promise<{
+    token: string;
+    expires_in?: number;
+    context?: {
+      clientId: string;
+      installationId: string;
+      xappId: string;
+      subjectId: string | null;
+      requestId?: string | null;
+      resultPresentation?: "runtime_default" | "inline" | "publisher_managed";
+      locale?: string | null;
+    } | null;
+  }>;
 };
 
 export type MarketplaceHostAdapter = {

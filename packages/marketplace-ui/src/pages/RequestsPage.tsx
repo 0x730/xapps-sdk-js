@@ -5,6 +5,7 @@ import { useMarketplace } from "../MarketplaceContext";
 import { MarketplaceActivityTabs } from "../components/MarketplaceActivityTabs";
 import { MarketplacePrimaryNav } from "../components/MarketplacePrimaryNav";
 import { asRecord, formatDateTime, readFirstString, readString } from "../utils/readers";
+import { describeGuardCurrentAccess } from "../utils/guardMonetization";
 import "../marketplace.css";
 
 type RequestListPagination = {
@@ -332,8 +333,15 @@ export function RequestsPage() {
                 const guardReason = readString(guardSummary.reason);
                 const guardOutcome = readString(guardSummary.outcome);
                 const guardActionHint = renderGuardActionHint(guardSummary);
+                const guardAccessHint = describeGuardCurrentAccess(guardSummary, {
+                  available: t("common.available", undefined, "Available"),
+                  unavailable: t("xapp.subscription_coverage_inactive", undefined, "Not covered"),
+                });
                 const hasGuardInfo =
-                  Boolean(guardSlug) || Boolean(guardReason) || Boolean(guardActionHint);
+                  Boolean(guardSlug) ||
+                  Boolean(guardReason) ||
+                  Boolean(guardActionHint) ||
+                  Boolean(guardAccessHint);
 
                 return (
                   <tr key={readFirstString(request.id)}>
@@ -365,6 +373,15 @@ export function RequestsPage() {
                             {guardReason ? `reason=${guardReason}` : ""}
                           </div>
                           {guardActionHint && <div>{guardActionHint}</div>}
+                          {guardAccessHint && (
+                            <div>
+                              {t(
+                                "activity.current_access_detail",
+                                { value: guardAccessHint },
+                                "Current access: {value}",
+                              )}
+                            </div>
+                          )}
                         </div>
                       )}
                     </td>

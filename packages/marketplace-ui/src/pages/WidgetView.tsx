@@ -120,6 +120,15 @@ export function WidgetView() {
     OperationalSurfaceKey[]
   >([]);
   const [widgetToken, setWidgetToken] = useState<string>("");
+  const [widgetSessionContext, setWidgetSessionContext] = useState<{
+    clientId: string;
+    installationId: string;
+    xappId: string;
+    subjectId: string | null;
+    requestId?: string | null;
+    resultPresentation?: "runtime_default" | "inline" | "publisher_managed";
+    locale?: string | null;
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [sessionExpired, setSessionExpired] = useState<SessionExpiredUi | null>(null);
   const [hostNestedExpandStage, setHostNestedExpandStage] = useState<ExpandStage>("inline");
@@ -225,12 +234,14 @@ export function WidgetView() {
     let alive = true;
     void (async () => {
       try {
-        const { token: wToken } = await client.getWidgetToken(installationId, widgetId);
+        const { token: wToken, context } = await client.getWidgetToken(installationId, widgetId);
         if (!alive) return;
         setSessionExpired(null);
         setWidgetToken(wToken);
+        setWidgetSessionContext(context ?? null);
       } catch (e) {
         if (!alive) return;
+        setWidgetSessionContext(null);
         setError(readFirstString(asRecord(e).message) || String(e));
       }
     })();
@@ -250,12 +261,40 @@ export function WidgetView() {
     }
     setSessionExpired(null);
     setWidgetToken(nextToken);
+    setWidgetSessionContext(refreshed?.context ?? null);
     return {
       token: nextToken,
       expires_in:
         Number.isFinite(Number(refreshed?.expires_in)) && Number(refreshed?.expires_in) > 0
           ? Number(refreshed?.expires_in)
           : undefined,
+    };
+  }
+
+  function buildWidgetBridgeContext() {
+    const context = widgetSessionContext;
+    if (!context || !widgetToken) return null;
+    const matchingWidget = Array.isArray(xappDetail?.widgets)
+      ? xappDetail.widgets.find((item) => String(item?.id || "") === String(widgetId || ""))
+      : null;
+    return {
+      type: "XAPPS_WIDGET_CONTEXT" as const,
+      token: widgetToken,
+      baseUrl: window.location.origin,
+      hostOrigin: window.location.origin,
+      installationId: context.installationId || String(installationId || ""),
+      clientId: context.clientId,
+      xappId: context.xappId || xappId,
+      subjectId: context.subjectId,
+      publisherUserId: null,
+      email: null,
+      bindToolName:
+        readFirstString(
+          asRecord(matchingWidget).bind_tool_name,
+          asRecord(matchingWidget).bindToolName,
+        ) || null,
+      theme: host.theme || null,
+      locale: context.locale || env?.locale || host.locale || null,
     };
   }
 
@@ -596,8 +635,9 @@ export function WidgetView() {
         e.source === iframeRef.current?.contentWindow
       ) {
         try {
+          const payload = buildWidgetBridgeContext();
           (e.source as Window | null)?.postMessage(
-            {
+            payload || {
               type: "XAPPS_WIDGET_CONTEXT",
               locale: env?.locale || null,
             },
@@ -693,9 +733,14 @@ export function WidgetView() {
     return () => window.removeEventListener("message", handler);
   }, [
     widgetToken,
+    widgetSessionContext,
     installationId,
     widgetId,
+    xappDetail,
+    host,
+    xappId,
     env?.embedMode,
+    env?.locale,
     navigate,
     isEmbedded,
     tokenSearch,
