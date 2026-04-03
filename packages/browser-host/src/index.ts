@@ -5,3 +5,4 @@ export * from "./reference-runtime.js";
 export * from "./marketplace-host.js";
 export * from "./single-xapp-host.js";
 export * from "./host-status.js";
+export * from "./xms.js";

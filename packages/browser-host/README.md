@@ -16,6 +16,7 @@ Use `@xapps-platform/browser-host` when you want the standard browser host/runti
 - single-xapp bootstrap
 - host shell and status helpers
 - standard backend-base and bridge endpoint resolution
+- shared browser-side XMS/paywall helpers for host apps
 
 Use `@xapps-platform/embed-sdk` instead when you want lower-level iframe/bridge/payment-resume primitives and intend to build a more custom browser host.
 
@@ -29,6 +30,10 @@ This package owns the shared browser host logic that should not live in tenant o
 - marketplace runtime wiring
 - reference-theme/runtime helpers
 - host proof/status panel rendering
+- browser-side XMS catalog flattening, scope defaults, and feature-paywall helpers
+- browser-side XMS snapshot summarization for shared access/subscription/wallet presentation
+- browser-side XMS offering/package presentation helpers for local paywalls and catalog UIs
+- browser-side XMS feature-paywall copy helpers for local app wrappers
 
 Local apps should keep:
 
@@ -62,6 +67,7 @@ Entry points:
 - `@xapps-platform/browser-host/marketplace-host`
 - `@xapps-platform/browser-host/single-xapp-host`
 - `@xapps-platform/browser-host/host-status`
+- `@xapps-platform/browser-host/xms`
 
 ## Backend Location
 
@@ -121,9 +127,14 @@ Those concerns stay in local config, backend APIs, and later actor adapters.
 
 ```ts
 import {
+  buildFeaturePaywallCopyModel,
+  buildMonetizationPackagePresentation,
+  flattenXappMonetizationCatalog,
+  getDefaultXappMonetizationScopeKind,
   resolveBackendBaseUrl,
   resolveBridgeEndpoints,
   resolveHostConfigUrl,
+  summarizeXappMonetizationSnapshot,
 } from "@xapps-platform/browser-host";
 
 const backendBaseUrl = resolveBackendBaseUrl({
@@ -131,6 +142,18 @@ const backendBaseUrl = resolveBackendBaseUrl({
 });
 const hostConfigUrl = resolveHostConfigUrl({ backendBaseUrl });
 const endpoints = resolveBridgeEndpoints({ backendBaseUrl });
+const defaultScope = getDefaultXappMonetizationScopeKind({
+  context: { subject_id: "sub_123" },
+});
+const packageCards = flattenXappMonetizationCatalog([]);
+const packagePresentation = buildMonetizationPackagePresentation(packageCards[0]);
+const paywallCopy = buildFeaturePaywallCopyModel({
+  feature: { title: "Premium export", requirements: { credits: 50 } },
+  snapshotSummary: { wallet: { creditsRemaining: "10" } },
+});
+const snapshotSummary = summarizeXappMonetizationSnapshot({
+  access_projection: { has_current_access: true, credits_remaining: "500" },
+});
 ```
 
 ## Verify locally
