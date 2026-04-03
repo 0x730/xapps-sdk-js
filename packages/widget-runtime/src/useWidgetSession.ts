@@ -68,6 +68,7 @@ export function useWidgetSession(input: {
   const [widgetMeta, setWidgetMeta] = useState<unknown | null>(null);
   const [toolMeta, setToolMeta] = useState<unknown | null>(null);
   const [xappWidgets, setXappWidgets] = useState<unknown[] | null>(null);
+  const [sessionContext, setSessionContext] = useState<WidgetSessionResult["context"]>(null);
   const [resultPresentation, setResultPresentation] = useState<
     "runtime_default" | "inline" | "publisher_managed" | null
   >(null);
@@ -89,6 +90,7 @@ export function useWidgetSession(input: {
       setWidgetMeta(res.widget ?? null);
       setToolMeta(res.tool ?? null);
       setXappWidgets(res.xappWidgets ?? null);
+      setSessionContext(res.context ?? null);
       setResultPresentation(
         normalizeResultPresentation(
           res.context?.resultPresentation ??
@@ -240,6 +242,7 @@ export function useWidgetSession(input: {
       widgetMeta,
       toolMeta,
       xappWidgets,
+      sessionContext,
       requestId,
       requestStatus,
       requestResponse,
@@ -254,6 +257,7 @@ export function useWidgetSession(input: {
       requestResponse,
       requestStatus,
       resultPresentation,
+      sessionContext,
       toolMeta,
       widgetMeta,
       widgetToken,
