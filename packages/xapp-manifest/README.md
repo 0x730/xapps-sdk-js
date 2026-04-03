@@ -39,6 +39,10 @@ The current core wrapper in `src/validation/xappManifest.ts` exists only to:
 - reuse this shared validator
 - map shared warnings into gateway logger output
 
+The package also owns additive draft manifest surfaces such as the top-level `monetization`
+catalog block (`products`, `offerings`, `packages`, `prices`) when those surfaces are only
+being validated structurally and kept inert at runtime.
+
 ## Minimal usage
 
 ```ts

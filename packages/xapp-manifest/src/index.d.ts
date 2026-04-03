@@ -161,6 +161,47 @@ export type XappManifest = {
   endpoint_groups?: Record<string, XappManifestEndpointGroup>;
   event_subscriptions?: XappManifestEventSubscription[];
   connectivity?: XappManifestConnectivity;
+  monetization?: {
+    products?: Array<{
+      slug: string;
+      title?: string;
+      description?: string;
+      product_family: string;
+      status?: "draft" | "active" | "archived";
+      metadata?: Record<string, unknown>;
+    }>;
+    offerings?: Array<{
+      slug: string;
+      title?: string;
+      description?: string;
+      placement?: string;
+      status?: "draft" | "active" | "archived";
+      targeting_rules?: Record<string, unknown>;
+      metadata?: Record<string, unknown>;
+    }>;
+    packages?: Array<{
+      slug: string;
+      product_ref: string;
+      offering_ref: string;
+      package_kind?: "standard" | "one_time_unlock" | "credit_pack" | "subscription";
+      display_order?: number;
+      status?: "draft" | "active" | "archived";
+      metadata?: Record<string, unknown>;
+    }>;
+    prices?: Array<{
+      slug: string;
+      package_ref: string;
+      currency: string;
+      amount: number;
+      billing_period?: "day" | "week" | "month" | "year";
+      billing_period_count?: number;
+      trial_policy?: Record<string, unknown>;
+      intro_policy?: Record<string, unknown>;
+      country_rules?: Record<string, unknown>;
+      status?: "draft" | "active" | "archived";
+      metadata?: Record<string, unknown>;
+    }>;
+  };
   payment_guard_definitions?: Array<{
     name: string;
     payment_type?: string;
@@ -1090,6 +1131,177 @@ export declare const xappManifestJsonSchema: {
         };
         readonly proxy_policy: {
           readonly type: "object";
+        };
+      };
+    };
+    readonly monetization: {
+      readonly type: "object";
+      readonly additionalProperties: false;
+      readonly properties: {
+        readonly products: {
+          readonly type: "array";
+          readonly maxItems: 200;
+          readonly items: {
+            readonly type: "object";
+            readonly required: readonly ["slug", "product_family"];
+            readonly additionalProperties: false;
+            readonly properties: {
+              readonly slug: {
+                readonly type: "string";
+                readonly minLength: 1;
+                readonly maxLength: 100;
+              };
+              readonly title: any;
+              readonly description: any;
+              readonly product_family: {
+                readonly type: "string";
+                readonly minLength: 1;
+                readonly maxLength: 100;
+              };
+              readonly status: {
+                readonly type: "string";
+                readonly enum: readonly ["draft", "active", "archived"];
+              };
+              readonly metadata: {
+                readonly type: "object";
+              };
+            };
+          };
+        };
+        readonly offerings: {
+          readonly type: "array";
+          readonly maxItems: 200;
+          readonly items: {
+            readonly type: "object";
+            readonly required: readonly ["slug"];
+            readonly additionalProperties: false;
+            readonly properties: {
+              readonly slug: {
+                readonly type: "string";
+                readonly minLength: 1;
+                readonly maxLength: 100;
+              };
+              readonly title: any;
+              readonly description: any;
+              readonly placement: {
+                readonly type: "string";
+                readonly minLength: 1;
+                readonly maxLength: 100;
+              };
+              readonly status: {
+                readonly type: "string";
+                readonly enum: readonly ["draft", "active", "archived"];
+              };
+              readonly targeting_rules: {
+                readonly type: "object";
+              };
+              readonly metadata: {
+                readonly type: "object";
+              };
+            };
+          };
+        };
+        readonly packages: {
+          readonly type: "array";
+          readonly maxItems: 500;
+          readonly items: {
+            readonly type: "object";
+            readonly required: readonly ["slug", "product_ref", "offering_ref"];
+            readonly additionalProperties: false;
+            readonly properties: {
+              readonly slug: {
+                readonly type: "string";
+                readonly minLength: 1;
+                readonly maxLength: 100;
+              };
+              readonly product_ref: {
+                readonly type: "string";
+                readonly minLength: 1;
+                readonly maxLength: 100;
+              };
+              readonly offering_ref: {
+                readonly type: "string";
+                readonly minLength: 1;
+                readonly maxLength: 100;
+              };
+              readonly package_kind: {
+                readonly type: "string";
+                readonly enum: readonly [
+                  "standard",
+                  "one_time_unlock",
+                  "credit_pack",
+                  "subscription",
+                ];
+              };
+              readonly display_order: {
+                readonly type: "integer";
+                readonly minimum: 0;
+                readonly maximum: 1000000;
+              };
+              readonly status: {
+                readonly type: "string";
+                readonly enum: readonly ["draft", "active", "archived"];
+              };
+              readonly metadata: {
+                readonly type: "object";
+              };
+            };
+          };
+        };
+        readonly prices: {
+          readonly type: "array";
+          readonly maxItems: 1000;
+          readonly items: {
+            readonly type: "object";
+            readonly required: readonly ["slug", "package_ref", "currency", "amount"];
+            readonly additionalProperties: false;
+            readonly properties: {
+              readonly slug: {
+                readonly type: "string";
+                readonly minLength: 1;
+                readonly maxLength: 100;
+              };
+              readonly package_ref: {
+                readonly type: "string";
+                readonly minLength: 1;
+                readonly maxLength: 100;
+              };
+              readonly currency: {
+                readonly type: "string";
+                readonly minLength: 1;
+                readonly maxLength: 16;
+              };
+              readonly amount: {
+                readonly type: "number";
+                readonly minimum: 0;
+              };
+              readonly billing_period: {
+                readonly type: "string";
+                readonly enum: readonly ["day", "week", "month", "year"];
+              };
+              readonly billing_period_count: {
+                readonly type: "integer";
+                readonly minimum: 1;
+                readonly maximum: 1000000;
+              };
+              readonly trial_policy: {
+                readonly type: "object";
+              };
+              readonly intro_policy: {
+                readonly type: "object";
+              };
+              readonly country_rules: {
+                readonly type: "object";
+              };
+              readonly status: {
+                readonly type: "string";
+                readonly enum: readonly ["draft", "active", "archived"];
+              };
+              readonly metadata: {
+                readonly type: "object";
+              };
+            };
+          };
         };
       };
     };

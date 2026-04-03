@@ -189,6 +189,49 @@ export type XappManifestGuard = {
   };
 };
 
+export type XappManifestMonetizationProduct = {
+  slug: string;
+  title?: LocalizedText;
+  description?: LocalizedText;
+  product_family: string;
+  status?: "draft" | "active" | "archived";
+  metadata?: Record<string, unknown>;
+};
+
+export type XappManifestMonetizationOffering = {
+  slug: string;
+  title?: LocalizedText;
+  description?: LocalizedText;
+  placement?: string;
+  status?: "draft" | "active" | "archived";
+  targeting_rules?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
+};
+
+export type XappManifestMonetizationPackage = {
+  slug: string;
+  product_ref: string;
+  offering_ref: string;
+  package_kind?: "standard" | "one_time_unlock" | "credit_pack" | "subscription";
+  display_order?: number;
+  status?: "draft" | "active" | "archived";
+  metadata?: Record<string, unknown>;
+};
+
+export type XappManifestMonetizationPrice = {
+  slug: string;
+  package_ref: string;
+  currency: string;
+  amount: number;
+  billing_period?: "day" | "week" | "month" | "year";
+  billing_period_count?: number;
+  trial_policy?: Record<string, unknown>;
+  intro_policy?: Record<string, unknown>;
+  country_rules?: Record<string, unknown>;
+  status?: "draft" | "active" | "archived";
+  metadata?: Record<string, unknown>;
+};
+
 export type XappManifest = {
   title?: LocalizedText;
   name: string;
@@ -225,6 +268,12 @@ export type XappManifest = {
   endpoint_groups?: Record<string, XappManifestEndpointGroup>;
   event_subscriptions?: XappManifestEventSubscription[];
   connectivity?: XappManifestConnectivity;
+  monetization?: {
+    products?: XappManifestMonetizationProduct[];
+    offerings?: XappManifestMonetizationOffering[];
+    packages?: XappManifestMonetizationPackage[];
+    prices?: XappManifestMonetizationPrice[];
+  };
   payment_guard_definitions?: Array<{
     name: string;
     payment_type?: string;
@@ -826,6 +875,90 @@ export const xappManifestJsonSchema = {
         proxy_policy: { type: "object" },
       },
     },
+    monetization: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        products: {
+          type: "array",
+          maxItems: 200,
+          items: {
+            type: "object",
+            required: ["slug", "product_family"],
+            additionalProperties: false,
+            properties: {
+              slug: { type: "string", minLength: 1, maxLength: 100 },
+              title: localizedTextSchema(200),
+              description: localizedTextSchema(2000),
+              product_family: { type: "string", minLength: 1, maxLength: 100 },
+              status: { type: "string", enum: ["draft", "active", "archived"] },
+              metadata: { type: "object" },
+            },
+          },
+        },
+        offerings: {
+          type: "array",
+          maxItems: 200,
+          items: {
+            type: "object",
+            required: ["slug"],
+            additionalProperties: false,
+            properties: {
+              slug: { type: "string", minLength: 1, maxLength: 100 },
+              title: localizedTextSchema(200),
+              description: localizedTextSchema(2000),
+              placement: { type: "string", minLength: 1, maxLength: 100 },
+              status: { type: "string", enum: ["draft", "active", "archived"] },
+              targeting_rules: { type: "object" },
+              metadata: { type: "object" },
+            },
+          },
+        },
+        packages: {
+          type: "array",
+          maxItems: 500,
+          items: {
+            type: "object",
+            required: ["slug", "product_ref", "offering_ref"],
+            additionalProperties: false,
+            properties: {
+              slug: { type: "string", minLength: 1, maxLength: 100 },
+              product_ref: { type: "string", minLength: 1, maxLength: 100 },
+              offering_ref: { type: "string", minLength: 1, maxLength: 100 },
+              package_kind: {
+                type: "string",
+                enum: ["standard", "one_time_unlock", "credit_pack", "subscription"],
+              },
+              display_order: { type: "integer", minimum: 0, maximum: 1000000 },
+              status: { type: "string", enum: ["draft", "active", "archived"] },
+              metadata: { type: "object" },
+            },
+          },
+        },
+        prices: {
+          type: "array",
+          maxItems: 1000,
+          items: {
+            type: "object",
+            required: ["slug", "package_ref", "currency", "amount"],
+            additionalProperties: false,
+            properties: {
+              slug: { type: "string", minLength: 1, maxLength: 100 },
+              package_ref: { type: "string", minLength: 1, maxLength: 100 },
+              currency: { type: "string", minLength: 1, maxLength: 16 },
+              amount: { type: "number", minimum: 0 },
+              billing_period: { type: "string", enum: ["day", "week", "month", "year"] },
+              billing_period_count: { type: "integer", minimum: 1, maximum: 1000000 },
+              trial_policy: { type: "object" },
+              intro_policy: { type: "object" },
+              country_rules: { type: "object" },
+              status: { type: "string", enum: ["draft", "active", "archived"] },
+              metadata: { type: "object" },
+            },
+          },
+        },
+      },
+    },
     payment_guard_definitions: {
       type: "array",
       maxItems: 50,
@@ -1065,6 +1198,25 @@ const validate = ajv.compile(xappManifestJsonSchema);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function readMonetizationEntries<T>(value: T[] | undefined): T[] {
+  return Array.isArray(value) ? value : [];
+}
+
+function requireUniqueSlug(entries: Array<{ slug?: string }>, label: string): Set<string> {
+  const slugs = new Set<string>();
+  for (const entry of entries) {
+    const slug = String(entry?.slug ?? "").trim();
+    if (!slug) {
+      throw Object.assign(new Error(`${label} entries require non-empty slug`), { status: 400 });
+    }
+    if (slugs.has(slug)) {
+      throw Object.assign(new Error(`Duplicate ${label} slug: ${slug}`), { status: 400 });
+    }
+    slugs.add(slug);
+  }
+  return slugs;
 }
 
 function isTemplatedUrl(value: string): boolean {
@@ -1567,6 +1719,11 @@ export function parseXappManifest(
   }
 
   const manifest = input as XappManifest;
+  const monetization = isRecord(manifest.monetization) ? manifest.monetization : null;
+  const monetizationProducts = readMonetizationEntries(monetization?.products);
+  const monetizationOfferings = readMonetizationEntries(monetization?.offerings);
+  const monetizationPackages = readMonetizationEntries(monetization?.packages);
+  const monetizationPrices = readMonetizationEntries(monetization?.prices);
   const paymentDefinitions = Array.isArray(manifest.payment_guard_definitions)
     ? manifest.payment_guard_definitions
     : [];
@@ -1591,6 +1748,13 @@ export function parseXappManifest(
   const notificationTemplateNames = new Set<string>();
   const invoiceDefinitionNames = new Set<string>();
   const invoiceTemplateNames = new Set<string>();
+  const monetizationProductSlugs = requireUniqueSlug(monetizationProducts, "monetization.products");
+  const monetizationOfferingSlugs = requireUniqueSlug(
+    monetizationOfferings,
+    "monetization.offerings",
+  );
+  const monetizationPackageSlugs = requireUniqueSlug(monetizationPackages, "monetization.packages");
+  requireUniqueSlug(monetizationPrices, "monetization.prices");
 
   for (const list of [
     [paymentDefinitions, paymentDefinitionNames, "payment_guard_definitions"],
@@ -1688,6 +1852,37 @@ export function parseXappManifest(
     validateWidgetResultPresentation(widget);
     validateWidgetPublisherRuntimeMode(widget);
     validateWidgetPublisherBootstrapTransport(widget);
+  }
+  for (const monetizationPackage of monetizationPackages) {
+    const productRef = String(monetizationPackage.product_ref ?? "").trim();
+    if (!monetizationProductSlugs.has(productRef)) {
+      throw Object.assign(
+        new Error(
+          `monetization.packages entry ${String(monetizationPackage.slug ?? "unknown")} references unknown product_ref: ${productRef}`,
+        ),
+        { status: 400 },
+      );
+    }
+    const offeringRef = String(monetizationPackage.offering_ref ?? "").trim();
+    if (!monetizationOfferingSlugs.has(offeringRef)) {
+      throw Object.assign(
+        new Error(
+          `monetization.packages entry ${String(monetizationPackage.slug ?? "unknown")} references unknown offering_ref: ${offeringRef}`,
+        ),
+        { status: 400 },
+      );
+    }
+  }
+  for (const monetizationPrice of monetizationPrices) {
+    const packageRef = String(monetizationPrice.package_ref ?? "").trim();
+    if (!monetizationPackageSlugs.has(packageRef)) {
+      throw Object.assign(
+        new Error(
+          `monetization.prices entry ${String(monetizationPrice.slug ?? "unknown")} references unknown package_ref: ${packageRef}`,
+        ),
+        { status: 400 },
+      );
+    }
   }
 
   for (const tool of manifest.tools ?? []) {
