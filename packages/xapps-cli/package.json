@@ -1,6 +1,6 @@
 {
   "name": "@xapps-platform/cli",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "license": "MIT",
   "author": "Daniel Vladescu <daniel.vladescu@gmail.com>",
   "description": "Xapps developer CLI",
@@ -15,7 +15,7 @@
   },
   "dependencies": {
     "@xapps-platform/openapi-import": "^0.1.4",
-    "@xapps-platform/server-sdk": "^0.2.1"
+    "@xapps-platform/server-sdk": "^0.2.2"
   },
   "files": [
     "dist"
