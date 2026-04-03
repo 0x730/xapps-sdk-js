@@ -1,6 +1,6 @@
 {
   "name": "@xapps-platform/platform-i18n",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "license": "MIT",
   "author": "Daniel Vladescu <daniel.vladescu@gmail.com>",
   "description": "Shared locale normalization, translation lookup, and React i18n helpers for Xapps surfaces",
