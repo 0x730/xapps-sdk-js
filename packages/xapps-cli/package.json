@@ -1,6 +1,6 @@
 {
   "name": "@xapps-platform/cli",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "license": "MIT",
   "author": "Daniel Vladescu <daniel.vladescu@gmail.com>",
   "description": "Xapps developer CLI",
@@ -14,8 +14,8 @@
     "smoke:packed": "node examples/smoke/packed-smoke.mjs"
   },
   "dependencies": {
-    "@xapps-platform/openapi-import": "^0.1.1",
-    "@xapps-platform/server-sdk": "^0.2.0"
+    "@xapps-platform/openapi-import": "^0.1.4",
+    "@xapps-platform/server-sdk": "^0.2.1"
   },
   "files": [
     "dist"
