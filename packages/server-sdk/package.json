@@ -1,6 +1,6 @@
 {
   "name": "@xapps-platform/server-sdk",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "license": "MIT",
   "author": "Daniel Vladescu <daniel.vladescu@gmail.com>",
   "description": "Node SDK for Xapps publisher server integrations",
@@ -32,6 +32,6 @@
   },
   "dependencies": {
     "@noble/curves": "^2.0.1",
-    "@xapps-platform/xapp-manifest": "^0.2.0"
+    "@xapps-platform/xapp-manifest": "^0.2.1"
   }
 }
