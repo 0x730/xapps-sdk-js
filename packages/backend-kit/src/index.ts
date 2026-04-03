@@ -14,6 +14,26 @@ import {
   registerPaymentPageAssetRoute,
 } from "./backend/paymentRuntime.js";
 import {
+  activateXappPurchaseReference,
+  consumeXappWalletCredits,
+  finalizeXappHostedPurchase,
+  findXappHostedPaymentPreset,
+  listXappHostedPaymentPresets,
+  normalizeXappMonetizationScopeKind,
+  readXappMonetizationSnapshot,
+  resolveXappHostedPaymentDefinition,
+  resolveXappMonetizationScope,
+  startXappHostedPurchase,
+  type ActivateXappPurchaseReferenceInput,
+  type ConsumeXappWalletCreditsInput,
+  type FinalizeXappHostedPurchaseInput,
+  type ListXappHostedPaymentPresetsInput,
+  type ReadXappMonetizationSnapshotInput,
+  type ResolveXappHostedPaymentDefinitionInput,
+  type ResolveXappMonetizationScopeInput,
+  type StartXappHostedPurchaseInput,
+} from "./backend/xms.js";
+import {
   normalizeBackendKitOptions,
   resolvePlatformSecretRefFromEnv,
   type BackendKitNormalizedOptions,
@@ -68,6 +88,17 @@ export type BackendKit = {
   options: BackendKitNormalizedOptions;
   registerRoutes: (app: RegisterableApp) => Promise<void>;
   applyNotFoundHandler: (app: RegisterableApp) => void;
+};
+
+export type {
+  ActivateXappPurchaseReferenceInput,
+  ConsumeXappWalletCreditsInput,
+  FinalizeXappHostedPurchaseInput,
+  ListXappHostedPaymentPresetsInput,
+  ReadXappMonetizationSnapshotInput,
+  ResolveXappHostedPaymentDefinitionInput,
+  ResolveXappMonetizationScopeInput,
+  StartXappHostedPurchaseInput,
 };
 
 export type VerifyBrowserWidgetContextInput = {
@@ -236,11 +267,21 @@ export {
   createHostReferenceModule,
   createReferenceSurfaceModule,
   createHostProxyService,
+  activateXappPurchaseReference,
+  consumeXappWalletCredits,
   createPaymentEvidenceHandler,
   createPaymentRuntime,
   extractHostedPaymentSessionId,
+  finalizeXappHostedPurchase,
+  findXappHostedPaymentPreset,
+  listXappHostedPaymentPresets,
+  normalizeXappMonetizationScopeKind,
   normalizeBackendKitOptions,
+  readXappMonetizationSnapshot,
   registerPaymentPageApiRoutes,
   registerPaymentPageAssetRoute,
+  resolveXappHostedPaymentDefinition,
+  resolveXappMonetizationScope,
   resolvePlatformSecretRefFromEnv,
+  startXappHostedPurchase,
 };

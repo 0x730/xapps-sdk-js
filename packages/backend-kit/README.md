@@ -136,6 +136,7 @@ The current package surface provides:
 - default route surface
 - default mode tree
 - payment runtime assembly
+- higher-level XMS purchase workflow helpers
 - host-proxy service assembly
 - request-widget bootstrap verification passthrough
 - subject-profile sourcing hooks
@@ -148,6 +149,8 @@ Internal package structure is intentionally modular:
   option normalization and config shaping
 - `src/backend/paymentRuntime.ts`
   payment runtime assembly and payment-page API helpers
+- `src/backend/xms.ts`
+  higher-level XMS purchase workflow helpers on top of the server SDK
 - `src/backend/modules.ts`
   backend module composition
 - `src/backend/modes/*`
@@ -165,6 +168,29 @@ Current route surface includes:
 - payment
 - guard
 - subject profiles
+
+Current workflow helpers also include:
+
+- `normalizeXappMonetizationScopeKind(...)`
+  normalizes subject / installation / realm scope selection
+- `resolveXappMonetizationScope(...)`
+  resolves scope fields from runtime context plus optional realm reference
+- `resolveXappHostedPaymentDefinition(...)`
+  resolves a manifest payment definition into hosted session config, including delegated signing metadata
+- `listXappHostedPaymentPresets(...)`
+  shapes manifest payment definitions into generic hosted-lane preset options for UI selectors
+- `findXappHostedPaymentPreset(...)`
+  looks up one hosted-lane preset by `paymentGuardRef`
+- `readXappMonetizationSnapshot(...)`
+  reads the common app-facing XMS state bundle: access, current subscription, and wallet accounts
+- `consumeXappWalletCredits(...)`
+  consumes credits from one wallet account through the XMS API and returns the updated wallet, ledger entry, and refreshed access projection
+- `startXappHostedPurchase(...)`
+  prepares a purchase intent and creates the lane-bootstrapped gateway payment session
+- `finalizeXappHostedPurchase(...)`
+  finalizes a hosted purchase through the platform finalize endpoint, returning reconciliation and issued access state
+- `activateXappPurchaseReference(...)`
+  prepares a purchase intent, creates a verified reference transaction, and issues access
 
 For hosted-integrator mode, the host API surface can also enforce explicit
 frontend-origin allowlists through `host.allowedOrigins`. Leave it empty for
