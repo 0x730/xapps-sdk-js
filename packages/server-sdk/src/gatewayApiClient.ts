@@ -68,6 +68,196 @@ export type CatalogSessionResult = {
   embedUrl: string;
 };
 
+export type XappMonetizationScopeInput = {
+  xappId: string;
+  /** @deprecated Use `subject_id`. */
+  subjectId?: string | null;
+  subject_id?: string | null;
+  /** @deprecated Use `installation_id`. */
+  installationId?: string | null;
+  installation_id?: string | null;
+  /** @deprecated Use `realm_ref`. */
+  realmRef?: string | null;
+  realm_ref?: string | null;
+};
+
+export type XappMonetizationCatalogResult = Record<string, unknown>;
+export type XappMonetizationAccessResult = Record<string, unknown> & {
+  access_projection?: Record<string, unknown> | null;
+};
+export type XappCurrentSubscriptionResult = Record<string, unknown> & {
+  current_subscription?: Record<string, unknown> | null;
+};
+export type XappWalletAccountsResult = Record<string, unknown> & {
+  items?: Array<Record<string, unknown>>;
+};
+export type XappWalletLedgerResult = Record<string, unknown> & {
+  items?: Array<Record<string, unknown>>;
+};
+export type XappWalletConsumeResult = Record<string, unknown> & {
+  wallet_account?: Record<string, unknown> | null;
+  wallet_ledger?: Record<string, unknown> | null;
+  access_projection?: Record<string, unknown> | null;
+  snapshot_id?: string | null;
+};
+export type XappPreparedPurchaseIntentResult = Record<string, unknown> & {
+  prepared_intent?: Record<string, unknown> | null;
+};
+export type XappPurchaseTransactionResult = Record<string, unknown> & {
+  transaction?: Record<string, unknown> | null;
+};
+export type XappPurchaseTransactionsResult = Record<string, unknown> & {
+  items?: Array<Record<string, unknown>>;
+};
+export type XappPurchasePaymentSessionResult = Record<string, unknown> & {
+  payment_session?: Record<string, unknown> | null;
+  payment_page_url?: string | null;
+};
+export type XappPurchasePaymentReconcileResult = Record<string, unknown> & {
+  prepared_intent?: Record<string, unknown> | null;
+  payment_session?: Record<string, unknown> | null;
+  transaction?: Record<string, unknown> | null;
+};
+export type XappPurchasePaymentFinalizeResult = Record<string, unknown> & {
+  prepared_intent?: Record<string, unknown> | null;
+  payment_session?: Record<string, unknown> | null;
+  transaction?: Record<string, unknown> | null;
+  access_projection?: Record<string, unknown> | null;
+};
+export type XappIssueAccessResult = Record<string, unknown> & {
+  prepared_intent?: Record<string, unknown> | null;
+};
+export type XappSubscriptionContractLifecycleResult = Record<string, unknown> & {
+  subscription_contract?: Record<string, unknown> | null;
+  current_subscription?: Record<string, unknown> | null;
+  access_projection?: Record<string, unknown> | null;
+  payment_session?: Record<string, unknown> | null;
+  transaction?: Record<string, unknown> | null;
+};
+
+export type PrepareXappPurchaseIntentInput = XappMonetizationScopeInput & {
+  /** @deprecated Use `offering_id`. */
+  offeringId?: string;
+  offering_id?: string;
+  /** @deprecated Use `package_id`. */
+  packageId?: string;
+  package_id?: string;
+  /** @deprecated Use `price_id`. */
+  priceId?: string;
+  price_id?: string;
+  /** @deprecated Use `source_kind`. */
+  sourceKind?: string | null;
+  source_kind?: string | null;
+  /** @deprecated Use `source_ref`. */
+  sourceRef?: string | null;
+  source_ref?: string | null;
+  /** @deprecated Use `payment_lane`. */
+  paymentLane?: string | null;
+  payment_lane?: string | null;
+  /** @deprecated Use `payment_session_id`. */
+  paymentSessionId?: string | null;
+  payment_session_id?: string | null;
+  /** @deprecated Use `request_id`. */
+  requestId?: string | null;
+  request_id?: string | null;
+};
+
+export type CreateXappPurchaseTransactionInput = {
+  xappId: string;
+  intentId: string;
+  status: string;
+  /** @deprecated Use `provider_ref`. */
+  providerRef?: string | null;
+  provider_ref?: string | null;
+  /** @deprecated Use `evidence_ref`. */
+  evidenceRef?: string | null;
+  evidence_ref?: string | null;
+  /** @deprecated Use `payment_session_id`. */
+  paymentSessionId?: string | null;
+  payment_session_id?: string | null;
+  /** @deprecated Use `request_id`. */
+  requestId?: string | null;
+  request_id?: string | null;
+  /** @deprecated Use `settlement_ref`. */
+  settlementRef?: string | null;
+  settlement_ref?: string | null;
+  amount?: string | number | null;
+  currency?: string | null;
+  /** @deprecated Use `occurred_at`. */
+  occurredAt?: string | null;
+  occurred_at?: string | null;
+};
+
+export type ListXappPurchaseTransactionsInput = {
+  xappId: string;
+  intentId: string;
+};
+
+export type ListXappWalletAccountsInput = XappMonetizationScopeInput;
+
+export type ConsumeXappWalletCreditsInput = {
+  xappId: string;
+  walletAccountId: string;
+  amount: string;
+  /** @deprecated Use `source_ref`. */
+  sourceRef?: string | null;
+  source_ref?: string | null;
+  metadata?: Record<string, unknown> | null;
+};
+
+export type ListXappWalletLedgerInput = XappMonetizationScopeInput & {
+  /** @deprecated Use `wallet_account_id`. */
+  walletAccountId?: string | null;
+  wallet_account_id?: string | null;
+  /** @deprecated Use `payment_session_id`. */
+  paymentSessionId?: string | null;
+  payment_session_id?: string | null;
+  /** @deprecated Use `request_id`. */
+  requestId?: string | null;
+  request_id?: string | null;
+  /** @deprecated Use `settlement_ref`. */
+  settlementRef?: string | null;
+  settlement_ref?: string | null;
+};
+
+export type CreateXappPurchasePaymentSessionInput = {
+  xappId: string;
+  intentId: string;
+  /** @deprecated Use `payment_guard_ref`. */
+  paymentGuardRef?: string | null;
+  payment_guard_ref?: string | null;
+  issuer?: string | null;
+  scheme?: string | null;
+  /** @deprecated Use `payment_scheme`. */
+  paymentScheme?: string | null;
+  payment_scheme?: string | null;
+  /** @deprecated Use `return_url`. */
+  returnUrl: string;
+  return_url?: string;
+  /** @deprecated Use `cancel_url`. */
+  cancelUrl?: string | null;
+  cancel_url?: string | null;
+  /** @deprecated Use `page_url`. */
+  pageUrl?: string | null;
+  page_url?: string | null;
+  locale?: string | null;
+  /** @deprecated Use `xapps_resume`. */
+  xappsResume?: string | null;
+  xapps_resume?: string | null;
+  /** @deprecated Use `subject_id`. */
+  subjectId?: string | null;
+  subject_id?: string | null;
+  /** @deprecated Use `installation_id`. */
+  installationId?: string | null;
+  installation_id?: string | null;
+  metadata?: Record<string, unknown> | null;
+};
+
+export type XappSubscriptionContractInput = {
+  xappId: string;
+  contractId: string;
+};
+
 function normalizeOptionalStringList(value: string[] | null | undefined): string[] | undefined {
   if (!Array.isArray(value)) return undefined;
   const items = value.map((item) => String(item || "").trim()).filter((item) => item.length > 0);
@@ -389,6 +579,73 @@ function appendOptionalQuery(pathname: string, key: string, value?: string | nul
   if (!resolved) return pathname;
   const separator = pathname.includes("?") ? "&" : "?";
   return `${pathname}${separator}${encodeURIComponent(key)}=${encodeURIComponent(resolved)}`;
+}
+
+function normalizeObjectPayload(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined;
+}
+
+function requireXappId(value: string): string {
+  const xappId = String(value || "").trim();
+  if (!xappId) {
+    throw new GatewayApiClientError({
+      code: "GATEWAY_API_INVALID_RESPONSE",
+      message: "xappId is required",
+    });
+  }
+  return xappId;
+}
+
+function requireIntentId(value: string): string {
+  const intentId = String(value || "").trim();
+  if (!intentId) {
+    throw new GatewayApiClientError({
+      code: "GATEWAY_API_INVALID_RESPONSE",
+      message: "intentId is required",
+    });
+  }
+  return intentId;
+}
+
+function buildXappMonetizationScopePath(
+  pathname: string,
+  input: Omit<XappMonetizationScopeInput, "xappId">,
+): string {
+  let nextPath = pathname;
+  nextPath = appendOptionalQuery(nextPath, "subject_id", input.subjectId ?? input.subject_id);
+  nextPath = appendOptionalQuery(
+    nextPath,
+    "installation_id",
+    input.installationId ?? input.installation_id,
+  );
+  nextPath = appendOptionalQuery(nextPath, "realm_ref", input.realmRef ?? input.realm_ref);
+  return nextPath;
+}
+
+function buildXappWalletLedgerPath(
+  pathname: string,
+  input: Omit<ListXappWalletLedgerInput, "xappId">,
+): string {
+  let nextPath = buildXappMonetizationScopePath(pathname, input);
+  nextPath = appendOptionalQuery(
+    nextPath,
+    "wallet_account_id",
+    input.walletAccountId ?? input.wallet_account_id,
+  );
+  nextPath = appendOptionalQuery(
+    nextPath,
+    "payment_session_id",
+    input.paymentSessionId ?? input.payment_session_id,
+  );
+  nextPath = appendOptionalQuery(nextPath, "request_id", input.requestId ?? input.request_id);
+  nextPath = appendOptionalQuery(
+    nextPath,
+    "settlement_ref",
+    input.settlementRef ?? input.settlement_ref,
+  );
+  return nextPath;
 }
 
 function extractResultObject<T = Record<string, unknown>>(payload: unknown): T {
@@ -887,6 +1144,309 @@ export function createGatewayApiClient(options: GatewayApiClientOptions) {
       );
       const result = extractResultObject<any>(payload);
       return result && typeof result === "object" ? (result as Record<string, unknown>) : {};
+    },
+
+    async getXappMonetizationCatalog(xappId: string): Promise<XappMonetizationCatalogResult> {
+      const resolvedXappId = requireXappId(xappId);
+      const payload = await requestJson(
+        "GET",
+        `/v1/xapps/${encodeURIComponent(resolvedXappId)}/monetization`,
+      );
+      return extractResultObject<XappMonetizationCatalogResult>(payload);
+    },
+
+    async getXappMonetizationAccess(
+      input: XappMonetizationScopeInput,
+    ): Promise<XappMonetizationAccessResult> {
+      const resolvedXappId = requireXappId(input.xappId);
+      const payload = await requestJson(
+        "GET",
+        buildXappMonetizationScopePath(
+          `/v1/xapps/${encodeURIComponent(resolvedXappId)}/monetization/access`,
+          input,
+        ),
+      );
+      return extractResultObject<XappMonetizationAccessResult>(payload);
+    },
+
+    async getXappCurrentSubscription(
+      input: XappMonetizationScopeInput,
+    ): Promise<XappCurrentSubscriptionResult> {
+      const resolvedXappId = requireXappId(input.xappId);
+      const payload = await requestJson(
+        "GET",
+        buildXappMonetizationScopePath(
+          `/v1/xapps/${encodeURIComponent(resolvedXappId)}/monetization/current-subscription`,
+          input,
+        ),
+      );
+      return extractResultObject<XappCurrentSubscriptionResult>(payload);
+    },
+
+    async listXappWalletAccounts(
+      input: ListXappWalletAccountsInput,
+    ): Promise<XappWalletAccountsResult> {
+      const resolvedXappId = requireXappId(input.xappId);
+      const payload = await requestJson(
+        "GET",
+        buildXappMonetizationScopePath(
+          `/v1/xapps/${encodeURIComponent(resolvedXappId)}/monetization/wallet-accounts`,
+          input,
+        ),
+      );
+      return extractResultObject<XappWalletAccountsResult>(payload);
+    },
+
+    async listXappWalletLedger(input: ListXappWalletLedgerInput): Promise<XappWalletLedgerResult> {
+      const resolvedXappId = requireXappId(input.xappId);
+      const payload = await requestJson(
+        "GET",
+        buildXappWalletLedgerPath(
+          `/v1/xapps/${encodeURIComponent(resolvedXappId)}/monetization/wallet-ledger`,
+          input,
+        ),
+      );
+      return extractResultObject<XappWalletLedgerResult>(payload);
+    },
+
+    async consumeXappWalletCredits(
+      input: ConsumeXappWalletCreditsInput,
+    ): Promise<XappWalletConsumeResult> {
+      const resolvedXappId = requireXappId(input.xappId);
+      const walletAccountId = String(input.walletAccountId || "").trim();
+      if (!walletAccountId) {
+        throw new GatewayApiClientError({
+          code: "GATEWAY_API_INVALID_RESPONSE",
+          message: "walletAccountId is required",
+        });
+      }
+      const amount = String(input.amount || "").trim();
+      if (!amount) {
+        throw new GatewayApiClientError({
+          code: "GATEWAY_API_INVALID_RESPONSE",
+          message: "amount is required",
+        });
+      }
+      const payload = await requestJson(
+        "POST",
+        `/v1/xapps/${encodeURIComponent(resolvedXappId)}/monetization/wallet-accounts/${encodeURIComponent(walletAccountId)}/consume`,
+        {
+          amount,
+          source_ref: input.sourceRef ?? input.source_ref,
+          metadata: normalizeObjectPayload(input.metadata),
+        },
+      );
+      return extractResultObject<XappWalletConsumeResult>(payload);
+    },
+
+    async prepareXappPurchaseIntent(
+      input: PrepareXappPurchaseIntentInput,
+    ): Promise<XappPreparedPurchaseIntentResult> {
+      const resolvedXappId = requireXappId(input.xappId);
+      const payload = await requestJson(
+        "POST",
+        `/v1/xapps/${encodeURIComponent(resolvedXappId)}/monetization/purchase-intents/prepare`,
+        {
+          offering_id: input.offeringId ?? input.offering_id,
+          package_id: input.packageId ?? input.package_id,
+          price_id: input.priceId ?? input.price_id,
+          subject_id: input.subjectId ?? input.subject_id,
+          installation_id: input.installationId ?? input.installation_id,
+          realm_ref: input.realmRef ?? input.realm_ref,
+          source_kind: input.sourceKind ?? input.source_kind,
+          source_ref: input.sourceRef ?? input.source_ref,
+          payment_lane: input.paymentLane ?? input.payment_lane,
+          payment_session_id: input.paymentSessionId ?? input.payment_session_id,
+          request_id: input.requestId ?? input.request_id,
+        },
+      );
+      return extractResultObject<XappPreparedPurchaseIntentResult>(payload);
+    },
+
+    async getXappPurchaseIntent(input: {
+      xappId: string;
+      intentId: string;
+    }): Promise<XappPreparedPurchaseIntentResult> {
+      const resolvedXappId = requireXappId(input.xappId);
+      const resolvedIntentId = requireIntentId(input.intentId);
+      const payload = await requestJson(
+        "GET",
+        `/v1/xapps/${encodeURIComponent(resolvedXappId)}/monetization/purchase-intents/${encodeURIComponent(resolvedIntentId)}`,
+      );
+      return extractResultObject<XappPreparedPurchaseIntentResult>(payload);
+    },
+
+    async createXappPurchaseTransaction(
+      input: CreateXappPurchaseTransactionInput,
+    ): Promise<XappPurchaseTransactionResult> {
+      const resolvedXappId = requireXappId(input.xappId);
+      const resolvedIntentId = requireIntentId(input.intentId);
+      const payload = await requestJson(
+        "POST",
+        `/v1/xapps/${encodeURIComponent(resolvedXappId)}/monetization/purchase-intents/${encodeURIComponent(resolvedIntentId)}/transactions`,
+        {
+          status: input.status,
+          provider_ref: input.providerRef ?? input.provider_ref,
+          evidence_ref: input.evidenceRef ?? input.evidence_ref,
+          payment_session_id: input.paymentSessionId ?? input.payment_session_id,
+          request_id: input.requestId ?? input.request_id,
+          settlement_ref: input.settlementRef ?? input.settlement_ref,
+          amount: input.amount ?? undefined,
+          currency: input.currency ?? undefined,
+          occurred_at: input.occurredAt ?? input.occurred_at,
+        },
+      );
+      return extractResultObject<XappPurchaseTransactionResult>(payload);
+    },
+
+    async listXappPurchaseTransactions(
+      input: ListXappPurchaseTransactionsInput,
+    ): Promise<XappPurchaseTransactionsResult> {
+      const resolvedXappId = requireXappId(input.xappId);
+      const resolvedIntentId = requireIntentId(input.intentId);
+      const payload = await requestJson(
+        "GET",
+        `/v1/xapps/${encodeURIComponent(resolvedXappId)}/monetization/purchase-intents/${encodeURIComponent(resolvedIntentId)}/transactions`,
+      );
+      return extractResultObject<XappPurchaseTransactionsResult>(payload);
+    },
+
+    async createXappPurchasePaymentSession(
+      input: CreateXappPurchasePaymentSessionInput,
+    ): Promise<XappPurchasePaymentSessionResult> {
+      const resolvedXappId = requireXappId(input.xappId);
+      const resolvedIntentId = requireIntentId(input.intentId);
+      const payload = await requestJson(
+        "POST",
+        `/v1/xapps/${encodeURIComponent(resolvedXappId)}/monetization/purchase-intents/${encodeURIComponent(resolvedIntentId)}/payment-session`,
+        {
+          payment_guard_ref: input.paymentGuardRef ?? input.payment_guard_ref,
+          issuer: input.issuer ?? undefined,
+          scheme: input.scheme ?? undefined,
+          payment_scheme: input.paymentScheme ?? input.payment_scheme,
+          return_url: input.returnUrl ?? input.return_url,
+          cancel_url: input.cancelUrl ?? input.cancel_url,
+          xapps_resume: input.xappsResume ?? input.xapps_resume,
+          page_url: input.pageUrl ?? input.page_url,
+          locale: input.locale ?? undefined,
+          subject_id: input.subjectId ?? input.subject_id,
+          installation_id: input.installationId ?? input.installation_id,
+          metadata: normalizeObjectPayload(input.metadata),
+        },
+      );
+      return extractResultObject<XappPurchasePaymentSessionResult>(payload);
+    },
+
+    async reconcileXappPurchasePaymentSession(input: {
+      xappId: string;
+      intentId: string;
+    }): Promise<XappPurchasePaymentReconcileResult> {
+      const resolvedXappId = requireXappId(input.xappId);
+      const resolvedIntentId = requireIntentId(input.intentId);
+      const payload = await requestJson(
+        "POST",
+        `/v1/xapps/${encodeURIComponent(resolvedXappId)}/monetization/purchase-intents/${encodeURIComponent(resolvedIntentId)}/payment-session/reconcile`,
+        {},
+      );
+      return extractResultObject<XappPurchasePaymentReconcileResult>(payload);
+    },
+
+    async finalizeXappPurchasePaymentSession(input: {
+      xappId: string;
+      intentId: string;
+    }): Promise<XappPurchasePaymentFinalizeResult> {
+      const resolvedXappId = requireXappId(input.xappId);
+      const resolvedIntentId = requireIntentId(input.intentId);
+      const payload = await requestJson(
+        "POST",
+        `/v1/xapps/${encodeURIComponent(resolvedXappId)}/monetization/purchase-intents/${encodeURIComponent(resolvedIntentId)}/payment-session/finalize`,
+        {},
+      );
+      return extractResultObject<XappPurchasePaymentFinalizeResult>(payload);
+    },
+
+    async issueXappPurchaseAccess(input: {
+      xappId: string;
+      intentId: string;
+    }): Promise<XappIssueAccessResult> {
+      const resolvedXappId = requireXappId(input.xappId);
+      const resolvedIntentId = requireIntentId(input.intentId);
+      const payload = await requestJson(
+        "POST",
+        `/v1/xapps/${encodeURIComponent(resolvedXappId)}/monetization/purchase-intents/${encodeURIComponent(resolvedIntentId)}/issue-access`,
+        {},
+      );
+      return extractResultObject<XappIssueAccessResult>(payload);
+    },
+
+    async reconcileXappSubscriptionContractPaymentSession(
+      input: XappSubscriptionContractInput & {
+        paymentSessionId: string;
+        /** @deprecated Use `payment_session_id`. */
+        payment_session_id?: string;
+      },
+    ): Promise<XappSubscriptionContractLifecycleResult> {
+      const resolvedXappId = requireXappId(input.xappId);
+      const contractId = String(input.contractId || "").trim();
+      if (!contractId) {
+        throw new GatewayApiClientError({
+          code: "GATEWAY_API_INVALID_RESPONSE",
+          message: "contractId is required",
+        });
+      }
+      const paymentSessionId = String(
+        input.paymentSessionId ?? input.payment_session_id ?? "",
+      ).trim();
+      if (!paymentSessionId) {
+        throw new GatewayApiClientError({
+          code: "GATEWAY_API_INVALID_RESPONSE",
+          message: "paymentSessionId is required",
+        });
+      }
+      const payload = await requestJson(
+        "POST",
+        `/v1/xapps/${encodeURIComponent(resolvedXappId)}/monetization/subscription-contracts/${encodeURIComponent(contractId)}/reconcile-payment-session`,
+        { payment_session_id: paymentSessionId },
+      );
+      return extractResultObject<XappSubscriptionContractLifecycleResult>(payload);
+    },
+
+    async cancelXappSubscriptionContract(
+      input: XappSubscriptionContractInput,
+    ): Promise<XappSubscriptionContractLifecycleResult> {
+      const resolvedXappId = requireXappId(input.xappId);
+      const contractId = String(input.contractId || "").trim();
+      if (!contractId) {
+        throw new GatewayApiClientError({
+          code: "GATEWAY_API_INVALID_RESPONSE",
+          message: "contractId is required",
+        });
+      }
+      const payload = await requestJson(
+        "POST",
+        `/v1/xapps/${encodeURIComponent(resolvedXappId)}/monetization/subscription-contracts/${encodeURIComponent(contractId)}/cancel`,
+        {},
+      );
+      return extractResultObject<XappSubscriptionContractLifecycleResult>(payload);
+    },
+
+    async refreshXappSubscriptionContractState(
+      input: XappSubscriptionContractInput,
+    ): Promise<XappSubscriptionContractLifecycleResult> {
+      const resolvedXappId = requireXappId(input.xappId);
+      const contractId = String(input.contractId || "").trim();
+      if (!contractId) {
+        throw new GatewayApiClientError({
+          code: "GATEWAY_API_INVALID_RESPONSE",
+          message: "contractId is required",
+        });
+      }
+      const payload = await requestJson(
+        "POST",
+        `/v1/xapps/${encodeURIComponent(resolvedXappId)}/monetization/subscription-contracts/${encodeURIComponent(contractId)}/refresh-state`,
+        {},
+      );
+      return extractResultObject<XappSubscriptionContractLifecycleResult>(payload);
     },
   };
 }

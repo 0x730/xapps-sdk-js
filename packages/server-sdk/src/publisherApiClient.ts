@@ -153,7 +153,12 @@ function buildAuthHeaders(input: { apiKey?: string; token?: string }): Headers {
   const token = String(input.token || "").trim();
   const apiKey = String(input.apiKey || "").trim();
   if (token) headers.set("authorization", `Bearer ${token}`);
-  if (apiKey) headers.set("x-api-key", apiKey);
+  if (apiKey) {
+    headers.set("x-api-key", apiKey);
+    if (!token) {
+      headers.set("authorization", `X-API-Key ${apiKey}`);
+    }
+  }
   return headers;
 }
 

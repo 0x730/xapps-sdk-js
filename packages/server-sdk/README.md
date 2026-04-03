@@ -18,6 +18,22 @@ npm install @xapps-platform/server-sdk
 - `buildCanonicalString`
 - `createCallbackClient`
 - `createGatewayApiClient`
+  - includes low-level XMS monetization helpers:
+    - `getXappMonetizationCatalog(...)`
+    - `getXappMonetizationAccess(...)`
+    - `getXappCurrentSubscription(...)`
+    - `listXappWalletAccounts(...)`
+    - `listXappWalletLedger(...)`
+    - `prepareXappPurchaseIntent(...)`
+    - `getXappPurchaseIntent(...)`
+    - `createXappPurchaseTransaction(...)`
+    - `listXappPurchaseTransactions(...)`
+    - `createXappPurchasePaymentSession(...)`
+    - `reconcileXappPurchasePaymentSession(...)`
+    - `issueXappPurchaseAccess(...)`
+    - `reconcileXappSubscriptionContractPaymentSession(...)`
+    - `cancelXappSubscriptionContract(...)`
+    - `refreshXappSubscriptionContractState(...)`
 - `createPublisherApiClient`
 - `GatewayApiClient.verifyBrowserWidgetContext(...)`
 - `XappsServerSdkError`
