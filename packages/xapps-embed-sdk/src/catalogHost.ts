@@ -1527,6 +1527,9 @@ export class XappsHost {
             type: "XAPPS_SIGN_RESULT",
             id,
             ok: Boolean(result?.ok),
+            data: {
+              ...(result?.envelope ? { envelope: result.envelope } : {}),
+            },
             ...(result?.envelope ? { envelope: result.envelope } : {}),
             ...(result?.error ? { error: result.error } : {}),
           });
@@ -1539,6 +1542,10 @@ export class XappsHost {
             type: "XAPPS_VENDOR_ASSERTION_RESULT",
             id,
             ok: Boolean(result?.ok),
+            data: {
+              ...(result?.vendor_assertion ? { vendor_assertion: result.vendor_assertion } : {}),
+              ...(result?.link_id ? { link_id: result.link_id } : {}),
+            },
             ...(result?.vendor_assertion ? { vendor_assertion: result.vendor_assertion } : {}),
             ...(result?.link_id ? { link_id: result.link_id } : {}),
             ...(result?.error ? { error: result.error } : {}),
