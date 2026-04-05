@@ -20,6 +20,19 @@ export type HostUiGlobalApi = {
   navigate: (path: string) => void;
   refresh: () => void;
   openOperationalSurface: (input: OpenOperationalSurfaceInput) => void;
+  openMonetizationPlans: (input: {
+    xappId?: string;
+    installationId?: string;
+    paywallSlug?: string;
+    fallbackPath?: string;
+  }) => void;
+  openSubjectProfileBilling: (input: {
+    xappId?: string;
+    installationId?: string;
+    widgetId?: string;
+    guardUi?: Record<string, unknown> | null;
+    hostReturnUrl?: string;
+  }) => Promise<Record<string, unknown> | null> | Record<string, unknown> | null;
   updateState: (patch: Record<string, unknown>) => void;
   getContext: () => Promise<HostUiContextPayload>;
   confirm: (input: {
@@ -42,6 +55,19 @@ export type HostUiBridgeOptions = {
   navigate?: (path: string) => void;
   refresh?: () => void;
   openOperationalSurface?: (input: OpenOperationalSurfaceInput) => void;
+  openMonetizationPlans?: (input: {
+    xappId?: string;
+    installationId?: string;
+    paywallSlug?: string;
+    fallbackPath?: string;
+  }) => void;
+  openSubjectProfileBilling?: (input: {
+    xappId?: string;
+    installationId?: string;
+    widgetId?: string;
+    guardUi?: Record<string, unknown> | null;
+    hostReturnUrl?: string;
+  }) => Promise<Record<string, unknown> | null> | Record<string, unknown> | null;
   updateState?: (patch: Record<string, unknown>) => void;
   confirmDialog?: (input: {
     title?: string;
@@ -280,6 +306,22 @@ export function createHostUiBridge(options?: HostUiBridgeOptions): HostUiBridgeC
       if (payload.installationId) next.searchParams.set("installationId", payload.installationId);
       target?.location?.assign(next.toString());
     },
+    openMonetizationPlans: (input) => {
+      if (typeof options?.openMonetizationPlans === "function") {
+        options.openMonetizationPlans(input);
+        return;
+      }
+      const fallbackPath = String(input?.fallbackPath || "").trim();
+      if (fallbackPath) {
+        api.navigate(fallbackPath);
+      }
+    },
+    openSubjectProfileBilling: async (input) => {
+      if (typeof options?.openSubjectProfileBilling === "function") {
+        return await options.openSubjectProfileBilling(input);
+      }
+      return null;
+    },
     updateState: (patch) => {
       if (typeof options?.updateState === "function") {
         options.updateState(patch);
@@ -371,6 +413,70 @@ export function createHostUiBridge(options?: HostUiBridgeOptions): HostUiBridgeC
       const normalized = normalizeOpenOperationalSurfaceInput(data);
       if (!normalized) return;
       api.openOperationalSurface(normalized);
+      return;
+    }
+    if (type === "XAPPS_UI_OPEN_PLANS") {
+      const payloadData = (data && typeof data === "object" ? data : {}) as Record<string, unknown>;
+      api.openMonetizationPlans({
+        ...(typeof payloadData.xappId === "string" && payloadData.xappId.trim()
+          ? { xappId: payloadData.xappId.trim() }
+          : {}),
+        ...(typeof payloadData.installationId === "string" && payloadData.installationId.trim()
+          ? { installationId: payloadData.installationId.trim() }
+          : {}),
+        ...(typeof payloadData.paywallSlug === "string" && payloadData.paywallSlug.trim()
+          ? { paywallSlug: payloadData.paywallSlug.trim() }
+          : {}),
+        ...(typeof payloadData.fallbackPath === "string" && payloadData.fallbackPath.trim()
+          ? { fallbackPath: payloadData.fallbackPath.trim() }
+          : {}),
+      });
+      return;
+    }
+    if (type === "XAPPS_UI_OPEN_BILLING_PROFILE") {
+      const source = event.source as Window | null;
+      const payloadData = (data && typeof data === "object" ? data : {}) as Record<string, unknown>;
+      try {
+        const payload = await api.openSubjectProfileBilling({
+          ...(typeof payloadData.xappId === "string" && payloadData.xappId.trim()
+            ? { xappId: payloadData.xappId.trim() }
+            : {}),
+          ...(typeof payloadData.installationId === "string" && payloadData.installationId.trim()
+            ? { installationId: payloadData.installationId.trim() }
+            : {}),
+          ...(typeof payloadData.widgetId === "string" && payloadData.widgetId.trim()
+            ? { widgetId: payloadData.widgetId.trim() }
+            : {}),
+          ...(payloadData.guardUi && typeof payloadData.guardUi === "object"
+            ? { guardUi: payloadData.guardUi as Record<string, unknown> }
+            : {}),
+          ...(typeof payloadData.hostReturnUrl === "string" && payloadData.hostReturnUrl.trim()
+            ? { hostReturnUrl: payloadData.hostReturnUrl.trim() }
+            : {}),
+        });
+        source?.postMessage(
+          {
+            type: "XAPPS_UI_BILLING_PROFILE_RESULT",
+            id: readRecordString(msg, "id") || undefined,
+            ok: true,
+            data: {
+              status: payload ? "resolved" : "cancelled",
+              payload,
+            },
+          },
+          "*",
+        );
+      } catch (error: any) {
+        source?.postMessage(
+          {
+            type: "XAPPS_UI_BILLING_PROFILE_RESULT",
+            id: readRecordString(msg, "id") || undefined,
+            ok: false,
+            error: { message: error?.message || String(error) },
+          },
+          "*",
+        );
+      }
       return;
     }
     if (type === "XAPPS_UI_EXPAND_REQUEST") {

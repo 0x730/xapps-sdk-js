@@ -246,7 +246,9 @@ function buildDefaultHostApi(basePath: string | null, input?: CatalogOptions["ho
   return {
     createCatalogSessionUrl: `${basePath}/create-catalog-session`,
     createWidgetSessionUrl: `${basePath}/create-widget-session`,
+    widgetToolRequestUrl: `${basePath}/widget-tool-request`,
     installationsUrl: `${basePath}/installations`,
+    myXappsUrl: `${basePath}/my-xapps`,
     ...(headers ? { headers } : {}),
     ...(getHeaders ? { getHeaders } : {}),
     ...(input || {}),
@@ -920,10 +922,22 @@ export function createEmbedHost(options: CreateEmbedHostOptions): EmbedHostContr
       ? null
       : options.expandOverlay || createHostExpandOverlayController();
 
+  let hostRef: XappsHost | null = null;
   const uiBridgeOptions = options.uiBridge === false ? null : options.uiBridge || {};
   const uiBridge = uiBridgeOptions
     ? createHostUiBridge({
         ...uiBridgeOptions,
+        openMonetizationPlans:
+          uiBridgeOptions.openMonetizationPlans ||
+          ((input) => {
+            hostRef?.openMonetizationPlans(input);
+          }),
+        openSubjectProfileBilling:
+          uiBridgeOptions.openSubjectProfileBilling ||
+          (async (input) => {
+            const result = await hostRef?.openSubjectProfileBilling(input);
+            return result ?? null;
+          }),
         expandWidget:
           uiBridgeOptions.expandWidget ||
           (expandOverlay
@@ -931,8 +945,6 @@ export function createEmbedHost(options: CreateEmbedHostOptions): EmbedHostContr
             : undefined),
       })
     : null;
-
-  let hostRef: XappsHost | null = null;
   const mutationOptions =
     options.mutationHandler === false || options.mutationHandler?.enabled === false
       ? null

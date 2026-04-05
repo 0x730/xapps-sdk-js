@@ -5,6 +5,11 @@ import {
   readGuardBlockedPayload,
 } from "./guardTakeover";
 import {
+  renderMonetizationPlansSurface,
+  selectXappMonetizationPaywall,
+} from "@xapps-platform/browser-host/xms";
+import { renderSubjectProfileGuardSurface } from "@xapps-platform/browser-host/subject-profile";
+import {
   messageFromUnknownError,
   normalizeOpenOperationalSurfaceInput,
   readInstallationSummary,
@@ -75,7 +80,9 @@ export type CatalogOptions = {
     uninstallUrl?: string;
     createCatalogSessionUrl?: string;
     createWidgetSessionUrl?: string;
+    widgetToolRequestUrl?: string;
     installationsUrl?: string;
+    myXappsUrl?: string;
     headers?: Record<string, string>;
     getHeaders?: () => Record<string, string> | null | undefined;
   };
@@ -202,6 +209,13 @@ export type MarketplaceMutationHelperOptions = {
   onOperationalSurfaceOpen?: (input: {
     event: Extract<CatalogEvent, { type: "XAPPS_OPEN_OPERATIONAL_SURFACE" }>;
   }) => Promise<void> | void;
+};
+
+type OpenMonetizationPlansInput = {
+  xappId?: string;
+  installationId?: string;
+  paywallSlug?: string;
+  fallbackPath?: string;
 };
 
 class HostApiError extends Error {
@@ -489,6 +503,10 @@ export class XappsHost {
   private widgetIframe: HTMLIFrameElement | null = null;
   private options: CatalogOptions;
   private catalogOrigin: string;
+  private currentCatalogToken: string | null = null;
+  private activePlansOverlayCleanup: (() => void) | null = null;
+  private activeSubjectProfileOverlayCleanup: (() => void) | null = null;
+  private lastHandledMonetizationReturnKey = "";
   private widgetContext: {
     token: string;
     baseUrl: string;
@@ -550,6 +568,191 @@ export class XappsHost {
     } catch {
       return raw;
     }
+  }
+
+  private withCatalogToken(path: string): string {
+    const token = String(this.currentCatalogToken || "").trim();
+    if (!token) throw new Error("Catalog session token is not available");
+    return path.includes("?")
+      ? `${path}&token=${encodeURIComponent(token)}`
+      : `${path}?token=${encodeURIComponent(token)}`;
+  }
+
+  private buildMyXappHostApiUrl(
+    xappId: string,
+    suffix = "",
+    query?: Record<string, unknown>,
+  ): string | null {
+    const base = String(this.options.hostApi?.myXappsUrl || "").trim();
+    if (!base) return null;
+    let url = `${base.replace(/\/+$/, "")}/${encodeURIComponent(String(xappId || "").trim())}${suffix}`;
+    if (query && typeof query === "object") {
+      for (const [key, value] of Object.entries(query)) {
+        const resolved = String(value ?? "").trim();
+        if (!resolved) continue;
+        url += url.includes("?")
+          ? `&${encodeURIComponent(key)}=${encodeURIComponent(resolved)}`
+          : `?${encodeURIComponent(key)}=${encodeURIComponent(resolved)}`;
+      }
+    }
+    return this.withCatalogToken(url);
+  }
+
+  private buildHostApiUrl(pathname: string, query?: Record<string, unknown>): string {
+    let url = String(pathname || "").trim();
+    for (const [key, value] of Object.entries(query || {})) {
+      const resolved = String(value ?? "").trim();
+      if (!resolved) continue;
+      url += url.includes("?")
+        ? `&${encodeURIComponent(key)}=${encodeURIComponent(resolved)}`
+        : `?${encodeURIComponent(key)}=${encodeURIComponent(resolved)}`;
+    }
+    return this.withCatalogToken(url);
+  }
+
+  private async fetchMyXappHostApiJson<T>(
+    xappId: string,
+    suffix: string,
+    input?: {
+      method?: "GET" | "POST";
+      body?: Record<string, unknown>;
+      query?: Record<string, unknown>;
+    },
+  ): Promise<T> {
+    const url = this.buildMyXappHostApiUrl(xappId, suffix, input?.query);
+    if (!url) {
+      throw new Error("Host API 'myXappsUrl' is not configured");
+    }
+    const response = await fetch(url, {
+      method: input?.method || "GET",
+      credentials: "same-origin",
+      headers: {
+        ...(input?.body ? { "Content-Type": "application/json" } : {}),
+        ...resolveHostApiHeaders(this.options.hostApi),
+      },
+      body: input?.body ? JSON.stringify(input.body) : undefined,
+    });
+    const contentType = String(response.headers.get("content-type") || "");
+    const data = contentType.includes("application/json")
+      ? await response.json().catch(() => null)
+      : await response.text().catch(() => "");
+    if (!response.ok) {
+      const message =
+        data && typeof data === "object" && !Array.isArray(data) && "message" in data
+          ? String((data as Record<string, unknown>).message || "").trim()
+          : typeof data === "string"
+            ? data.trim()
+            : "";
+      throw new Error(message || `HTTP ${response.status}`);
+    }
+    return data as T;
+  }
+
+  private async fetchHostApiJson<T>(
+    pathname: string,
+    input?: {
+      method?: "GET" | "POST";
+      body?: Record<string, unknown>;
+      query?: Record<string, unknown>;
+    },
+  ): Promise<T> {
+    const url = this.buildHostApiUrl(pathname, input?.query);
+    const response = await fetch(url, {
+      method: input?.method || "GET",
+      credentials: "same-origin",
+      headers: {
+        ...(input?.body ? { "Content-Type": "application/json" } : {}),
+        ...resolveHostApiHeaders(this.options.hostApi),
+      },
+      body: input?.body ? JSON.stringify(input.body) : undefined,
+    });
+    const contentType = String(response.headers.get("content-type") || "");
+    const data = contentType.includes("application/json")
+      ? await response.json().catch(() => null)
+      : await response.text().catch(() => "");
+    if (!response.ok) {
+      const message =
+        data && typeof data === "object" && !Array.isArray(data) && "message" in data
+          ? String((data as Record<string, unknown>).message || "").trim()
+          : typeof data === "string"
+            ? data.trim()
+            : "";
+      throw new Error(message || `HTTP ${response.status}`);
+    }
+    return data as T;
+  }
+
+  private readMonetizationReturnState() {
+    const params = new URLSearchParams(window.location.search || "");
+    const xappId = String(params.get("xapp_id") || "").trim();
+    const intentId = String(params.get("xapps_monetization_intent_id") || "").trim();
+    const status = String(params.get("xapps_payment_status") || "")
+      .trim()
+      .toLowerCase();
+    const installationId = String(params.get("installationId") || "").trim() || null;
+    const paywallSlug = String(params.get("paywall") || "").trim() || null;
+    const packageSlug = String(params.get("paywallPackage") || "").trim() || null;
+    const key = [xappId, intentId, status, packageSlug || "", paywallSlug || ""].join(":");
+    return {
+      key,
+      xappId,
+      intentId,
+      status,
+      installationId,
+      paywallSlug,
+      packageSlug,
+      hasPaymentEvidence: Array.from(params.keys()).some((key) => key.startsWith("xapps_payment_")),
+    };
+  }
+
+  private clearMonetizationReturnParams() {
+    try {
+      const url = new URL(window.location.href);
+      const keysToDelete: string[] = [];
+      for (const key of url.searchParams.keys()) {
+        if (key.startsWith("xapps_payment_")) keysToDelete.push(key);
+      }
+      keysToDelete.push("xapps_monetization_intent_id");
+      for (const key of keysToDelete) {
+        url.searchParams.delete(key);
+      }
+      const next = `${url.pathname}${url.search}${url.hash}`;
+      window.history.replaceState(window.history.state, "", next);
+    } catch {}
+  }
+
+  private buildMonetizationCheckoutReturnUrl(input: {
+    xappId: string;
+    intentId: string;
+    installationId?: string | null;
+    paywallSlug?: string | null;
+    packageSlug?: string | null;
+  }): string {
+    const url = new URL(this.resolveHostReturnUrl(), window.location.origin);
+    url.searchParams.set("xapps_monetization_intent_id", input.intentId);
+    url.searchParams.set("xapp_id", input.xappId);
+    if (input.installationId) {
+      url.searchParams.set("installationId", input.installationId);
+    }
+    if (input.paywallSlug) {
+      url.searchParams.set("paywall", input.paywallSlug);
+    }
+    if (input.packageSlug) {
+      url.searchParams.set("paywallPackage", input.packageSlug);
+    }
+    return url.toString();
+  }
+
+  private navigateToHostedCheckout(urlLike: string) {
+    const target = String(urlLike || "").trim();
+    if (!target) return;
+    try {
+      if (window.top && window.top !== window) {
+        window.top.location.assign(target);
+        return;
+      }
+    } catch {}
+    window.location.assign(target);
   }
 
   private buildOperationalSurfaceUrl(input: OpenOperationalSurfaceInput): string | null {
@@ -907,6 +1110,7 @@ export class XappsHost {
       publishers: filters?.publishers || this.options.publishers,
       tags: filters?.tags || this.options.tags,
     });
+    this.currentCatalogToken = String(session.token || "").trim() || null;
 
     if (this.catalogIframe) {
       try {
@@ -956,6 +1160,20 @@ export class XappsHost {
         iframe.contentWindow?.postMessage({ type: "XAPPS_WIDGET_READY" }, this.catalogOrigin);
       } catch {}
     });
+
+    const monetizationReturn = this.readMonetizationReturnState();
+    if (
+      monetizationReturn.hasPaymentEvidence &&
+      monetizationReturn.xappId &&
+      monetizationReturn.intentId &&
+      monetizationReturn.key !== this.lastHandledMonetizationReturnKey
+    ) {
+      this.openMonetizationPlans({
+        xappId: monetizationReturn.xappId,
+        installationId: monetizationReturn.installationId || undefined,
+        paywallSlug: monetizationReturn.paywallSlug || undefined,
+      });
+    }
   }
 
   async openWidget(input: {
@@ -1032,6 +1250,484 @@ export class XappsHost {
     this.catalogIframe.src = nextUrl;
   }
 
+  openMonetizationPlans(input: OpenMonetizationPlansInput): void {
+    const xappId = String(input?.xappId || "").trim();
+    if (!xappId || typeof document === "undefined" || !document.body) {
+      if (input.fallbackPath && typeof window !== "undefined") {
+        try {
+          window.location.href = String(input.fallbackPath);
+        } catch {}
+      }
+      return;
+    }
+
+    this.activePlansOverlayCleanup?.();
+
+    const overlay = document.createElement("div");
+    overlay.style.position = "fixed";
+    overlay.style.inset = "0";
+    overlay.style.background = "rgba(2,6,23,0.56)";
+    overlay.style.display = "flex";
+    overlay.style.alignItems = "flex-start";
+    overlay.style.justifyContent = "center";
+    overlay.style.padding = "16px";
+    overlay.style.overflow = "auto";
+    overlay.style.zIndex = "2147483000";
+    overlay.style.backdropFilter = "blur(3px)";
+    (overlay.style as any).webkitBackdropFilter = "blur(3px)";
+
+    const panel = document.createElement("div");
+    panel.style.width = "min(1100px, 96vw)";
+    panel.style.maxWidth = "1100px";
+    panel.style.background = "#ffffff";
+    panel.style.border = "1px solid rgba(148, 163, 184, 0.28)";
+    panel.style.borderRadius = "18px";
+    panel.style.boxShadow = "0 28px 70px rgba(15, 23, 42, 0.28)";
+    panel.style.overflow = "hidden";
+
+    const header = document.createElement("div");
+    header.style.display = "flex";
+    header.style.alignItems = "center";
+    header.style.justifyContent = "space-between";
+    header.style.gap = "12px";
+    header.style.padding = "14px 16px";
+    header.style.borderBottom = "1px solid rgba(226, 232, 240, 0.95)";
+    header.style.background =
+      "linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(248,250,252,0.96) 100%)";
+
+    const titleWrap = document.createElement("div");
+    const title = document.createElement("div");
+    title.textContent = "Plans";
+    title.style.font = '700 1rem "IBM Plex Serif", Georgia, serif';
+    title.style.color = "#0f172a";
+    const subtitle = document.createElement("div");
+    subtitle.textContent = "Current access and published plans for this app";
+    subtitle.style.marginTop = "4px";
+    subtitle.style.font = "500 0.8125rem system-ui,sans-serif";
+    subtitle.style.color = "#64748b";
+    titleWrap.appendChild(title);
+    titleWrap.appendChild(subtitle);
+
+    const closeBtn = document.createElement("button");
+    closeBtn.type = "button";
+    closeBtn.textContent = "Close";
+    closeBtn.style.padding = "8px 12px";
+    closeBtn.style.border = "1px solid rgba(148,163,184,0.32)";
+    closeBtn.style.borderRadius = "999px";
+    closeBtn.style.background = "#ffffff";
+    closeBtn.style.cursor = "pointer";
+    closeBtn.style.font = "600 0.875rem system-ui,sans-serif";
+    closeBtn.style.color = "#0f172a";
+
+    const body = document.createElement("div");
+    body.style.padding = "16px";
+    body.style.maxHeight = "min(860px, calc(100vh - 104px))";
+    body.style.overflow = "auto";
+    body.style.background = "linear-gradient(180deg, #f8fafc 0%, #ffffff 22%)";
+
+    const root = document.createElement("div");
+    body.appendChild(root);
+
+    let surfaceCleanup: (() => void) | null = null;
+
+    const cleanup = () => {
+      try {
+        document.removeEventListener("keydown", onKeyDown);
+        surfaceCleanup?.();
+        overlay.remove();
+      } catch {}
+      this.activePlansOverlayCleanup = null;
+    };
+    this.activePlansOverlayCleanup = cleanup;
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") cleanup();
+    };
+
+    const renderState = async (state?: {
+      notice?: string | null;
+      error?: string | null;
+      busyPackageSlug?: string | null;
+    }) => {
+      surfaceCleanup?.();
+      root.innerHTML = "";
+      root.textContent = "Loading plans...";
+      try {
+        const installationId = String(input.installationId || "").trim() || null;
+        const [monetization, monetizationHistory] = await Promise.all([
+          this.fetchMyXappHostApiJson<Record<string, unknown>>(xappId, "/monetization", {
+            query: {
+              installationId,
+              locale: String(this.options.locale || "").trim() || "en",
+            },
+          }),
+          this.fetchMyXappHostApiJson<Record<string, unknown>>(xappId, "/monetization/history", {
+            query: {
+              limit: 8,
+            },
+          }),
+        ]);
+        const paywalls = Array.isArray(monetization.paywalls) ? monetization.paywalls : [];
+        const selectedPaywall =
+          selectXappMonetizationPaywall({
+            paywalls,
+            slug: String(input.paywallSlug || "").trim(),
+          }) ||
+          selectXappMonetizationPaywall({
+            paywalls,
+            placement: "default_paywall",
+          }) ||
+          selectXappMonetizationPaywall({
+            paywalls,
+            placement: "paywall",
+          }) ||
+          null;
+
+        const returnState = this.readMonetizationReturnState();
+        let notice = String(state?.notice || "").trim() || null;
+        let error = String(state?.error || "").trim() || null;
+
+        if (
+          returnState.xappId === xappId &&
+          returnState.intentId &&
+          returnState.status === "paid" &&
+          returnState.key !== this.lastHandledMonetizationReturnKey
+        ) {
+          this.lastHandledMonetizationReturnKey = returnState.key;
+          await this.fetchMyXappHostApiJson(
+            xappId,
+            `/monetization/purchase-intents/${encodeURIComponent(returnState.intentId)}/payment-session/finalize`,
+            { method: "POST", body: {} },
+          );
+          notice = "Payment completed and access was refreshed.";
+          error = null;
+          this.clearMonetizationReturnParams();
+          return await renderState({ notice, error, busyPackageSlug: state?.busyPackageSlug });
+        }
+
+        if (
+          returnState.xappId === xappId &&
+          returnState.status &&
+          returnState.key !== this.lastHandledMonetizationReturnKey
+        ) {
+          this.lastHandledMonetizationReturnKey = returnState.key;
+          if (returnState.status === "cancelled" || returnState.status === "canceled") {
+            notice = "Checkout was cancelled before completion.";
+            error = null;
+            this.clearMonetizationReturnParams();
+          } else if (returnState.status === "failed") {
+            error = "Payment failed before access could be issued.";
+            notice = null;
+            this.clearMonetizationReturnParams();
+          }
+        }
+
+        surfaceCleanup = renderMonetizationPlansSurface(
+          root,
+          {
+            access_projection: monetization.access_projection,
+            current_subscription: monetization.current_subscription,
+            additive_entitlements: monetization.additive_entitlements,
+            history:
+              (monetizationHistory?.history as Record<string, unknown> | null | undefined) ?? null,
+            paywall: selectedPaywall,
+          },
+          {
+            title: "Plans",
+            subtitle: "Current access and published plans for this app",
+            locale: String(this.options.locale || "").trim() || "en",
+            selectedPackageSlug: returnState.xappId === xappId ? returnState.packageSlug : null,
+            busyPackageSlug: state?.busyPackageSlug || null,
+            notice,
+            error,
+            showHeader: false,
+            onCheckoutPackage: ({ packageSlug }) => {
+              void (async () => {
+                try {
+                  await renderState({ busyPackageSlug: packageSlug, notice: null, error: null });
+                  const pkg = Array.isArray((selectedPaywall as any)?.packages)
+                    ? (selectedPaywall as any).packages.find(
+                        (item: any) =>
+                          String(item?.slug || "")
+                            .trim()
+                            .toLowerCase() === packageSlug.trim().toLowerCase(),
+                      )
+                    : null;
+                  const price = Array.isArray(pkg?.prices) ? pkg.prices[0] || null : null;
+                  if (!pkg?.offering_id || !pkg?.id || !price?.id) {
+                    throw new Error(
+                      "This package is missing purchase metadata in the published paywall.",
+                    );
+                  }
+                  const prepared = await this.fetchMyXappHostApiJson<Record<string, any>>(
+                    xappId,
+                    "/monetization/purchase-intents/prepare",
+                    {
+                      method: "POST",
+                      body: {
+                        offering_id: String(pkg.offering_id || "").trim(),
+                        package_id: String(pkg.id || "").trim(),
+                        price_id: String(price.id || "").trim(),
+                        ...(installationId ? { installation_id: installationId } : {}),
+                      },
+                    },
+                  );
+                  const intentId = String(
+                    prepared?.prepared_intent?.purchase_intent_id || "",
+                  ).trim();
+                  if (!intentId) {
+                    throw new Error("Purchase intent was created without an identifier.");
+                  }
+                  const returnUrl = this.buildMonetizationCheckoutReturnUrl({
+                    xappId,
+                    intentId,
+                    installationId,
+                    paywallSlug: String((selectedPaywall as any)?.slug || "").trim() || null,
+                    packageSlug,
+                  });
+                  const payment = await this.fetchMyXappHostApiJson<Record<string, any>>(
+                    xappId,
+                    `/monetization/purchase-intents/${encodeURIComponent(intentId)}/payment-session`,
+                    {
+                      method: "POST",
+                      body: {
+                        return_url: returnUrl,
+                        cancel_url: returnUrl,
+                        xapps_resume: returnUrl,
+                        locale: String(this.options.locale || "").trim() || null,
+                      },
+                    },
+                  );
+                  const paymentPageUrl = String(payment?.payment_page_url || "").trim();
+                  const paymentStatus = String(payment?.payment_session?.status || "")
+                    .trim()
+                    .toLowerCase();
+                  if (
+                    !paymentPageUrl &&
+                    (paymentStatus === "paid" || paymentStatus === "completed")
+                  ) {
+                    await this.fetchMyXappHostApiJson(
+                      xappId,
+                      `/monetization/purchase-intents/${encodeURIComponent(intentId)}/payment-session/finalize`,
+                      { method: "POST", body: {} },
+                    );
+                    await renderState({
+                      notice: "Payment completed and access was refreshed.",
+                      error: null,
+                    });
+                    return;
+                  }
+                  if (!paymentPageUrl) {
+                    throw new Error("Payment page is not available for this package.");
+                  }
+                  this.navigateToHostedCheckout(paymentPageUrl);
+                } catch (error) {
+                  await renderState({
+                    notice: null,
+                    error:
+                      error instanceof Error && error.message
+                        ? error.message
+                        : "Unable to start checkout for this package.",
+                  });
+                }
+              })();
+            },
+          },
+        ).destroy;
+      } catch (error) {
+        surfaceCleanup?.();
+        root.innerHTML = "";
+        root.textContent =
+          error instanceof Error && error.message ? error.message : "Unable to load plans.";
+      }
+    };
+
+    closeBtn.addEventListener("click", cleanup);
+    overlay.addEventListener("click", (event) => {
+      if (event.target === overlay) cleanup();
+    });
+    panel.addEventListener("click", (event) => event.stopPropagation());
+
+    header.appendChild(titleWrap);
+    header.appendChild(closeBtn);
+    panel.appendChild(header);
+    panel.appendChild(body);
+    overlay.appendChild(panel);
+
+    document.addEventListener("keydown", onKeyDown);
+    document.body.appendChild(overlay);
+    void renderState();
+  }
+
+  async openSubjectProfileBilling(input: {
+    guardUi?: Record<string, unknown> | null;
+    installationId?: string;
+    widgetId?: string;
+    xappId?: string;
+    hostReturnUrl?: string;
+  }): Promise<Record<string, unknown> | null> {
+    const guardUi =
+      input.guardUi && typeof input.guardUi === "object" && !Array.isArray(input.guardUi)
+        ? (input.guardUi as Record<string, unknown>)
+        : null;
+    if (!guardUi || typeof document === "undefined" || !document.body) return null;
+
+    this.activeSubjectProfileOverlayCleanup?.();
+
+    const hostReturnUrl = this.resolveHostReturnUrl(input.hostReturnUrl);
+    let executionSessionPromise: Promise<WidgetSession> | null = null;
+
+    return await new Promise<Record<string, unknown> | null>((resolve, reject) => {
+      const overlay = document.createElement("div");
+      overlay.style.position = "fixed";
+      overlay.style.inset = "0";
+      overlay.style.background = "rgba(2,6,23,0.56)";
+      overlay.style.display = "flex";
+      overlay.style.alignItems = "flex-start";
+      overlay.style.justifyContent = "center";
+      overlay.style.padding = "16px";
+      overlay.style.overflow = "auto";
+      overlay.style.zIndex = "2147483000";
+      overlay.style.backdropFilter = "blur(3px)";
+      (overlay.style as any).webkitBackdropFilter = "blur(3px)";
+
+      const panel = document.createElement("div");
+      panel.style.width = "min(1100px, 96vw)";
+      panel.style.maxWidth = "1100px";
+      panel.style.background = "#ffffff";
+      panel.style.border = "1px solid rgba(148, 163, 184, 0.28)";
+      panel.style.borderRadius = "18px";
+      panel.style.boxShadow = "0 28px 70px rgba(15, 23, 42, 0.28)";
+      panel.style.overflow = "hidden";
+
+      const header = document.createElement("div");
+      header.style.display = "flex";
+      header.style.alignItems = "center";
+      header.style.justifyContent = "space-between";
+      header.style.gap = "12px";
+      header.style.padding = "14px 16px";
+      header.style.borderBottom = "1px solid rgba(226, 232, 240, 0.95)";
+      header.style.background =
+        "linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(248,250,252,0.96) 100%)";
+
+      const titleWrap = document.createElement("div");
+      const title = document.createElement("div");
+      title.textContent = "Billing profile";
+      title.style.font = '700 1rem "IBM Plex Serif", Georgia, serif';
+      title.style.color = "#0f172a";
+      const subtitle = document.createElement("div");
+      subtitle.textContent =
+        "Choose an existing billing profile or complete the required invoicing details.";
+      subtitle.style.marginTop = "4px";
+      subtitle.style.font = "500 0.8125rem system-ui,sans-serif";
+      subtitle.style.color = "#64748b";
+      titleWrap.appendChild(title);
+      titleWrap.appendChild(subtitle);
+
+      const closeBtn = document.createElement("button");
+      closeBtn.type = "button";
+      closeBtn.textContent = "Close";
+      closeBtn.style.padding = "8px 12px";
+      closeBtn.style.border = "1px solid rgba(148,163,184,0.32)";
+      closeBtn.style.borderRadius = "999px";
+      closeBtn.style.background = "#ffffff";
+      closeBtn.style.cursor = "pointer";
+      closeBtn.style.font = "600 0.875rem system-ui,sans-serif";
+      closeBtn.style.color = "#0f172a";
+
+      const body = document.createElement("div");
+      body.style.padding = "16px";
+      body.style.maxHeight = "min(860px, calc(100vh - 104px))";
+      body.style.overflow = "auto";
+      body.style.background = "linear-gradient(180deg, #f8fafc 0%, #ffffff 22%)";
+
+      const root = document.createElement("div");
+      body.appendChild(root);
+
+      let surfaceCleanup: (() => void) | null = null;
+      let settled = false;
+
+      const finish = (payload: Record<string, unknown> | null, error?: Error) => {
+        if (settled) return;
+        settled = true;
+        try {
+          document.removeEventListener("keydown", onKeyDown);
+          surfaceCleanup?.();
+          overlay.remove();
+        } catch {}
+        this.activeSubjectProfileOverlayCleanup = null;
+        if (error) reject(error);
+        else resolve(payload);
+      };
+
+      const onKeyDown = (event: KeyboardEvent) => {
+        if (event.key === "Escape") finish(null);
+      };
+
+      const ensureExecutionSession = async () => {
+        executionSessionPromise ||= this.createWidgetSession({
+          installationId: input.installationId,
+          widgetId: input.widgetId,
+          xappId: input.xappId,
+          origin: window.location.origin,
+          hostReturnUrl,
+          guardUi,
+        });
+        return await executionSessionPromise;
+      };
+
+      const renderSurface = (notice?: string | null, error?: string | null) => {
+        surfaceCleanup?.();
+        surfaceCleanup = renderSubjectProfileGuardSurface(root, guardUi, {
+          locale: String(this.options.locale || "").trim() || "en",
+          title: "Billing profile",
+          subtitle:
+            "Choose an existing billing profile or complete the required invoicing details.",
+          notice,
+          error,
+          onResolve: (payload) => finish(payload),
+          onCancel: () => finish(null),
+          onRefreshSource: async (refreshInput) => {
+            const session = await ensureExecutionSession();
+            const token = readStringField(session as Record<string, unknown>, "token");
+            const sessionContext =
+              session.context && typeof session.context === "object"
+                ? (session.context as Record<string, unknown>)
+                : null;
+            const installationId =
+              readStringField(sessionContext, "installationId", "installation_id") ||
+              String(input.installationId || "").trim();
+            if (!token || !installationId) {
+              throw new Error("Billing refresh could not create a guard execution session.");
+            }
+            return await this.runWidgetToolRequest({
+              token,
+              installationId,
+              toolName: refreshInput.toolName,
+              payload: refreshInput.payload,
+            });
+          },
+        }).destroy;
+      };
+
+      closeBtn.addEventListener("click", () => finish(null));
+      overlay.addEventListener("click", (event) => {
+        if (event.target === overlay) finish(null);
+      });
+      panel.addEventListener("click", (event) => event.stopPropagation());
+
+      header.appendChild(titleWrap);
+      header.appendChild(closeBtn);
+      panel.appendChild(header);
+      panel.appendChild(body);
+      overlay.appendChild(panel);
+      document.addEventListener("keydown", onKeyDown);
+      document.body.appendChild(overlay);
+      this.activeSubjectProfileOverlayCleanup = () => finish(null);
+      renderSurface();
+    });
+  }
+
   async resolveGuardUi(input: {
     guardUi: Record<string, unknown>;
     installationId?: string;
@@ -1039,29 +1735,33 @@ export class XappsHost {
     xappId?: string;
     hostReturnUrl?: string;
   }): Promise<Record<string, unknown> | null> {
-    const hostReturnUrl = this.resolveHostReturnUrl(input.hostReturnUrl);
-    const session = await this.createWidgetSession({
-      installationId: input.installationId,
-      widgetId: input.widgetId,
-      xappId: input.xappId,
-      origin: window.location.origin,
-      hostReturnUrl,
-      guardUi: input.guardUi,
-    });
-    const src = session.embedUrl.startsWith("http")
-      ? session.embedUrl
-      : this.options.baseUrl + session.embedUrl;
-    return await openGuardWidgetOverlay({
-      embedUrl: this.withEmbedContextUrl(src, {
+    try {
+      return await this.openSubjectProfileBilling(input);
+    } catch {
+      const hostReturnUrl = this.resolveHostReturnUrl(input.hostReturnUrl);
+      const session = await this.createWidgetSession({
+        installationId: input.installationId,
+        widgetId: input.widgetId,
+        xappId: input.xappId,
+        origin: window.location.origin,
         hostReturnUrl,
-        includePaymentParams: true,
-        overrideHostReturnUrl: true,
-      }),
-      theme:
-        this.options.theme && typeof this.options.theme === "object"
-          ? (this.options.theme as Record<string, unknown>)
-          : null,
-    });
+        guardUi: input.guardUi,
+      });
+      const src = session.embedUrl.startsWith("http")
+        ? session.embedUrl
+        : this.options.baseUrl + session.embedUrl;
+      return await openGuardWidgetOverlay({
+        embedUrl: this.withEmbedContextUrl(src, {
+          hostReturnUrl,
+          includePaymentParams: true,
+          overrideHostReturnUrl: true,
+        }),
+        theme:
+          this.options.theme && typeof this.options.theme === "object"
+            ? (this.options.theme as Record<string, unknown>)
+            : null,
+      });
+    }
   }
 
   destroy(): void {
@@ -1075,6 +1775,11 @@ export class XappsHost {
     }
     this.catalogIframe = null;
     this.widgetIframe = null;
+    this.currentCatalogToken = null;
+    this.activePlansOverlayCleanup?.();
+    this.activePlansOverlayCleanup = null;
+    this.activeSubjectProfileOverlayCleanup?.();
+    this.activeSubjectProfileOverlayCleanup = null;
     this.widgetContext = null;
   }
 
@@ -1215,6 +1920,46 @@ export class XappsHost {
       throw err;
     }
     return res.json();
+  }
+
+  private async runWidgetToolRequest(input: {
+    token: string;
+    installationId: string;
+    toolName: string;
+    payload?: Record<string, unknown>;
+  }): Promise<Record<string, unknown> | null> {
+    const url = String(this.options.hostApi?.widgetToolRequestUrl || "").trim();
+    if (!url) throw new Error("Host API 'widgetToolRequestUrl' is not configured");
+    const response = await fetch(this.buildHostApiUrl(url), {
+      method: "POST",
+      credentials: "same-origin",
+      headers: {
+        "Content-Type": "application/json",
+        ...resolveHostApiHeaders(this.options.hostApi),
+      },
+      body: JSON.stringify({
+        token: input.token,
+        installationId: input.installationId,
+        toolName: input.toolName,
+        payload: input.payload && typeof input.payload === "object" ? input.payload : {},
+      }),
+    });
+    const contentType = String(response.headers.get("content-type") || "");
+    const data = contentType.includes("application/json")
+      ? await response.json().catch(() => null)
+      : await response.text().catch(() => "");
+    if (!response.ok) {
+      const message =
+        data && typeof data === "object" && !Array.isArray(data) && "message" in data
+          ? String((data as Record<string, unknown>).message || "").trim()
+          : typeof data === "string"
+            ? data.trim()
+            : "";
+      throw new Error(message || `HTTP ${response.status}`);
+    }
+    return data && typeof data === "object" && !Array.isArray(data)
+      ? (data as Record<string, unknown>)
+      : null;
   }
 
   private async onMessage(e: MessageEvent) {

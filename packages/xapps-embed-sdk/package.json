@@ -1,6 +1,6 @@
 {
   "name": "@xapps-platform/embed-sdk",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "license": "MIT",
   "author": "Daniel Vladescu <daniel.vladescu@gmail.com>",
   "description": "Host-side browser embed SDK for Xapps catalog/widget integration",
