@@ -33,6 +33,8 @@ This package owns the shared browser host logic that should not live in tenant o
 - browser-side XMS catalog flattening, scope defaults, and feature-paywall helpers
 - browser-side XMS snapshot summarization for shared access/subscription/wallet presentation
 - browser-side XMS offering/package presentation helpers for local paywalls and catalog UIs
+- browser-side XMS paywall selection/presentation helpers over manifest-defined paywall objects
+- browser-side XMS paywall render-model helpers for shared or local renderer components
 - browser-side XMS feature-paywall copy helpers for local app wrappers
 
 Local apps should keep:
@@ -128,12 +130,18 @@ Those concerns stay in local config, backend APIs, and later actor adapters.
 ```ts
 import {
   buildFeaturePaywallCopyModel,
+  buildMonetizationPaywallHtml,
   buildMonetizationPackagePresentation,
+  buildMonetizationPaywallPresentation,
+  buildMonetizationPaywallRenderModel,
+  flattenXappMonetizationPaywallPackages,
   flattenXappMonetizationCatalog,
   getDefaultXappMonetizationScopeKind,
+  listXappMonetizationPaywalls,
   resolveBackendBaseUrl,
   resolveBridgeEndpoints,
   resolveHostConfigUrl,
+  selectXappMonetizationPaywall,
   summarizeXappMonetizationSnapshot,
 } from "@xapps-platform/browser-host";
 
@@ -147,6 +155,12 @@ const defaultScope = getDefaultXappMonetizationScopeKind({
 });
 const packageCards = flattenXappMonetizationCatalog([]);
 const packagePresentation = buildMonetizationPackagePresentation(packageCards[0]);
+const paywalls = listXappMonetizationPaywalls([]);
+const paywall = selectXappMonetizationPaywall({ paywalls, placement: "paywall" });
+const paywallPackages = flattenXappMonetizationPaywallPackages(paywall);
+const paywallPresentation = buildMonetizationPaywallPresentation(paywall);
+const paywallRenderModel = buildMonetizationPaywallRenderModel(paywall);
+const paywallHtml = buildMonetizationPaywallHtml(paywall);
 const paywallCopy = buildFeaturePaywallCopyModel({
   feature: { title: "Premium export", requirements: { credits: 50 } },
   snapshotSummary: { wallet: { creditsRemaining: "10" } },

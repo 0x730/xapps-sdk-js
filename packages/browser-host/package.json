@@ -1,13 +1,16 @@
 {
   "name": "@xapps-platform/browser-host",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "license": "MIT",
   "author": "Daniel Vladescu <daniel.vladescu@gmail.com>",
   "type": "module",
   "description": "Browser host runtime and bootstrap helpers for marketplace and single-xapp surfaces",
   "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./dist/index.js",
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
     "./backend-base": "./dist/backend-base.js",
     "./host-shell": "./dist/host-shell.js",
     "./marketplace-runtime": "./dist/marketplace-runtime.js",
@@ -15,11 +18,20 @@
     "./marketplace-host": "./dist/marketplace-host.js",
     "./single-xapp-host": "./dist/single-xapp-host.js",
     "./host-status": "./dist/host-status.js",
-    "./xms": "./dist/xms.js"
+    "./subject-profile": {
+      "types": "./subject-profile.d.ts",
+      "default": "./dist/subjectProfile.js"
+    },
+    "./xms": {
+      "types": "./xms.d.ts",
+      "default": "./dist/xms.js"
+    }
   },
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "subject-profile.d.ts",
+    "xms.d.ts"
   ],
   "publishConfig": {
     "access": "public"

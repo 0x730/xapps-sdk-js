@@ -1,12 +1,20 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildMonetizationPlansSurfaceHtml,
   buildFeaturePaywallCopyModel,
+  buildMonetizationPaywallHtml,
   buildMonetizationOfferingPresentation,
+  buildMonetizationPaywallPresentation,
+  buildMonetizationPaywallRenderModel,
   buildMonetizationPackagePresentation,
   buildFeaturePaywall,
+  flattenXappMonetizationPaywallPackages,
   flattenXappMonetizationCatalog,
   getDefaultXappMonetizationScopeKind,
+  listXappMonetizationPaywalls,
+  resolveMonetizationPackagePurchasePolicy,
   resolveXmsModeForPackage,
+  selectXappMonetizationPaywall,
   summarizeXappMonetizationSnapshot,
 } from "./src/xms.js";
 
@@ -102,11 +110,308 @@ describe("@xapps-platform/browser-host xms helpers", () => {
     expect(pkg.signals).toContain("feature paywall");
   });
 
+  it("lists, selects, and presents paywall definitions without forcing a visual policy", () => {
+    const paywalls = listXappMonetizationPaywalls([
+      {
+        slug: "workspace_default",
+        title: { en: "Workspace plans" },
+        placement: "paywall",
+        default_package_ref: "creator_unlock_pro",
+        packages: [
+          {
+            id: "pkg_unlock",
+            slug: "creator_unlock_pro",
+            package_kind: "one_time_unlock",
+            offering_id: "off_paywall",
+            offering_slug: "creator_feature_paywall",
+            offering_placement: "paywall",
+            product: {
+              id: "prod_unlock",
+              slug: "creator_unlock",
+              product_family: "one_time_unlock",
+            },
+            prices: [
+              {
+                id: "price_unlock",
+                amount: "29",
+                currency: "RON",
+                billing_period: "one_time",
+              },
+            ],
+          },
+        ],
+      },
+    ]);
+
+    const paywall = selectXappMonetizationPaywall({
+      paywalls,
+      placement: "paywall",
+    });
+    const presentation = buildMonetizationPaywallPresentation(paywall);
+    const packages = flattenXappMonetizationPaywallPackages(paywall);
+
+    expect(paywall?.slug).toBe("workspace_default");
+    expect(presentation.paywallLabel).toBe("Workspace plans");
+    expect(presentation.packageCountLabel).toBe("1 package");
+    expect(presentation.defaultPackageLabel).toBe("creator_unlock_pro");
+    expect(packages[0]?.packageId).toBe("pkg_unlock");
+    expect(packages[0]?.offeringPlacement).toBe("paywall");
+  });
+
+  it("matches placement families and builds a shared render model for paywall UIs", () => {
+    const paywalls = listXappMonetizationPaywalls([
+      {
+        slug: "workspace_default",
+        title: { en: "Workspace plans" },
+        placement: "paywall",
+        default_package_ref: "creator_unlock_pro",
+        packages: [
+          {
+            id: "pkg_unlock",
+            slug: "creator_unlock_pro",
+            package_kind: "one_time_unlock",
+            offering_id: "off_paywall",
+            offering_slug: "creator_feature_paywall",
+            offering_placement: "paywall",
+            prices: [
+              {
+                id: "price_unlock",
+                amount: "29",
+                currency: "RON",
+                billing_period: "one_time",
+              },
+            ],
+          },
+        ],
+      },
+    ]);
+
+    const paywall = selectXappMonetizationPaywall({
+      paywalls,
+      placement: "default_paywall",
+    });
+    const renderModel = buildMonetizationPaywallRenderModel(paywall);
+
+    expect(paywall?.slug).toBe("workspace_default");
+    expect(renderModel.paywallLabel).toBe("Workspace plans");
+    expect(renderModel.badges).toContain("paywall");
+    expect(renderModel.badges).toContain("1 package");
+    expect(renderModel.packages[0]?.isDefault).toBe(true);
+    expect(renderModel.packages[0]?.moneyLabel).toBe("29 RON / one_time");
+  });
+
+  it("builds shared paywall preview html for browser consumers", () => {
+    const html = buildMonetizationPaywallHtml(
+      {
+        slug: "workspace_default",
+        title: { en: "Workspace plans" },
+        placement: "paywall",
+        default_package_ref: "creator_unlock_pro",
+        packages: [
+          {
+            id: "pkg_unlock",
+            slug: "creator_unlock_pro",
+            package_kind: "one_time_unlock",
+            offering_id: "off_paywall",
+            offering_slug: "creator_feature_paywall",
+            offering_placement: "paywall",
+            prices: [
+              {
+                id: "price_unlock",
+                amount: "29",
+                currency: "RON",
+                billing_period: "one_time",
+              },
+            ],
+          },
+        ],
+      },
+      {
+        compact: true,
+        emphasis: "strong",
+        themeTokens: {
+          surface: "#102131",
+          text: "#eff8ff",
+          accent_start: "#2563eb",
+          accent_end: "#0891b2",
+        },
+      },
+    );
+
+    expect(html).toContain("xapps-paywall");
+    expect(html).toContain("is-compact");
+    expect(html).toContain("Workspace plans");
+    expect(html).toContain("Choose package");
+    expect(html).toContain("creator_feature_paywall");
+    expect(html).toContain("--xapps-paywall-surface:#102131");
+    expect(html).toContain("--xapps-paywall-accent-start:#2563eb");
+  });
+
+  it("renders a recent timeline and history buckets on the shared plans surface", () => {
+    const html = buildMonetizationPlansSurfaceHtml(
+      {
+        access_projection: {
+          entitlement_state: "active",
+          has_current_access: true,
+          tier: "pro",
+        },
+        current_subscription: {
+          status: "active",
+          tier: "pro",
+          renews_at: "2026-04-05T12:00:00.000Z",
+        },
+        history: {
+          timeline: {
+            total: 2,
+            items: [
+              {
+                bucket: "transactions",
+                id: "txn_1",
+                title: "creator_pro_monthly",
+                status: "verified",
+                occurred_at: "2026-04-05T10:00:00.000Z",
+                correlation: "pay_1",
+              },
+              {
+                bucket: "invoices",
+                id: "inv_1",
+                title: "INV-0001",
+                status: "completed",
+                occurred_at: "2026-04-05T10:05:00.000Z",
+              },
+            ],
+          },
+          transactions: {
+            total: 1,
+            items: [
+              {
+                id: "txn_1",
+                package_slug: "creator_pro_monthly",
+                status: "verified",
+                amount: "49.00",
+                currency: "RON",
+                occurred_at: "2026-04-05T10:00:00.000Z",
+              },
+            ],
+          },
+          invoices: {
+            total: 1,
+            items: [
+              {
+                id: "inv_1",
+                invoice_identifier: "INV-0001",
+                status: "completed",
+                created_at: "2026-04-05T10:05:00.000Z",
+              },
+            ],
+          },
+        },
+        paywall: {
+          slug: "workspace_default",
+          title: { en: "Workspace plans" },
+          placement: "paywall",
+          packages: [],
+        },
+      },
+      {
+        showHeader: false,
+      },
+    );
+
+    expect(html).toContain("Recent timeline");
+    expect(html).toContain("INV-0001");
+    expect(html).toContain("History and audit");
+  });
+
   it("resolves the canonical XMS mode for a package card", () => {
     expect(resolveXmsModeForPackage({ productFamily: "credit_pack" }).key).toBe("credit_wallet");
     expect(resolveXmsModeForPackage({ productFamily: "subscription_plan" }).key).toBe(
       "subscription",
     );
+  });
+
+  it("resolves canonical package purchase policy states", () => {
+    expect(
+      resolveMonetizationPackagePurchasePolicy({
+        item: {
+          productId: "prod_sub_next",
+          productFamily: "subscription_plan",
+          packageKind: "subscription",
+        },
+        currentSubscription: {
+          status: "active",
+          product_id: "prod_sub_current",
+        },
+      }),
+    ).toMatchObject({
+      canPurchase: true,
+      status: "available",
+      transitionKind: "replace_recurring",
+    });
+
+    expect(
+      resolveMonetizationPackagePurchasePolicy({
+        item: {
+          productId: "prod_unlock_1",
+          productFamily: "one_time_unlock",
+          packageKind: "one_time_unlock",
+          productSlug: "creator_starter_unlock_access",
+        },
+        additiveEntitlements: [
+          {
+            status: "active",
+            product_id: "prod_unlock_1",
+            product_slug: "creator_starter_unlock_access",
+          },
+        ],
+      }),
+    ).toMatchObject({
+      canPurchase: false,
+      status: "owned_additive_unlock",
+      reason: "owned_additive_unlock",
+    });
+
+    expect(
+      resolveMonetizationPackagePurchasePolicy({
+        item: {
+          productId: "prod_unlock_2",
+          productFamily: "one_time_unlock",
+          packageKind: "one_time_unlock",
+          productSlug: "creator_bonus_unlock",
+        },
+        additiveEntitlements: [
+          {
+            status: "grace_period",
+            product_id: "prod_unlock_2",
+            product_slug: "creator_bonus_unlock",
+          },
+        ],
+      }),
+    ).toMatchObject({
+      canPurchase: false,
+      status: "owned_additive_unlock",
+      reason: "owned_additive_unlock",
+    });
+
+    expect(
+      resolveMonetizationPackagePurchasePolicy({
+        item: {
+          productId: "prod_unlock_3",
+          productFamily: "one_time_unlock",
+          packageKind: "one_time_unlock",
+          purchase_policy: {
+            can_purchase: false,
+            status: "owned_additive_unlock",
+            transition_kind: "none",
+            reason: "owned_additive_unlock",
+          },
+        },
+      }),
+    ).toMatchObject({
+      canPurchase: false,
+      status: "owned_additive_unlock",
+      transitionKind: "none",
+    });
   });
 
   it("builds candidate packages for a feature paywall", () => {
