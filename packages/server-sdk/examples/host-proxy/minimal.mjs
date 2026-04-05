@@ -22,10 +22,11 @@ const hostProxy = createEmbedHostProxyService({
 async function runDemo() {
   const subject = await hostProxy.resolveSubject({
     email: "demo@example.com",
-    displayName: "Demo User",
+    name: "Demo User",
   });
 
   const catalog = await hostProxy.createCatalogSession({
+    origin: "http://localhost:3312",
     subjectId: subject.subjectId,
   });
 

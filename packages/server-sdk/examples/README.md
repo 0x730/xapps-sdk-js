@@ -7,12 +7,14 @@ Use these examples by intent.
 Minimal server-side host proxy reference:
 
 - [host-proxy/minimal.mjs](/home/dacrise/x/xapps/packages/server-sdk/examples/host-proxy/minimal.mjs)
+- [host-proxy/plans.mjs](/home/dacrise/x/xapps/packages/server-sdk/examples/host-proxy/plans.mjs)
 
 Use this when you want:
 
 - the smallest secure backend boundary for marketplace embedding
 - subject resolution
 - catalog/widget session minting
+- current-user installed-app plans / XMS host monetization wiring
 - a framework-neutral example to map into Fastify, Express, Laravel, or PHP
 
 This maps to the `minimal embed` backend profile:
@@ -20,6 +22,13 @@ This maps to the `minimal embed` backend profile:
 - `POST /api/resolve-subject`
 - `POST /api/create-catalog-session`
 - `POST /api/create-widget-session`
+
+When you also expose the host plans surface, add:
+
+- `GET /api/my-xapps/:xappId/monetization`
+- `POST /api/my-xapps/:xappId/monetization/purchase-intents/prepare`
+- `POST /api/my-xapps/:xappId/monetization/purchase-intents/:intentId/payment-session`
+- `POST /api/my-xapps/:xappId/monetization/purchase-intents/:intentId/payment-session/finalize`
 
 ## Managed gateway session examples
 

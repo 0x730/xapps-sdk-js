@@ -81,12 +81,23 @@ export type XappMonetizationScopeInput = {
   realm_ref?: string | null;
 };
 
-export type XappMonetizationCatalogResult = Record<string, unknown>;
+export type XappMonetizationTargetingInput = XappMonetizationScopeInput & {
+  locale?: string | null;
+  country?: string | null;
+};
+
+export type XappMonetizationCatalogResult = Record<string, unknown> & {
+  items?: Array<Record<string, unknown>>;
+  paywalls?: Array<Record<string, unknown>>;
+};
 export type XappMonetizationAccessResult = Record<string, unknown> & {
   access_projection?: Record<string, unknown> | null;
 };
 export type XappCurrentSubscriptionResult = Record<string, unknown> & {
   current_subscription?: Record<string, unknown> | null;
+};
+export type XappEntitlementsResult = Record<string, unknown> & {
+  items?: Array<Record<string, unknown>>;
 };
 export type XappWalletAccountsResult = Record<string, unknown> & {
   items?: Array<Record<string, unknown>>;
@@ -160,6 +171,8 @@ export type PrepareXappPurchaseIntentInput = XappMonetizationScopeInput & {
   /** @deprecated Use `request_id`. */
   requestId?: string | null;
   request_id?: string | null;
+  locale?: string | null;
+  country?: string | null;
 };
 
 export type CreateXappPurchaseTransactionInput = {
@@ -343,6 +356,87 @@ export type UninstallInstallationInput = {
 };
 
 export type UninstallInstallationResult = Record<string, unknown>;
+
+export type EmbedMyXappMonetizationInput = {
+  xappId: string;
+  token: string;
+  installationId?: string | null;
+  locale?: string | null;
+  country?: string | null;
+  realmRef?: string | null;
+  /** @deprecated Use `realmRef`. */
+  realm_ref?: string | null;
+};
+
+export type EmbedMyXappMonetizationResult = Record<string, unknown>;
+
+export type EmbedMyXappMonetizationHistoryInput = {
+  xappId: string;
+  token: string;
+  limit?: number | null;
+};
+
+export type EmbedMyXappMonetizationHistoryResult = Record<string, unknown>;
+
+export type EmbedMyXappPreparePurchaseIntentInput = {
+  xappId: string;
+  token: string;
+  offeringId?: string | null;
+  /** @deprecated Use `offeringId`. */
+  offering_id?: string | null;
+  packageId?: string | null;
+  /** @deprecated Use `packageId`. */
+  package_id?: string | null;
+  priceId?: string | null;
+  /** @deprecated Use `priceId`. */
+  price_id?: string | null;
+  installationId?: string | null;
+  /** @deprecated Use `installationId`. */
+  installation_id?: string | null;
+  locale?: string | null;
+  country?: string | null;
+};
+
+export type EmbedMyXappCreatePurchasePaymentSessionInput = {
+  xappId: string;
+  intentId: string;
+  token: string;
+  returnUrl?: string | null;
+  /** @deprecated Use `returnUrl`. */
+  return_url?: string | null;
+  cancelUrl?: string | null;
+  /** @deprecated Use `cancelUrl`. */
+  cancel_url?: string | null;
+  xappsResume?: string | null;
+  /** @deprecated Use `xappsResume`. */
+  xapps_resume?: string | null;
+  locale?: string | null;
+  installationId?: string | null;
+  /** @deprecated Use `installationId`. */
+  installation_id?: string | null;
+  paymentGuardRef?: string | null;
+  /** @deprecated Use `paymentGuardRef`. */
+  payment_guard_ref?: string | null;
+  issuer?: string | null;
+  scheme?: string | null;
+  paymentScheme?: string | null;
+  /** @deprecated Use `paymentScheme`. */
+  payment_scheme?: string | null;
+  metadata?: Record<string, unknown> | null;
+};
+
+export type EmbedMyXappFinalizePurchasePaymentSessionInput = {
+  xappId: string;
+  intentId: string;
+  token: string;
+};
+
+export type RunWidgetToolRequestInput = {
+  token: string;
+  installationId: string;
+  toolName: string;
+  payload?: Record<string, unknown> | null;
+};
 
 export type CreatePaymentSessionInput = {
   /** @deprecated Use `payment_session_id`. */
@@ -609,6 +703,16 @@ function requireIntentId(value: string): string {
   return intentId;
 }
 
+function appendQueryParams(pathname: string, params: Record<string, unknown>): string {
+  let nextPath = pathname;
+  for (const [key, value] of Object.entries(params)) {
+    const queryValue =
+      value === null || value === undefined ? undefined : String(value).trim() || undefined;
+    nextPath = appendOptionalQuery(nextPath, key, queryValue);
+  }
+  return nextPath;
+}
+
 function buildXappMonetizationScopePath(
   pathname: string,
   input: Omit<XappMonetizationScopeInput, "xappId">,
@@ -621,6 +725,16 @@ function buildXappMonetizationScopePath(
     input.installationId ?? input.installation_id,
   );
   nextPath = appendOptionalQuery(nextPath, "realm_ref", input.realmRef ?? input.realm_ref);
+  return nextPath;
+}
+
+function buildXappMonetizationTargetingPath(
+  pathname: string,
+  input: Omit<XappMonetizationTargetingInput, "xappId">,
+): string {
+  let nextPath = buildXappMonetizationScopePath(pathname, input);
+  nextPath = appendOptionalQuery(nextPath, "locale", input.locale);
+  nextPath = appendOptionalQuery(nextPath, "country", input.country);
   return nextPath;
 }
 
@@ -1017,6 +1131,91 @@ export function createGatewayApiClient(options: GatewayApiClientOptions) {
       };
     },
 
+    async runWidgetToolRequest(input: RunWidgetToolRequestInput): Promise<Record<string, unknown>> {
+      const token = String(input.token || "").trim();
+      const installationId = String(input.installationId || "").trim();
+      const toolName = String(input.toolName || "").trim();
+      if (!token || !installationId || !toolName) {
+        throw new GatewayApiClientError({
+          code: "GATEWAY_API_INVALID_RESPONSE",
+          message: "token, installationId, and toolName are required",
+        });
+      }
+      const createdPayload = await requestJson(
+        "POST",
+        "/v1/requests",
+        {
+          installationId,
+          toolName,
+          payload:
+            input.payload && typeof input.payload === "object" && !Array.isArray(input.payload)
+              ? input.payload
+              : {},
+        },
+        { Authorization: `Bearer ${token}` },
+      );
+      const created = extractResultObject<Record<string, unknown>>(createdPayload);
+      const requestRecord =
+        created.request && typeof created.request === "object" && !Array.isArray(created.request)
+          ? (created.request as Record<string, unknown>)
+          : created;
+      const requestId = String(requestRecord.id || "").trim();
+      if (!requestId) return created;
+
+      const startedAt = Date.now();
+      while (Date.now() - startedAt < 15_000) {
+        const detailPayload = await requestJson(
+          "GET",
+          `/v1/requests/${encodeURIComponent(requestId)}`,
+          undefined,
+          { Authorization: `Bearer ${token}` },
+        );
+        const detail = extractResultObject<Record<string, unknown>>(detailPayload);
+        const detailRequest =
+          detail.request && typeof detail.request === "object" && !Array.isArray(detail.request)
+            ? (detail.request as Record<string, unknown>)
+            : detail;
+        const status = String(detailRequest.status || "")
+          .trim()
+          .toUpperCase();
+        if (status === "COMPLETED") {
+          const responsePayload = await requestJson(
+            "GET",
+            `/v1/requests/${encodeURIComponent(requestId)}/response`,
+            undefined,
+            { Authorization: `Bearer ${token}` },
+          );
+          const response = extractResultObject<Record<string, unknown>>(responsePayload);
+          if (
+            response.response &&
+            typeof response.response === "object" &&
+            !Array.isArray(response.response)
+          ) {
+            const responseRecord = response.response as Record<string, unknown>;
+            return responseRecord.result &&
+              typeof responseRecord.result === "object" &&
+              !Array.isArray(responseRecord.result)
+              ? (responseRecord.result as Record<string, unknown>)
+              : responseRecord;
+          }
+          return response;
+        }
+        if (status === "FAILED") {
+          throw new GatewayApiClientError({
+            code: "GATEWAY_API_HTTP_ERROR",
+            message: "Widget tool request failed",
+            details: detail,
+          });
+        }
+        await new Promise((resolve) => setTimeout(resolve, 350));
+      }
+
+      throw new GatewayApiClientError({
+        code: "GATEWAY_API_NETWORK_ERROR",
+        message: "Widget tool request timed out",
+      });
+    },
+
     async verifyBrowserWidgetContext(
       input: VerifyBrowserWidgetContextInput,
     ): Promise<VerifyBrowserWidgetContextResult> {
@@ -1146,11 +1345,152 @@ export function createGatewayApiClient(options: GatewayApiClientOptions) {
       return result && typeof result === "object" ? (result as Record<string, unknown>) : {};
     },
 
-    async getXappMonetizationCatalog(xappId: string): Promise<XappMonetizationCatalogResult> {
-      const resolvedXappId = requireXappId(xappId);
+    async getEmbedMyXappMonetization(
+      input: EmbedMyXappMonetizationInput,
+    ): Promise<EmbedMyXappMonetizationResult> {
+      const resolvedXappId = requireXappId(input.xappId);
+      const token = String(input.token || "").trim();
+      if (!token) {
+        throw new GatewayApiClientError({
+          code: "GATEWAY_API_INVALID_RESPONSE",
+          message: "token is required",
+        });
+      }
       const payload = await requestJson(
         "GET",
-        `/v1/xapps/${encodeURIComponent(resolvedXappId)}/monetization`,
+        appendQueryParams(`/embed/my-xapps/${encodeURIComponent(resolvedXappId)}/monetization`, {
+          token,
+          installationId: input.installationId,
+          locale: input.locale,
+          country: input.country,
+          realmRef: input.realmRef ?? input.realm_ref,
+        }),
+      );
+      return extractResultObject<EmbedMyXappMonetizationResult>(payload);
+    },
+
+    async getEmbedMyXappMonetizationHistory(
+      input: EmbedMyXappMonetizationHistoryInput,
+    ): Promise<EmbedMyXappMonetizationHistoryResult> {
+      const resolvedXappId = requireXappId(input.xappId);
+      const token = String(input.token || "").trim();
+      if (!token) {
+        throw new GatewayApiClientError({
+          code: "GATEWAY_API_INVALID_RESPONSE",
+          message: "token is required",
+        });
+      }
+      const payload = await requestJson(
+        "GET",
+        appendQueryParams(
+          `/embed/my-xapps/${encodeURIComponent(resolvedXappId)}/monetization/history`,
+          {
+            token,
+            limit: input.limit,
+          },
+        ),
+      );
+      return extractResultObject<EmbedMyXappMonetizationHistoryResult>(payload);
+    },
+
+    async prepareEmbedMyXappPurchaseIntent(
+      input: EmbedMyXappPreparePurchaseIntentInput,
+    ): Promise<XappPreparedPurchaseIntentResult> {
+      const resolvedXappId = requireXappId(input.xappId);
+      const token = String(input.token || "").trim();
+      if (!token) {
+        throw new GatewayApiClientError({
+          code: "GATEWAY_API_INVALID_RESPONSE",
+          message: "token is required",
+        });
+      }
+      const payload = await requestJson(
+        "POST",
+        appendQueryParams(
+          `/embed/my-xapps/${encodeURIComponent(resolvedXappId)}/monetization/purchase-intents/prepare`,
+          { token },
+        ),
+        {
+          offering_id: input.offeringId ?? input.offering_id,
+          package_id: input.packageId ?? input.package_id,
+          price_id: input.priceId ?? input.price_id,
+          installation_id: input.installationId ?? input.installation_id,
+          locale: input.locale ?? undefined,
+          country: input.country ?? undefined,
+        },
+      );
+      return extractResultObject<XappPreparedPurchaseIntentResult>(payload);
+    },
+
+    async createEmbedMyXappPurchasePaymentSession(
+      input: EmbedMyXappCreatePurchasePaymentSessionInput,
+    ): Promise<XappPurchasePaymentSessionResult> {
+      const resolvedXappId = requireXappId(input.xappId);
+      const resolvedIntentId = requireIntentId(input.intentId);
+      const token = String(input.token || "").trim();
+      if (!token) {
+        throw new GatewayApiClientError({
+          code: "GATEWAY_API_INVALID_RESPONSE",
+          message: "token is required",
+        });
+      }
+      const payload = await requestJson(
+        "POST",
+        appendQueryParams(
+          `/embed/my-xapps/${encodeURIComponent(resolvedXappId)}/monetization/purchase-intents/${encodeURIComponent(resolvedIntentId)}/payment-session`,
+          { token },
+        ),
+        {
+          payment_guard_ref: input.paymentGuardRef ?? input.payment_guard_ref,
+          issuer: input.issuer ?? undefined,
+          scheme: input.scheme ?? undefined,
+          payment_scheme: input.paymentScheme ?? input.payment_scheme,
+          return_url: input.returnUrl ?? input.return_url,
+          cancel_url: input.cancelUrl ?? input.cancel_url,
+          xapps_resume: input.xappsResume ?? input.xapps_resume,
+          locale: input.locale ?? undefined,
+          installation_id: input.installationId ?? input.installation_id,
+          metadata: normalizeObjectPayload(input.metadata),
+        },
+      );
+      return extractResultObject<XappPurchasePaymentSessionResult>(payload);
+    },
+
+    async finalizeEmbedMyXappPurchasePaymentSession(
+      input: EmbedMyXappFinalizePurchasePaymentSessionInput,
+    ): Promise<XappPurchasePaymentFinalizeResult> {
+      const resolvedXappId = requireXappId(input.xappId);
+      const resolvedIntentId = requireIntentId(input.intentId);
+      const token = String(input.token || "").trim();
+      if (!token) {
+        throw new GatewayApiClientError({
+          code: "GATEWAY_API_INVALID_RESPONSE",
+          message: "token is required",
+        });
+      }
+      const payload = await requestJson(
+        "POST",
+        appendQueryParams(
+          `/embed/my-xapps/${encodeURIComponent(resolvedXappId)}/monetization/purchase-intents/${encodeURIComponent(resolvedIntentId)}/payment-session/finalize`,
+          { token },
+        ),
+        {},
+      );
+      return extractResultObject<XappPurchasePaymentFinalizeResult>(payload);
+    },
+
+    async getXappMonetizationCatalog(
+      input: string | XappMonetizationTargetingInput,
+    ): Promise<XappMonetizationCatalogResult> {
+      const resolvedInput =
+        typeof input === "string" ? ({ xappId: input } as XappMonetizationTargetingInput) : input;
+      const resolvedXappId = requireXappId(resolvedInput.xappId);
+      const payload = await requestJson(
+        "GET",
+        buildXappMonetizationTargetingPath(
+          `/v1/xapps/${encodeURIComponent(resolvedXappId)}/monetization`,
+          resolvedInput,
+        ),
       );
       return extractResultObject<XappMonetizationCatalogResult>(payload);
     },
@@ -1181,6 +1521,18 @@ export function createGatewayApiClient(options: GatewayApiClientOptions) {
         ),
       );
       return extractResultObject<XappCurrentSubscriptionResult>(payload);
+    },
+
+    async listXappEntitlements(input: XappMonetizationScopeInput): Promise<XappEntitlementsResult> {
+      const resolvedXappId = requireXappId(input.xappId);
+      const payload = await requestJson(
+        "GET",
+        buildXappMonetizationScopePath(
+          `/v1/xapps/${encodeURIComponent(resolvedXappId)}/monetization/entitlements`,
+          input,
+        ),
+      );
+      return extractResultObject<XappEntitlementsResult>(payload);
     },
 
     async listXappWalletAccounts(
@@ -1253,6 +1605,8 @@ export function createGatewayApiClient(options: GatewayApiClientOptions) {
           subject_id: input.subjectId ?? input.subject_id,
           installation_id: input.installationId ?? input.installation_id,
           realm_ref: input.realmRef ?? input.realm_ref,
+          locale: input.locale ?? undefined,
+          country: input.country ?? undefined,
           source_kind: input.sourceKind ?? input.source_kind,
           source_ref: input.sourceRef ?? input.source_ref,
           payment_lane: input.paymentLane ?? input.payment_lane,

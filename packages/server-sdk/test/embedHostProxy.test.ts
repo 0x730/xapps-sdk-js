@@ -18,6 +18,13 @@ describe("server-sdk embedHostProxy", () => {
         embedUrl: "/embed/widgets/widget_123?token=widget_token",
         context: { installationId: "inst_123" },
       })),
+      getEmbedMyXappMonetizationHistory: vi.fn(async () => ({
+        xapp_id: "xapp_123",
+        version_id: "ver_123",
+        history: {
+          purchase_intents: { total: 1, items: [{ id: "intent_123" }] },
+        },
+      })),
       listInstallations: vi.fn(async () => ({
         items: [{ id: "inst_123", xapp_id: "xapp_123", status: "installed" }],
       })),
@@ -28,6 +35,10 @@ describe("server-sdk embedHostProxy", () => {
         installation: { id: "inst_123", xapp_id: "xapp_123", status: "updated" },
       })),
       uninstallInstallation: vi.fn(async () => ({ ok: true })),
+      runWidgetToolRequest: vi.fn(async () => ({
+        profile_id: "profile_123",
+        source: "subject_self_profile",
+      })),
     };
 
     const service = createEmbedHostProxyService({
@@ -135,6 +146,38 @@ describe("server-sdk embedHostProxy", () => {
         subjectId: "sub_123",
       }),
     ).resolves.toEqual({ token: "widget_token", expires_in: 1200 });
+
+    await expect(
+      service.runWidgetToolRequest({
+        token: "widget_token",
+        installationId: "inst_123",
+        toolName: "complete_subject_profile",
+        payload: { source: "subject_self_profile" },
+      }),
+    ).resolves.toEqual({
+      profile_id: "profile_123",
+      source: "subject_self_profile",
+    });
+
+    await expect(
+      service.getMyXappMonetizationHistory({
+        xappId: "xapp_123",
+        token: "widget_token",
+        installationId: "inst_123",
+        limit: 8,
+      }),
+    ).resolves.toEqual({
+      xapp_id: "xapp_123",
+      version_id: "ver_123",
+      history: {
+        purchase_intents: { total: 1, items: [{ id: "intent_123" }] },
+      },
+    });
+    expect(gatewayClient.getEmbedMyXappMonetizationHistory).toHaveBeenCalledWith({
+      xappId: "xapp_123",
+      token: "widget_token",
+      limit: 8,
+    });
   });
 
   it("supports optional bridge handlers and rejects missing required inputs", async () => {
@@ -146,10 +189,12 @@ describe("server-sdk embedHostProxy", () => {
           token: "widget_token",
           embedUrl: "https://gateway.example.test/embed/widgets/widget_123?token=widget_token",
         })),
+        getEmbedMyXappMonetizationHistory: vi.fn(),
         listInstallations: vi.fn(),
         installXapp: vi.fn(),
         updateInstallation: vi.fn(),
         uninstallInstallation: vi.fn(),
+        runWidgetToolRequest: vi.fn(),
       },
       bridge: {
         sign: async () => ({ ok: true, envelope: { signed: true } }),
@@ -193,10 +238,12 @@ describe("server-sdk embedHostProxy", () => {
         resolveSubject: vi.fn(),
         createCatalogSession: vi.fn(),
         createWidgetSession: vi.fn(),
+        getEmbedMyXappMonetizationHistory: vi.fn(),
         listInstallations: vi.fn(),
         installXapp: vi.fn(),
         updateInstallation: vi.fn(),
         uninstallInstallation: vi.fn(),
+        runWidgetToolRequest: vi.fn(),
       },
     });
 

@@ -1,6 +1,13 @@
 import type {
   CatalogSessionInput,
   CatalogSessionResult,
+  EmbedMyXappCreatePurchasePaymentSessionInput,
+  EmbedMyXappMonetizationHistoryInput,
+  EmbedMyXappMonetizationHistoryResult,
+  EmbedMyXappFinalizePurchasePaymentSessionInput,
+  EmbedMyXappMonetizationInput,
+  EmbedMyXappMonetizationResult,
+  EmbedMyXappPreparePurchaseIntentInput,
   GatewaySubjectResolveInput,
   GatewaySubjectResolveResult,
   InstallXappInput,
@@ -11,6 +18,7 @@ import type {
   UninstallInstallationResult,
   UpdateInstallationInput,
   UpdateInstallationResult,
+  RunWidgetToolRequestInput,
   WidgetSessionInput,
   WidgetSessionResult,
 } from "./gatewayApiClient.js";
@@ -48,6 +56,17 @@ export type EmbedHostCreateWidgetSessionInput = WidgetSessionInput & {
   origin: string;
 };
 
+export type EmbedHostGetMyXappMonetizationInput = EmbedMyXappMonetizationInput;
+export type EmbedHostGetMyXappMonetizationHistoryInput = EmbedMyXappMonetizationHistoryInput;
+
+export type EmbedHostPrepareMyXappPurchaseIntentInput = EmbedMyXappPreparePurchaseIntentInput;
+
+export type EmbedHostCreateMyXappPurchasePaymentSessionInput =
+  EmbedMyXappCreatePurchasePaymentSessionInput;
+
+export type EmbedHostFinalizeMyXappPurchasePaymentSessionInput =
+  EmbedMyXappFinalizePurchasePaymentSessionInput;
+
 export type EmbedHostBridgeTokenRefreshInput = Pick<
   EmbedHostCreateWidgetSessionInput,
   "installationId" | "widgetId" | "origin" | "subjectId" | "hostReturnUrl"
@@ -74,6 +93,8 @@ export type EmbedHostBridgeVendorAssertionInput = {
 export type EmbedHostBridgeVendorAssertionResult =
   | { ok: true; vendor_assertion: string; link_id?: string }
   | { ok: false; error?: string };
+
+export type EmbedHostRunWidgetToolRequestInput = RunWidgetToolRequestInput;
 
 export class EmbedHostProxyInputError extends Error {
   status: number;
@@ -107,6 +128,22 @@ export type EmbedHostProxyServiceOptions = {
       uninstallInstallation: (
         input: UninstallInstallationInput,
       ) => Promise<UninstallInstallationResult>;
+      getEmbedMyXappMonetization: (
+        input: EmbedMyXappMonetizationInput,
+      ) => Promise<EmbedMyXappMonetizationResult>;
+      getEmbedMyXappMonetizationHistory: (
+        input: EmbedMyXappMonetizationHistoryInput,
+      ) => Promise<EmbedMyXappMonetizationHistoryResult>;
+      prepareEmbedMyXappPurchaseIntent: (
+        input: EmbedMyXappPreparePurchaseIntentInput,
+      ) => Promise<Record<string, unknown>>;
+      createEmbedMyXappPurchasePaymentSession: (
+        input: EmbedMyXappCreatePurchasePaymentSessionInput,
+      ) => Promise<Record<string, unknown>>;
+      finalizeEmbedMyXappPurchasePaymentSession: (
+        input: EmbedMyXappFinalizePurchasePaymentSessionInput,
+      ) => Promise<Record<string, unknown>>;
+      runWidgetToolRequest: (input: RunWidgetToolRequestInput) => Promise<Record<string, unknown>>;
     },
     | "resolveSubject"
     | "createCatalogSession"
@@ -115,6 +152,12 @@ export type EmbedHostProxyServiceOptions = {
     | "installXapp"
     | "updateInstallation"
     | "uninstallInstallation"
+    | "getEmbedMyXappMonetization"
+    | "getEmbedMyXappMonetizationHistory"
+    | "prepareEmbedMyXappPurchaseIntent"
+    | "createEmbedMyXappPurchasePaymentSession"
+    | "finalizeEmbedMyXappPurchasePaymentSession"
+    | "runWidgetToolRequest"
   >;
   gatewayUrl?: string;
   hostModes?: EmbedHostMode[];
@@ -286,6 +329,88 @@ export function createEmbedHostProxyService(options: EmbedHostProxyServiceOption
         ...result,
         embedUrl: rewriteEmbedUrlWithHostReturnUrl(result.embedUrl, input.hostReturnUrl),
       };
+    },
+
+    async getMyXappMonetization(
+      input: EmbedHostGetMyXappMonetizationInput,
+    ): Promise<EmbedMyXappMonetizationResult> {
+      return options.gatewayClient.getEmbedMyXappMonetization({
+        xappId: requireTrimmedString(input.xappId, "xappId"),
+        token: requireTrimmedString(input.token, "token"),
+        installationId: readOptionalString(input.installationId),
+        locale: readOptionalString(input.locale),
+        country: readOptionalString(input.country),
+        realmRef: readOptionalString(input.realmRef ?? input.realm_ref),
+      });
+    },
+
+    async getMyXappMonetizationHistory(
+      input: EmbedHostGetMyXappMonetizationHistoryInput,
+    ): Promise<EmbedMyXappMonetizationHistoryResult> {
+      return options.gatewayClient.getEmbedMyXappMonetizationHistory({
+        xappId: requireTrimmedString(input.xappId, "xappId"),
+        token: requireTrimmedString(input.token, "token"),
+        limit: typeof input.limit === "number" ? input.limit : undefined,
+      });
+    },
+
+    async prepareMyXappPurchaseIntent(
+      input: EmbedHostPrepareMyXappPurchaseIntentInput,
+    ): Promise<Record<string, unknown>> {
+      return options.gatewayClient.prepareEmbedMyXappPurchaseIntent({
+        xappId: requireTrimmedString(input.xappId, "xappId"),
+        token: requireTrimmedString(input.token, "token"),
+        offeringId: readOptionalString(input.offeringId ?? input.offering_id),
+        packageId: readOptionalString(input.packageId ?? input.package_id),
+        priceId: readOptionalString(input.priceId ?? input.price_id),
+        installationId: readOptionalString(input.installationId ?? input.installation_id),
+        locale: readOptionalString(input.locale),
+        country: readOptionalString(input.country),
+      }) as Promise<Record<string, unknown>>;
+    },
+
+    async createMyXappPurchasePaymentSession(
+      input: EmbedHostCreateMyXappPurchasePaymentSessionInput,
+    ): Promise<Record<string, unknown>> {
+      return options.gatewayClient.createEmbedMyXappPurchasePaymentSession({
+        xappId: requireTrimmedString(input.xappId, "xappId"),
+        intentId: requireTrimmedString(input.intentId, "intentId"),
+        token: requireTrimmedString(input.token, "token"),
+        returnUrl: readOptionalString(input.returnUrl ?? input.return_url),
+        cancelUrl: readOptionalString(input.cancelUrl ?? input.cancel_url),
+        xappsResume: readOptionalString(input.xappsResume ?? input.xapps_resume),
+        locale: readOptionalString(input.locale),
+        installationId: readOptionalString(input.installationId ?? input.installation_id),
+        paymentGuardRef: readOptionalString(input.paymentGuardRef ?? input.payment_guard_ref),
+        issuer: readOptionalString(input.issuer),
+        scheme: readOptionalString(input.scheme),
+        paymentScheme: readOptionalString(input.paymentScheme ?? input.payment_scheme),
+        metadata: input.metadata ?? undefined,
+      }) as Promise<Record<string, unknown>>;
+    },
+
+    async finalizeMyXappPurchasePaymentSession(
+      input: EmbedHostFinalizeMyXappPurchasePaymentSessionInput,
+    ): Promise<Record<string, unknown>> {
+      return options.gatewayClient.finalizeEmbedMyXappPurchasePaymentSession({
+        xappId: requireTrimmedString(input.xappId, "xappId"),
+        intentId: requireTrimmedString(input.intentId, "intentId"),
+        token: requireTrimmedString(input.token, "token"),
+      }) as Promise<Record<string, unknown>>;
+    },
+
+    async runWidgetToolRequest(
+      input: EmbedHostRunWidgetToolRequestInput,
+    ): Promise<Record<string, unknown>> {
+      return options.gatewayClient.runWidgetToolRequest({
+        token: requireTrimmedString(input.token, "token"),
+        installationId: requireTrimmedString(input.installationId, "installationId"),
+        toolName: requireTrimmedString(input.toolName, "toolName"),
+        payload:
+          input.payload && typeof input.payload === "object" && !Array.isArray(input.payload)
+            ? input.payload
+            : undefined,
+      });
     },
 
     async refreshWidgetToken(

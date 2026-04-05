@@ -22,6 +22,7 @@ npm install @xapps-platform/server-sdk
     - `getXappMonetizationCatalog(...)`
     - `getXappMonetizationAccess(...)`
     - `getXappCurrentSubscription(...)`
+    - `listXappEntitlements(...)`
     - `listXappWalletAccounts(...)`
     - `listXappWalletLedger(...)`
     - `prepareXappPurchaseIntent(...)`
@@ -34,6 +35,7 @@ npm install @xapps-platform/server-sdk
     - `reconcileXappSubscriptionContractPaymentSession(...)`
     - `cancelXappSubscriptionContract(...)`
     - `refreshXappSubscriptionContractState(...)`
+    - `getEmbedMyXappMonetizationHistory(...)`
 - `createPublisherApiClient`
 - `GatewayApiClient.verifyBrowserWidgetContext(...)`
 - `XappsServerSdkError`
@@ -73,6 +75,31 @@ For manifest-only use cases:
 
 - prefer `@xapps-platform/xapp-manifest`
 - use `@xapps-platform/server-sdk` when you also need backend protocol/client helpers
+
+Current XMS targeting-aware catalog helpers support:
+
+- `getXappMonetizationCatalog(xappId | { xappId, subjectId?, installationId?, realmRef?, locale?, country? })`
+- `prepareXappPurchaseIntent(...)` with optional `locale` and `country`
+
+Current enforced gateway policy on that lane:
+
+- offering/paywall `targeting_rules`
+- price `country_rules`
+- price `trial_policy`
+- price `intro_policy`
+
+Current enforced subset:
+
+- locale include/exclude
+- country include/exclude
+- scope requirements:
+  - `require_subject`
+  - `require_installation`
+  - `require_realm`
+- first-time-only free trials for `subscription_plan` / `hybrid_plan`
+- first-time-only intro discounts for `subscription_plan` / `hybrid_plan`
+- `trial_policy` wins over `intro_policy` when both qualify
+- zero-cost qualified lanes can finalize without an external payment session
 
 ## Recommended lane / package split
 
@@ -114,6 +141,13 @@ the framework-neutral embed host proxy service:
     - `installXapp(...)`
     - `updateInstallation(...)`
     - `uninstallInstallation(...)`
+    - current-user host monetization lifecycle:
+      - `getMyXappMonetization(...)`
+      - `getMyXappMonetizationHistory(...)`
+      - `prepareMyXappPurchaseIntent(...)`
+      - `createMyXappPurchasePaymentSession(...)`
+      - `finalizeMyXappPurchasePaymentSession(...)`
+      - `runWidgetToolRequest(...)`
     - optional bridge sign / vendor assertion hooks
 
 Higher-level tenant/publisher backend kits are intentionally not part of the
@@ -131,6 +165,7 @@ Required:
 - `POST /api/resolve-subject`
 - `POST /api/create-catalog-session`
 - `POST /api/create-widget-session`
+- `POST /api/widget-tool-request`
 
 ### Marketplace lifecycle profile
 
@@ -258,6 +293,8 @@ await publisher.completeLink({
   - `packages/server-sdk/examples/managed-gateway-session/publisher.mjs`
 - Minimal marketplace host proxy:
   - `packages/server-sdk/examples/host-proxy/minimal.mjs`
+- Marketplace host plans / current-user monetization:
+  - `packages/server-sdk/examples/host-proxy/plans.mjs`
 - Examples overview:
   - `packages/server-sdk/examples/README.md`
 
@@ -288,8 +325,12 @@ const signature = verifyXappsSignature({
   method: req.method,
   pathWithQuery: req.originalUrl,
   body: JSON.stringify(req.body ?? {}),
-  timestamp: String(req.header("x-xapps-timestamp") ?? ""),
+  timestamp: String(req.header("x-xapps-ts") ?? ""),
   signature: String(req.header("x-xapps-signature") ?? ""),
+  nonce: String(req.header("x-xapps-nonce") ?? ""),
+  source: req.header("x-xapps-source") === "event_delivery" ? "event_delivery" : "dispatch",
+  requireSourceInSignature: true,
+  allowLegacyWithoutSource: true,
   secret: process.env.XAPPS_SHARED_SECRET ?? "",
 });
 
@@ -467,6 +508,37 @@ const handler = createPaymentHandler({
   returnUrlAllowlist: "https://tenant.example.com",
   gatewayClient,
 });
+```
+
+## Event delivery receiver example
+
+Use the same verifier for xapp `event_subscriptions` and publisher-managed
+webhooks. The important difference from request dispatch is:
+
+- `source` should be `event_delivery`
+- include the raw request body
+- include `x-xapps-nonce`
+
+```ts
+import { verifyXappsSignature } from "@xapps-platform/server-sdk";
+
+const rawBody = JSON.stringify(req.body ?? {});
+const result = verifyXappsSignature({
+  method: req.method,
+  pathWithQuery: req.originalUrl || req.url,
+  body: rawBody,
+  timestamp: String(req.header("x-xapps-ts") ?? ""),
+  signature: String(req.header("x-xapps-signature") ?? ""),
+  nonce: String(req.header("x-xapps-nonce") ?? ""),
+  source: "event_delivery",
+  requireSourceInSignature: true,
+  allowLegacyWithoutSource: true,
+  secret: process.env.XAPPS_ENDPOINT_SECRET ?? "",
+});
+
+if (!result.ok) {
+  throw new Error(`event delivery signature invalid: ${result.reason}`);
+}
 ```
 
 > **Note:** `createPaymentHandler` uses the sync resolver internally, so

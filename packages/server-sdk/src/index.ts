@@ -8,6 +8,7 @@ import type {
 export * from "./publisherApiClient.js";
 export * from "./gatewayApiClient.js";
 export * from "./embedHostProxy.js";
+export * from "./xmsEvents.js";
 export * from "@xapps-platform/xapp-manifest";
 
 export type XappsSigningAlgorithm = "hmac-sha256" | "hmac-sha512" | "ed25519";
@@ -20,6 +21,7 @@ export type VerifyXappsSignatureInput = {
   signature: string;
   secret: string | Buffer;
   algorithm?: XappsSigningAlgorithm;
+  nonce?: string;
   source?: "dispatch" | "event_delivery";
   requireSourceInSignature?: boolean;
   allowLegacyWithoutSource?: boolean;
@@ -2010,7 +2012,9 @@ export function verifyXappsSignature(input: VerifyXappsSignatureInput): VerifyXa
     bodySha256Hex: sha256Hex(input.body),
   });
 
-  const withSource = requireSource && input.source ? `${canonical}\n${input.source}` : canonical;
+  const sourceCanonical =
+    requireSource && input.source ? `${canonical}\n${input.source}` : canonical;
+  const withSource = input.nonce ? `${sourceCanonical}\n${input.nonce}` : sourceCanonical;
   if (verifyByAlgorithm(withSource, input.signature, secret, algorithm)) {
     return { ok: true, mode: "strict" };
   }
@@ -2019,9 +2023,10 @@ export function verifyXappsSignature(input: VerifyXappsSignatureInput): VerifyXa
     return { ok: false, reason: "bad_signature" };
   }
 
+  const legacyCanonical = input.nonce ? `${canonical}\n${input.nonce}` : canonical;
   if (
-    withSource !== canonical &&
-    verifyByAlgorithm(canonical, input.signature, secret, algorithm)
+    withSource !== legacyCanonical &&
+    verifyByAlgorithm(legacyCanonical, input.signature, secret, algorithm)
   ) {
     return { ok: true, mode: "legacy" };
   }

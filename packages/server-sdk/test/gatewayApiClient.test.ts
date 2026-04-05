@@ -210,6 +210,83 @@ describe("server-sdk gatewayApiClient", () => {
         });
       }
 
+      if (
+        href ===
+          "https://gateway.example.test/embed/my-xapps/xapp_123/monetization/history?token=widget_token_fixture&limit=8" &&
+        method === "GET"
+      ) {
+        return new Response(
+          JSON.stringify({
+            xapp_id: "xapp_123",
+            version_id: "ver_123",
+            history: {
+              purchase_intents: { total: 1, items: [{ id: "intent_fixture_1" }] },
+              transactions: { total: 1, items: [{ id: "txn_fixture_1" }] },
+            },
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        );
+      }
+
+      if (href === "https://gateway.example.test/v1/requests" && method === "POST") {
+        const payload = JSON.parse(String(init?.body || "{}")) as Record<string, unknown>;
+        expect(payload).toMatchObject({
+          installationId: "inst_123",
+          toolName: "complete_subject_profile",
+          payload: { source: "subject_self_profile" },
+        });
+        expect(new Headers(init?.headers).get("authorization")).toBe("Bearer widget_token");
+        return new Response(
+          JSON.stringify({
+            result: {
+              request: {
+                id: "req_widget_tool_1",
+                status: "PENDING",
+              },
+            },
+          }),
+          { status: 201, headers: { "content-type": "application/json" } },
+        );
+      }
+
+      if (
+        href === "https://gateway.example.test/v1/requests/req_widget_tool_1" &&
+        method === "GET"
+      ) {
+        expect(new Headers(init?.headers).get("authorization")).toBe("Bearer widget_token");
+        return new Response(
+          JSON.stringify({
+            result: {
+              request: {
+                id: "req_widget_tool_1",
+                status: "COMPLETED",
+              },
+            },
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        );
+      }
+
+      if (
+        href === "https://gateway.example.test/v1/requests/req_widget_tool_1/response" &&
+        method === "GET"
+      ) {
+        expect(new Headers(init?.headers).get("authorization")).toBe("Bearer widget_token");
+        return new Response(
+          JSON.stringify({
+            result: {
+              response: {
+                result: {
+                  profile_id: "profile_123",
+                  source: "subject_self_profile",
+                },
+              },
+            },
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        );
+      }
+
       throw new Error(`Unhandled request: ${method} ${href}`);
     });
 
@@ -321,6 +398,18 @@ describe("server-sdk gatewayApiClient", () => {
     await expect(
       client.uninstallInstallation({ installationId: "inst_123", subjectId: "sub_123" }),
     ).resolves.toEqual({ ok: true });
+
+    await expect(
+      client.runWidgetToolRequest({
+        token: "widget_token",
+        installationId: "inst_123",
+        toolName: "complete_subject_profile",
+        payload: { source: "subject_self_profile" },
+      }),
+    ).resolves.toEqual({
+      profile_id: "profile_123",
+      source: "subject_self_profile",
+    });
   });
 
   it("supports low-level xapp monetization lifecycle routes", async () => {
@@ -336,7 +425,24 @@ describe("server-sdk gatewayApiClient", () => {
           JSON.stringify({
             xapp_id: "xapp_123",
             version_id: "ver_123",
-            sellables: [{ id: "offering_123" }],
+            items: [{ id: "offering_123" }],
+            paywalls: [{ slug: "workspace_default", placement: "paywall" }],
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        );
+      }
+
+      if (
+        href ===
+          "https://gateway.example.test/v1/xapps/xapp_123/monetization?subject_id=sub_123&installation_id=inst_123&realm_ref=workspace_123&locale=ro&country=RO" &&
+        method === "GET"
+      ) {
+        return new Response(
+          JSON.stringify({
+            xapp_id: "xapp_123",
+            version_id: "ver_123",
+            items: [{ id: "offering_123" }],
+            paywalls: [{ slug: "workspace_default", placement: "paywall" }],
           }),
           { status: 200, headers: { "content-type": "application/json" } },
         );
@@ -367,6 +473,29 @@ describe("server-sdk gatewayApiClient", () => {
             xapp_id: "xapp_123",
             version_id: "ver_123",
             current_subscription: { id: "sub_123", status: "active" },
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        );
+      }
+
+      if (
+        href ===
+          "https://gateway.example.test/v1/xapps/xapp_123/monetization/entitlements?subject_id=sub_123" &&
+        method === "GET"
+      ) {
+        return new Response(
+          JSON.stringify({
+            xapp_id: "xapp_123",
+            version_id: "ver_123",
+            items: [
+              {
+                id: "ent_123",
+                status: "active",
+                tier: "starter",
+                product_id: "prod_unlock_123",
+                product_slug: "creator_starter_unlock",
+              },
+            ],
           }),
           { status: 200, headers: { "content-type": "application/json" } },
         );
@@ -465,6 +594,8 @@ describe("server-sdk gatewayApiClient", () => {
           package_id: "package_123",
           price_id: "price_123",
           subject_id: "sub_123",
+          locale: "ro",
+          country: "RO",
           source_kind: "owner_managed_external",
           source_ref: "creator-club",
           payment_lane: "publisher_rendered_playground",
@@ -663,6 +794,24 @@ describe("server-sdk gatewayApiClient", () => {
         );
       }
 
+      if (
+        href ===
+          "https://gateway.example.test/embed/my-xapps/xapp_123/monetization/history?token=widget_token_fixture&limit=8" &&
+        method === "GET"
+      ) {
+        return new Response(
+          JSON.stringify({
+            xapp_id: "xapp_123",
+            version_id: "ver_123",
+            history: {
+              purchase_intents: { total: 1, items: [{ id: "intent_fixture_1" }] },
+              transactions: { total: 1, items: [{ id: "txn_fixture_1" }] },
+            },
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        );
+      }
+
       throw new Error(`Unhandled request: ${method} ${href}`);
     });
 
@@ -673,6 +822,22 @@ describe("server-sdk gatewayApiClient", () => {
 
     await expect(client.getXappMonetizationCatalog("xapp_123")).resolves.toMatchObject({
       xapp_id: "xapp_123",
+      items: [{ id: "offering_123" }],
+      paywalls: [{ slug: "workspace_default", placement: "paywall" }],
+    });
+    await expect(
+      client.getXappMonetizationCatalog({
+        xappId: "xapp_123",
+        subjectId: "sub_123",
+        installationId: "inst_123",
+        realmRef: "workspace_123",
+        locale: "ro",
+        country: "RO",
+      }),
+    ).resolves.toMatchObject({
+      xapp_id: "xapp_123",
+      items: [{ id: "offering_123" }],
+      paywalls: [{ slug: "workspace_default", placement: "paywall" }],
     });
     await expect(
       client.getXappMonetizationAccess({ xappId: "xapp_123", subjectId: "sub_123" }),
@@ -683,6 +848,11 @@ describe("server-sdk gatewayApiClient", () => {
       client.getXappCurrentSubscription({ xappId: "xapp_123", installationId: "inst_123" }),
     ).resolves.toMatchObject({
       current_subscription: { id: "sub_123", status: "active" },
+    });
+    await expect(
+      client.listXappEntitlements({ xappId: "xapp_123", subjectId: "sub_123" }),
+    ).resolves.toMatchObject({
+      items: [{ id: "ent_123", product_slug: "creator_starter_unlock", tier: "starter" }],
     });
     await expect(
       client.listXappWalletAccounts({ xappId: "xapp_123", subjectId: "sub_123" }),
@@ -726,6 +896,8 @@ describe("server-sdk gatewayApiClient", () => {
         packageId: "package_123",
         priceId: "price_123",
         subjectId: "sub_123",
+        locale: "ro",
+        country: "RO",
         sourceKind: "owner_managed_external",
         sourceRef: "creator-club",
         paymentLane: "publisher_rendered_playground",
@@ -824,6 +996,21 @@ describe("server-sdk gatewayApiClient", () => {
     ).resolves.toMatchObject({
       subscription_contract: { id: "contract_123", status: "past_due" },
       access_projection: { entitlement_state: "suspended" },
+    });
+    await expect(
+      client.getEmbedMyXappMonetizationHistory({
+        xappId: "xapp_123",
+        token: "widget_token_fixture",
+        installationId: "inst_fixture_1",
+        limit: 8,
+      }),
+    ).resolves.toMatchObject({
+      xapp_id: "xapp_123",
+      version_id: "ver_123",
+      history: {
+        purchase_intents: { items: [{ id: "intent_fixture_1" }] },
+        transactions: { items: [{ id: "txn_fixture_1" }] },
+      },
     });
   });
 });
