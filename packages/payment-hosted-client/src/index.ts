@@ -37,6 +37,28 @@ export type HostedPaymentUiContract = {
   }> | null;
 };
 
+export type HostedPaymentBillingSummary = {
+  lane: "pay_by_request" | "xms";
+  kind: string;
+  title?: string | null;
+  description?: string | null;
+  service_name?: string | null;
+  product_name?: string | null;
+  xapp_id?: string | null;
+  xapp_slug?: string | null;
+  tool_name?: string | null;
+  offering_slug?: string | null;
+  offering_name?: string | null;
+  package_slug?: string | null;
+  package_name?: string | null;
+  package_kind?: string | null;
+  product_slug?: string | null;
+  product_family?: string | null;
+  price_slug?: string | null;
+  price_label?: string | null;
+  payment_guard_ref?: string | null;
+};
+
 export type HostedPaymentSession = {
   payment_session_id: string;
   xapp_id?: string;
@@ -47,6 +69,7 @@ export type HostedPaymentSession = {
   cancel_url?: string | null;
   accepts?: HostedPaymentAcceptEntry[];
   ui?: HostedPaymentUiContract | null;
+  billing_summary?: HostedPaymentBillingSummary | null;
   invoice_summary?: {
     id: string;
     invoice_identifier?: string | null;
