@@ -96,6 +96,20 @@ export type MarketplaceXappMonetizationState = {
   xapp_id: string;
   version_id: string;
   subject_id?: string | null;
+  paywalls?: Array<Record<string, unknown>> | null;
+  additive_entitlements?: Array<{
+    id?: string | null;
+    status?: string | null;
+    tier?: string | null;
+    product_id?: string | null;
+    product_slug?: string | null;
+    purchase_intent_id?: string | null;
+    source_kind?: string | null;
+    source_ref?: string | null;
+    state_version?: string | null;
+    starts_at?: string | null;
+    expires_at?: string | null;
+  }> | null;
   access_projection?: MarketplaceMonetizationAccessProjection | null;
   current_subscription?: MarketplaceCurrentSubscription | null;
 };
@@ -139,8 +153,90 @@ export type MarketplaceClient = {
   ): Promise<CatalogXappDetail>;
   getMyXappMonetization?(
     xappId: string,
-    options?: { subjectId?: string | null },
+    options?: { subjectId?: string | null; installationId?: string | null; locale?: string | null },
   ): Promise<MarketplaceXappMonetizationState>;
+  prepareMyXappPurchaseIntent?(input: {
+    xappId: string;
+    offeringId: string;
+    packageId: string;
+    priceId: string;
+    subjectId?: string | null;
+    installationId?: string | null;
+  }): Promise<{
+    xapp_id: string;
+    version_id: string;
+    prepared_intent: {
+      purchase_intent_id: string;
+      package_id: string;
+      price_id: string;
+      status: string;
+    };
+  }>;
+  createMyXappPurchasePaymentSession?(input: {
+    xappId: string;
+    intentId: string;
+    returnUrl: string;
+    cancelUrl?: string | null;
+    pageUrl?: string | null;
+    xappsResume?: string | null;
+    locale?: string | null;
+  }): Promise<{
+    xapp_id: string;
+    version_id: string;
+    payment_session: {
+      payment_session_id: string | null;
+      status: string;
+      amount: string;
+      currency: string;
+      issuer: string;
+      return_url: string | null;
+      cancel_url: string | null;
+      xapps_resume: string | null;
+    };
+    payment_page_url: string | null;
+  }>;
+  finalizeMyXappPurchasePaymentSession?(input: { xappId: string; intentId: string }): Promise<{
+    xapp_id: string;
+    version_id: string;
+    payment_session: {
+      payment_session_id: string | null;
+      status: string;
+      amount: string;
+      currency: string;
+      issuer: string;
+      return_url: string | null;
+      cancel_url: string | null;
+      xapps_resume: string | null;
+    };
+    prepared_intent: {
+      purchase_intent_id: string;
+      package: { id: string; slug: string; product_id: string };
+      price: {
+        id: string;
+        currency: string;
+        amount: string;
+        catalog_amount: string;
+        billing_period: string;
+        billing_period_count: number | null;
+        trial_policy: Record<string, unknown> | null;
+        intro_policy: Record<string, unknown> | null;
+        applied_trial_policy: Record<string, unknown> | null;
+        applied_intro_policy: Record<string, unknown> | null;
+        checkout_mode: string;
+      };
+      offering: { id: string; slug: string };
+      status: string;
+    };
+    transaction?: Record<string, unknown> | null;
+    idempotent?: boolean;
+    issuance_mode?: string | null;
+    entitlement?: Record<string, unknown> | null;
+    subscription_contract?: Record<string, unknown> | null;
+    wallet_account?: Record<string, unknown> | null;
+    wallet_ledger?: Record<string, unknown> | null;
+    access_projection?: MarketplaceMonetizationAccessProjection | null;
+    snapshot_id?: string | null;
+  }>;
 
   // Requests (read-only)
   listMyRequests(query?: {

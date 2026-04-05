@@ -53,6 +53,18 @@ export function App() {
 - Composes with `@xapps-platform/embed-sdk` when host pages need iframe catalog/widget orchestration.
 - Provides shared marketplace navigation for `Xapps`, `Publishers`, and `Activity`, plus activity
   tabs for `Requests`, `Payments`, `Invoices`, and `Notifications`.
+- `XappDetailPage` now also consumes the current-user XMS monetization read when exposed by the
+  host client:
+  - current access / subscription state
+  - credits summary
+  - additive entitlement summaries for owned durable unlocks
+  - resolved paywall-driven plan options from the published xapp manifest
+  - optional current-user checkout actions when the host exposes purchase-intent/payment-session helpers
+  - shared plan semantics that distinguish recurring memberships from additive unlocks:
+    - current recurring packages are not re-purchasable
+    - owned additive unlocks are not re-purchasable
+    - non-owned additive unlocks can still be purchased alongside an active membership and are
+      presented as add-ons instead of replacement plans
 - Supports xapp-scoped operational surfaces for `requests`, `payments`, `invoices`, and
   `notifications`.
 - Host placement policy is declared through `MarketplaceEnv.host.operationalSurfaces`; the contract

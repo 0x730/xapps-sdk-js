@@ -2010,6 +2010,108 @@
   overflow-wrap: anywhere;
 }
 
+.mx-paywall-card-head {
+  display: grid;
+  gap: 0.35rem;
+  margin-bottom: 0.85rem;
+}
+
+.mx-paywall-card-title {
+  font-size: 0.98rem;
+  font-weight: 700;
+  color: var(--mx-text-main);
+}
+
+.mx-paywall-card-summary {
+  font-size: 0.85rem;
+  line-height: 1.45;
+  color: var(--mx-text-muted);
+}
+
+.mx-paywall-card-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-bottom: 0.9rem;
+}
+
+.mx-paywall-card-badge,
+.mx-paywall-card-package-fit,
+.mx-paywall-card-package-default,
+.mx-paywall-card-signal {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.28rem 0.58rem;
+  font-size: 0.72rem;
+  line-height: 1;
+  border: 1px solid var(--mx-border);
+  background: color-mix(in srgb, var(--mx-primary) 5%, var(--mx-card-bg));
+  color: var(--mx-text-muted);
+}
+
+.mx-paywall-card-packages {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.mx-paywall-card-package {
+  display: grid;
+  gap: 0.55rem;
+  padding: 0.8rem 0.85rem;
+  border-radius: 0.85rem;
+  border: 1px solid var(--mx-border);
+  background: color-mix(in srgb, var(--mx-card-bg) 94%, var(--mx-bg));
+}
+
+.mx-paywall-card-package.is-default {
+  border-color: color-mix(in srgb, var(--mx-primary) 40%, var(--mx-border));
+  background: color-mix(in srgb, var(--mx-primary) 4%, var(--mx-card-bg));
+}
+
+.mx-paywall-card-package-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+
+.mx-paywall-card-package-title {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--mx-text-main);
+}
+
+.mx-paywall-card-package-description {
+  margin-top: 0.2rem;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: var(--mx-text-muted);
+}
+
+.mx-paywall-card-money {
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: var(--mx-text-main);
+  white-space: nowrap;
+}
+
+.mx-paywall-card-package-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.mx-paywall-card-package-default {
+  color: var(--mx-primary);
+}
+
+.mx-paywall-card-signals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
 .mx-tag-list {
   margin-top: 0.45rem;
 }
@@ -4000,4 +4102,43 @@
   display: flex;
   flex-direction: column;
   gap: 0.6rem;
+}
+
+.mx-plans-route {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.mx-plans-route-header {
+  padding: 0.25rem 0 0.75rem;
+}
+
+.mx-plans-route-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--mx-text-main);
+  letter-spacing: -0.02em;
+}
+
+.mx-plans-route-subtitle {
+  margin-top: 0.4rem;
+  color: var(--mx-text-muted);
+  line-height: 1.5;
+}
+
+.mx-plans-route-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1rem;
+}
+
+.mx-plans-route-main {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.mx-plans-route.is-widget-hosted {
+  gap: 0.75rem;
 }

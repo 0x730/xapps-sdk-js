@@ -5,7 +5,7 @@ import { NotificationsPage } from "./pages/NotificationsPage";
 import { PaymentsPage } from "./pages/PaymentsPage";
 import { RequestDetailPage } from "./pages/RequestDetailPage";
 import { RequestsPage } from "./pages/RequestsPage";
-import { XappDetailPage } from "./pages/XappDetailPage";
+import XappDetailPage, { XappPlansPage } from "./pages/XappDetailPage";
 import { WidgetView } from "./pages/WidgetView";
 import { PublishersPage } from "./pages/PublishersPage";
 import { PublisherDetailPage } from "./pages/PublisherDetailPage";
@@ -21,6 +21,7 @@ export function MarketplaceApp() {
       <Route path="publishers" element={<PublishersPage />} />
       <Route path="publishers/:publisherSlug" element={<PublisherDetailPage />} />
       <Route path="xapps/:xappId" element={<XappDetailPage />} />
+      <Route path="xapps/:xappId/plans" element={<XappPlansPage />} />
       <Route path="requests" element={<RequestsPage />} />
       <Route path="payments" element={<PaymentsPage />} />
       <Route path="invoices" element={<InvoicesPage />} />

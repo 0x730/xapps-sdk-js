@@ -9,7 +9,7 @@ export { PaymentsPage } from "./pages/PaymentsPage";
 export { InvoicesPage } from "./pages/InvoicesPage";
 export { NotificationsPage } from "./pages/NotificationsPage";
 export { CatalogPage } from "./pages/CatalogPage";
-export { XappDetailPage } from "./pages/XappDetailPage";
+export { default as XappDetailPage, XappPlansPage } from "./pages/XappDetailPage";
 export { WidgetView } from "./pages/WidgetView";
 export {
   resolvePaymentLockStateFromGuardSummary,

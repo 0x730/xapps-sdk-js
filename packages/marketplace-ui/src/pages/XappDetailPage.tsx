@@ -2,6 +2,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { resolveMarketplaceText, useMarketplaceI18n } from "../i18n";
 import type { TranslateFunction } from "@xapps-platform/platform-i18n";
+import {
+  buildMonetizationPaywallRenderModel,
+  flattenXappMonetizationPaywallPackages,
+  listXappMonetizationPaywalls,
+  resolveMonetizationPackagePurchasePolicy,
+  selectXappMonetizationPaywall,
+} from "@xapps-platform/browser-host/xms";
 import { useMarketplace } from "../MarketplaceContext";
 import { ConfirmActionModal } from "../components/ConfirmActionModal";
 import { buildTokenSearch } from "../utils/embedSearch";
@@ -24,6 +31,7 @@ import "../marketplace.css";
 
 type GuardInfo = {
   slug: string;
+  label?: string;
   trigger: string;
   headless: boolean;
   blocking: boolean;
@@ -53,6 +61,12 @@ type UsageCreditSummary = {
   updated_at: string | null;
   by_tool: UsageCreditToolSummary[];
 };
+
+type MonetizationPaywallRenderModel = ReturnType<typeof buildMonetizationPaywallRenderModel>;
+type MonetizationPaywallRenderPackage = MonetizationPaywallRenderModel["packages"][number];
+type MonetizationPaywallPackageRecord = ReturnType<
+  typeof flattenXappMonetizationPaywallPackages
+>[number];
 
 function useQueryToken(): string {
   const loc = useLocation();
@@ -100,6 +114,46 @@ function readBoolean(value: unknown, fallback: boolean): boolean {
 
 function readNumber(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function buildMonetizationCheckoutReturnUrl(input: {
+  currentHref: string;
+  intentId: string;
+  packageSlug?: string | null;
+}): string {
+  const url = new URL(input.currentHref, window.location.href);
+  url.searchParams.set("focus", "plans");
+  url.searchParams.set("xapps_monetization_intent_id", input.intentId);
+  if (input.packageSlug) {
+    url.searchParams.set("paywallPackage", input.packageSlug);
+  }
+  return url.toString();
+}
+
+function navigateToHostedCheckout(url: string): void {
+  const target = String(url || "").trim();
+  if (!target) return;
+  try {
+    if (typeof window !== "undefined" && window.top && window.top !== window) {
+      window.top.location.assign(target);
+      return;
+    }
+  } catch {
+    // Cross-window access can fail; fall through to same-window navigation.
+  }
+  window.location.assign(target);
+}
+
+function stripMonetizationCheckoutReturnParams(search: string): string {
+  const next = new URLSearchParams(search);
+  const keysToDelete: string[] = [];
+  for (const key of next.keys()) {
+    if (key.startsWith("xapps_payment_")) keysToDelete.push(key);
+  }
+  keysToDelete.push("xapps_monetization_intent_id");
+  for (const key of keysToDelete) next.delete(key);
+  const rendered = next.toString();
+  return rendered ? `?${rendered}` : "";
 }
 
 function formatDateTime(value: unknown, locale: string): string {
@@ -198,6 +252,55 @@ function humanizeSlug(slug: string): string {
     .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
+function buildMonetizationHookSummaryItems(manifest: Record<string, unknown> | null): GuardInfo[] {
+  const monetization = asRecord(manifest?.monetization);
+  const hooks = asRecord(monetization?.hooks);
+  const afterPaymentCompleted = asRecord(
+    hooks?.after_payment_completed ?? hooks?.afterPaymentCompleted,
+  );
+  if (!afterPaymentCompleted || readBoolean(afterPaymentCompleted.enabled, true) === false) {
+    return [];
+  }
+
+  const baseItems: GuardInfo[] = [];
+  const defaultInvoiceRef = readString(
+    afterPaymentCompleted.invoice_ref ?? afterPaymentCompleted.invoiceRef,
+  );
+  baseItems.push({
+    slug: "xms_after_payment_completed",
+    label: defaultInvoiceRef
+      ? `XMS payment completed · ${defaultInvoiceRef}`
+      : "XMS payment completed",
+    trigger: "after:payment_completed",
+    headless: true,
+    blocking: false,
+    order: null,
+    policyKind: "all",
+  });
+
+  const byPaymentGuardRef = asRecord(
+    afterPaymentCompleted.by_payment_guard_ref ?? afterPaymentCompleted.byPaymentGuardRef,
+  );
+  for (const [paymentGuardRef, rawValue] of Object.entries(byPaymentGuardRef ?? {})) {
+    const config = asRecord(rawValue);
+    if (!config || readBoolean(config.enabled, true) === false) continue;
+    const invoiceRef = readString(config.invoice_ref ?? config.invoiceRef);
+    baseItems.push({
+      slug: `xms_after_payment_completed_${paymentGuardRef}`,
+      label: invoiceRef
+        ? `XMS payment completed · ${paymentGuardRef} · ${invoiceRef}`
+        : `XMS payment completed · ${paymentGuardRef}`,
+      trigger: "after:payment_completed",
+      headless: true,
+      blocking: false,
+      order: null,
+      policyKind: "all",
+    });
+  }
+
+  return baseItems;
+}
+
 function humanizeTrigger(trigger: string, translate: TranslateFunction): string {
   const normalized = String(trigger || "")
     .trim()
@@ -224,7 +327,17 @@ function describeGuardChain(policyKind: string, translate: TranslateFunction): s
     : translate("xapp.policy_all", undefined, "All steps apply");
 }
 
-export function XappDetailPage() {
+export default function XappDetailPage() {
+  return <XappDetailPageContent />;
+}
+
+export { XappDetailPage };
+
+export function XappPlansPage() {
+  return <XappDetailPageContent renderMode="plans_only" />;
+}
+
+function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
   const { client, host, env } = useMarketplace();
   const { locale, t } = useMarketplaceI18n();
   const { xappId } = useParams();
@@ -232,11 +345,33 @@ export function XappDetailPage() {
   const token = useQueryToken();
   const action = useQueryAction();
   const queryToolName = useQueryToolName();
+  const routeQuery = useMemo(() => new URLSearchParams(loc.search), [loc.search]);
+  const routeSource = String(routeQuery.get("from") || "")
+    .trim()
+    .toLowerCase();
+  const focusedSection = String(routeQuery.get("focus") || "")
+    .trim()
+    .toLowerCase();
+  const requestedPaywallSlug = String(routeQuery.get("paywall") || "")
+    .trim()
+    .toLowerCase();
+  const selectedPaywallPackageSlug = String(routeQuery.get("paywallPackage") || "")
+    .trim()
+    .toLowerCase();
+  const paymentReturnStatus = String(routeQuery.get("xapps_payment_status") || "")
+    .trim()
+    .toLowerCase();
+  const paymentReturnSessionId = String(routeQuery.get("xapps_payment_session_id") || "").trim();
+  const paymentReturnIntentId = String(routeQuery.get("xapps_monetization_intent_id") || "").trim();
   const tokenSearch = buildTokenSearch(token, loc.search);
   const navigate = useNavigate();
   const autoOpenedWidgetKeyRef = useRef<string>("");
+  const plansSectionRef = useRef<HTMLDivElement | null>(null);
 
   const canMutate = host.canMutate ? host.canMutate() : true;
+  const renderMode = props?.renderMode === "plans_only" ? "plans_only" : "full";
+  const plansOnlyMode = renderMode === "plans_only";
+  const widgetHostedPlansMode = plansOnlyMode && routeSource === "widget";
   const addAppLabel =
     env?.copy?.addAppLabel || t("xapp.add_to_workspace", undefined, "Add to workspace");
   const removeAppLabel =
@@ -258,10 +393,23 @@ export function XappDetailPage() {
   const [termsAction, setTermsAction] = useState<"none" | "install" | "update">("none");
   const [removeConfirmOpen, setRemoveConfirmOpen] = useState(false);
   const [guardSummaryOpen, setGuardSummaryOpen] = useState(false);
+  const [checkoutBusyPackageSlug, setCheckoutBusyPackageSlug] = useState("");
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const [checkoutNotice, setCheckoutNotice] = useState<string | null>(null);
+  const checkoutFinalizeKeyRef = useRef<string>("");
 
   const hasSubject = Boolean(host.subjectId);
   const installationsByXappId = hasSubject ? host.getInstallationsByXappId() : {};
-  const installation = xappId ? installationsByXappId[String(xappId)] : null;
+  const routeInstallationId = String(routeQuery.get("installationId") || "").trim();
+  const installation =
+    xappId && installationsByXappId[String(xappId)]
+      ? installationsByXappId[String(xappId)]
+      : xappId && routeInstallationId
+        ? {
+            installationId: routeInstallationId,
+            xappId: String(xappId),
+          }
+        : null;
   const updateAvailable = Boolean(installation?.updateAvailable);
   const widgetsEnabled = Boolean(installation) && !updateAvailable && hasSubject;
 
@@ -326,7 +474,10 @@ export function XappDetailPage() {
     let cancelled = false;
     void (async () => {
       try {
-        const next = await client.getMyXappMonetization!(currentXappId);
+        const next = await client.getMyXappMonetization!(currentXappId, {
+          installationId: installation?.installationId ?? null,
+          locale,
+        });
         if (!cancelled) {
           setMonetization(next);
         }
@@ -339,7 +490,7 @@ export function XappDetailPage() {
     return () => {
       cancelled = true;
     };
-  }, [client, host.subjectId, xappId]);
+  }, [client, host.subjectId, installation?.installationId, xappId]);
 
   const manifest = asRecord(data?.manifest);
   const xappRecord = asRecord(data?.xapp);
@@ -486,7 +637,7 @@ export function XappDetailPage() {
   const guardSummary = useMemo(() => {
     const guardsRaw = Array.isArray(manifest?.guards) ? manifest.guards : [];
     const policyMap = asRecord(manifest?.guards_policy) ?? {};
-    const items: GuardInfo[] = guardsRaw
+    const guardItems: GuardInfo[] = guardsRaw
       .map((raw): GuardInfo | null => {
         const guard = asRecord(raw);
         if (!guard) return null;
@@ -503,14 +654,16 @@ export function XappDetailPage() {
           policyKind,
         };
       })
-      .filter((item): item is GuardInfo => Boolean(item))
-      .sort((a, b) => {
+      .filter((item): item is GuardInfo => Boolean(item));
+    const items: GuardInfo[] = [...guardItems, ...buildMonetizationHookSummaryItems(manifest)].sort(
+      (a, b) => {
         const orderA = a.order ?? Number.MAX_SAFE_INTEGER;
         const orderB = b.order ?? Number.MAX_SAFE_INTEGER;
         if (orderA !== orderB) return orderA - orderB;
         if (a.trigger !== b.trigger) return a.trigger.localeCompare(b.trigger);
         return a.slug.localeCompare(b.slug);
-      });
+      },
+    );
     const byTrigger = new Map<string, GuardInfo[]>();
     for (const item of items) {
       const existing = byTrigger.get(item.trigger) ?? [];
@@ -528,9 +681,299 @@ export function XappDetailPage() {
       | MarketplaceMonetizationAccessProjection
       | null
       | undefined) ?? null;
+  const monetizationPaywalls = useMemo(
+    () => listXappMonetizationPaywalls(monetization?.paywalls),
+    [monetization?.paywalls],
+  );
+  const selectedPaywall = useMemo(
+    () =>
+      monetizationPaywalls.find(
+        (item) => readString(asRecord(item)?.slug).trim().toLowerCase() === requestedPaywallSlug,
+      ) ||
+      selectXappMonetizationPaywall({
+        paywalls: monetizationPaywalls,
+        placement: "default_paywall",
+      }) ||
+      selectXappMonetizationPaywall({
+        paywalls: monetizationPaywalls,
+        placement: "paywall",
+      }) ||
+      monetizationPaywalls[0] ||
+      null,
+    [monetizationPaywalls, requestedPaywallSlug],
+  );
+  const selectedPaywallRenderModel = useMemo(
+    () => (selectedPaywall ? buildMonetizationPaywallRenderModel(selectedPaywall) : null),
+    [selectedPaywall],
+  );
+  const selectedPaywallPackageRecords = useMemo(
+    (): MonetizationPaywallPackageRecord[] =>
+      selectedPaywall ? flattenXappMonetizationPaywallPackages(selectedPaywall) : [],
+    [selectedPaywall],
+  );
+
+  useEffect(() => {
+    if (focusedSection !== "plans" || !plansSectionRef.current) return;
+    if (typeof plansSectionRef.current.scrollIntoView === "function") {
+      plansSectionRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [focusedSection]);
+
+  useEffect(() => {
+    const currentXappId = String(xappId ?? "").trim();
+    if (!currentXappId || !paymentReturnIntentId || !paymentReturnStatus) return;
+
+    const handledKey = [
+      currentXappId,
+      paymentReturnIntentId,
+      paymentReturnSessionId,
+      paymentReturnStatus,
+    ].join(":");
+    if (checkoutFinalizeKeyRef.current === handledKey) return;
+    checkoutFinalizeKeyRef.current = handledKey;
+
+    const clearReturnParams = () => {
+      const nextSearch = stripMonetizationCheckoutReturnParams(loc.search);
+      void navigate(
+        {
+          pathname: loc.pathname,
+          search: nextSearch,
+        },
+        { replace: true },
+      );
+    };
+
+    if (paymentReturnStatus === "cancelled" || paymentReturnStatus === "canceled") {
+      setCheckoutError(null);
+      setCheckoutNotice(
+        t("xapp.checkout_cancelled", undefined, "Checkout was cancelled before completion."),
+      );
+      clearReturnParams();
+      return;
+    }
+
+    if (paymentReturnStatus === "failed") {
+      setCheckoutNotice(null);
+      setCheckoutError(
+        t("xapp.checkout_failed", undefined, "Payment failed before access could be issued."),
+      );
+      clearReturnParams();
+      return;
+    }
+
+    if (
+      paymentReturnStatus !== "paid" ||
+      typeof client.finalizeMyXappPurchasePaymentSession !== "function"
+    ) {
+      return;
+    }
+
+    let cancelled = false;
+    setCheckoutNotice(
+      t("xapp.checkout_finalizing", undefined, "Finalizing payment and refreshing access..."),
+    );
+    setCheckoutError(null);
+
+    void (async () => {
+      try {
+        await client.finalizeMyXappPurchasePaymentSession!({
+          xappId: currentXappId,
+          intentId: paymentReturnIntentId,
+        });
+        if (typeof client.getMyXappMonetization === "function") {
+          const next = await client.getMyXappMonetization(currentXappId, {
+            installationId: installation?.installationId ?? null,
+            locale,
+          });
+          if (!cancelled) setMonetization(next);
+        }
+        if (!cancelled) {
+          setCheckoutNotice(
+            t("xapp.checkout_finalized", undefined, "Payment completed and access was refreshed."),
+          );
+          clearReturnParams();
+        }
+      } catch (error) {
+        if (cancelled) return;
+        const message =
+          readString(asRecord(error)?.message) ||
+          (error instanceof Error ? error.message : "") ||
+          t(
+            "xapp.checkout_finalize_failed",
+            undefined,
+            "Payment returned, but access refresh did not complete yet.",
+          );
+        setCheckoutNotice(null);
+        setCheckoutError(message);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    client,
+    installation?.installationId,
+    locale,
+    loc.pathname,
+    loc.search,
+    navigate,
+    paymentReturnIntentId,
+    paymentReturnSessionId,
+    paymentReturnStatus,
+    t,
+    xappId,
+  ]);
+
+  async function finalizeCurrentUserCheckoutIntent(currentXappId: string, intentId: string) {
+    if (typeof client.finalizeMyXappPurchasePaymentSession !== "function") {
+      throw new Error(
+        t(
+          "xapp.checkout_finalize_unavailable",
+          undefined,
+          "Access refresh is not available for this checkout flow.",
+        ),
+      );
+    }
+    setCheckoutNotice(
+      t("xapp.checkout_finalizing", undefined, "Finalizing payment and refreshing access..."),
+    );
+    setCheckoutError(null);
+    await client.finalizeMyXappPurchasePaymentSession({
+      xappId: currentXappId,
+      intentId,
+    });
+    if (typeof client.getMyXappMonetization === "function") {
+      const next = await client.getMyXappMonetization(currentXappId, {
+        installationId: installation?.installationId ?? null,
+        locale,
+      });
+      setMonetization(next);
+    }
+    setCheckoutNotice(
+      t("xapp.checkout_finalized", undefined, "Payment completed and access was refreshed."),
+    );
+  }
+
+  async function startPackageCheckout(packageSlug: string) {
+    const normalizedSlug = packageSlug.trim().toLowerCase();
+    if (
+      !xappId ||
+      typeof client.prepareMyXappPurchaseIntent !== "function" ||
+      typeof client.createMyXappPurchasePaymentSession !== "function" ||
+      !normalizedSlug
+    ) {
+      return;
+    }
+
+    const pkg = selectedPaywallPackageRecords.find(
+      (item: MonetizationPaywallPackageRecord) =>
+        readString(item.packageSlug).trim().toLowerCase() === normalizedSlug,
+    );
+    if (pkg) {
+      const purchasePolicy = getPackagePurchasePolicy(pkg);
+      if (!purchasePolicy.canPurchase) {
+        setCheckoutError(
+          purchasePolicy.status === "owned_additive_unlock"
+            ? t(
+                "xapp.checkout_owned_unlock_blocked",
+                undefined,
+                "This add-on unlock is already owned for the current monetization scope.",
+              )
+            : t(
+                "xapp.checkout_current_plan_blocked",
+                undefined,
+                "This plan is already active for the current monetization scope.",
+              ),
+        );
+        return;
+      }
+    }
+    const offeringId = readString(pkg?.offeringId);
+    const packageId = readString(pkg?.packageId);
+    const priceId = readString(pkg?.priceId);
+    if (!offeringId || !packageId || !priceId) {
+      setCheckoutError(
+        t(
+          "xapp.checkout_package_missing",
+          undefined,
+          "This package is missing purchase metadata in the published paywall.",
+        ),
+      );
+      return;
+    }
+
+    setCheckoutBusyPackageSlug(normalizedSlug);
+    setCheckoutError(null);
+    setCheckoutNotice(null);
+    try {
+      const prepared = await client.prepareMyXappPurchaseIntent({
+        xappId: String(xappId),
+        offeringId,
+        packageId,
+        priceId,
+        installationId: installation?.installationId ?? null,
+      });
+      const returnUrl = buildMonetizationCheckoutReturnUrl({
+        currentHref: window.location.href,
+        intentId: String(prepared.prepared_intent.purchase_intent_id || ""),
+        packageSlug: normalizedSlug,
+      });
+      const payment = await client.createMyXappPurchasePaymentSession({
+        xappId: String(xappId),
+        intentId: String(prepared.prepared_intent.purchase_intent_id || ""),
+        returnUrl,
+        cancelUrl: returnUrl,
+        xappsResume: returnUrl,
+        locale,
+      });
+      const paymentPageUrl = readString(payment.payment_page_url);
+      const paymentStatus = readString(payment.payment_session?.status).trim().toLowerCase();
+      if (!paymentPageUrl && (paymentStatus === "paid" || paymentStatus === "completed")) {
+        await finalizeCurrentUserCheckoutIntent(
+          String(xappId),
+          String(prepared.prepared_intent.purchase_intent_id || ""),
+        );
+        return;
+      }
+      if (!paymentPageUrl) {
+        throw new Error(
+          t(
+            "xapp.checkout_page_missing",
+            undefined,
+            "Payment page is not available for this package.",
+          ),
+        );
+      }
+      navigateToHostedCheckout(paymentPageUrl);
+    } catch (error) {
+      const message =
+        readString(asRecord(error)?.message) ||
+        (error instanceof Error ? error.message : "") ||
+        t("xapp.checkout_start_failed", undefined, "Unable to start checkout for this package.");
+      setCheckoutError(message);
+    } finally {
+      setCheckoutBusyPackageSlug("");
+    }
+  }
+
   const hasCatalogMonetization = hasMarketplaceCatalogMonetization(manifest);
   const monetizationAccess = asRecord(monetization?.access_projection);
   const monetizationSubscription = asRecord(monetization?.current_subscription);
+  const additiveEntitlements = Array.isArray(monetization?.additive_entitlements)
+    ? (monetization.additive_entitlements
+        .map((item) => asRecord(item))
+        .filter((item) => (item ? Object.keys(item).length > 0 : false)) as Array<
+        Record<string, unknown>
+      >)
+    : [];
+  const activeAdditiveEntitlements = additiveEntitlements.filter((item) => {
+    const status = readString(item.status).trim().toLowerCase();
+    return status === "active" || status === "grace_period";
+  });
+  const additiveUnlockLabels = activeAdditiveEntitlements
+    .map((item) => readString(item.tier) || readString(item.product_slug))
+    .filter(Boolean);
   const overduePolicy = asRecord(monetizationSubscription?.overdue_policy);
   const currentTier =
     readString(monetizationSubscription?.tier) || readString(monetizationAccess?.tier);
@@ -585,7 +1028,8 @@ export function XappDetailPage() {
     expiryBoundaryAt ||
     renewsAt ||
     expiresAt ||
-    creditsRemaining,
+    creditsRemaining ||
+    additiveUnlockLabels.length > 0,
   );
   const manifestScreenshots = Array.isArray(manifest?.screenshots)
     ? manifest.screenshots.map((shot) => readString(shot)).filter(Boolean)
@@ -593,6 +1037,283 @@ export function XappDetailPage() {
   const manifestTags = Array.isArray(manifest?.tags)
     ? manifest.tags.map((tag) => readString(tag)).filter(Boolean)
     : [];
+
+  function getPackagePurchasePolicy(item: Record<string, unknown>) {
+    return resolveMonetizationPackagePurchasePolicy({
+      item,
+      currentSubscription: monetizationSubscription,
+      additiveEntitlements: activeAdditiveEntitlements,
+    });
+  }
+  const currentAccessCard = hasMonetizationState ? (
+    <div className="mx-sidebar-card">
+      <h3 className="mx-section-title mx-detail-sidebar-title">
+        {t("xapp.current_access_title", undefined, "Current Access")}
+      </h3>
+      {currentTier ? (
+        <div className="mx-meta-item">
+          <span className="mx-meta-label">
+            {t("xapp.current_plan_label", undefined, "Current plan")}
+          </span>
+          <span className="mx-meta-value">{currentTier}</span>
+        </div>
+      ) : null}
+      {accessState ? (
+        <div className="mx-meta-item">
+          <span className="mx-meta-label">
+            {t("xapp.access_state_label", undefined, "Access state")}
+          </span>
+          <span className="mx-meta-value">{accessState}</span>
+        </div>
+      ) : null}
+      {subscriptionStatus ? (
+        <div className="mx-meta-item">
+          <span className="mx-meta-label">
+            {t("xapp.subscription_status_label", undefined, "Subscription status")}
+          </span>
+          <span className="mx-meta-value">{subscriptionStatus}</span>
+        </div>
+      ) : null}
+      {subscriptionCoverage ? (
+        <div className="mx-meta-item">
+          <span className="mx-meta-label">
+            {t("xapp.subscription_coverage_label", undefined, "Coverage")}
+          </span>
+          <span className="mx-meta-value">{subscriptionCoverage}</span>
+        </div>
+      ) : null}
+      {subscriptionReason ? (
+        <div className="mx-meta-item mx-meta-item-top">
+          <span className="mx-meta-label">
+            {t("xapp.subscription_reason_label", undefined, "Status reason")}
+          </span>
+          <span className="mx-meta-value">{subscriptionReason}</span>
+        </div>
+      ) : null}
+      {overdueSince ? (
+        <div className="mx-meta-item">
+          <span className="mx-meta-label">
+            {t("xapp.subscription_overdue_since_label", undefined, "Overdue since")}
+          </span>
+          <span className="mx-meta-value">{overdueSince}</span>
+        </div>
+      ) : null}
+      {expiryBoundaryAt ? (
+        <div className="mx-meta-item">
+          <span className="mx-meta-label">
+            {t("xapp.subscription_expiry_boundary_label", undefined, "Expiry boundary")}
+          </span>
+          <span className="mx-meta-value">{expiryBoundaryAt}</span>
+        </div>
+      ) : null}
+      {renewsAt ? (
+        <div className="mx-meta-item">
+          <span className="mx-meta-label">{t("xapp.renews_at_label", undefined, "Renews at")}</span>
+          <span className="mx-meta-value">{renewsAt}</span>
+        </div>
+      ) : null}
+      {expiresAt ? (
+        <div className="mx-meta-item">
+          <span className="mx-meta-label">
+            {t("xapp.expires_at_label", undefined, "Expires at")}
+          </span>
+          <span className="mx-meta-value">{expiresAt}</span>
+        </div>
+      ) : null}
+      {creditsRemaining ? (
+        <div className="mx-meta-item">
+          <span className="mx-meta-label">
+            {t("xapp.credits_remaining_label", undefined, "Credits remaining")}
+          </span>
+          <span className="mx-meta-value">{creditsRemaining}</span>
+        </div>
+      ) : null}
+      {additiveUnlockLabels.length > 0 ? (
+        <div className="mx-meta-item mx-meta-item-top">
+          <span className="mx-meta-label">
+            {t("xapp.add_on_unlocks_label", undefined, "Add-on unlocks")}
+          </span>
+          <div className="mx-meta-value mx-meta-stack-sm">
+            {additiveUnlockLabels.map((label) => (
+              <div key={label}>{label}</div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  ) : null;
+  const plansCard = selectedPaywallRenderModel ? (
+    <div className="mx-sidebar-card" ref={plansSectionRef}>
+      <h3 className="mx-section-title mx-detail-sidebar-title">
+        {t("xapp.plan_options_title", undefined, "Plans")}
+      </h3>
+      <div className="mx-paywall-card-head">
+        <div className="mx-paywall-card-title">{selectedPaywallRenderModel.paywallLabel}</div>
+        {selectedPaywallRenderModel.summary ? (
+          <div className="mx-paywall-card-summary">{selectedPaywallRenderModel.summary}</div>
+        ) : null}
+      </div>
+      {selectedPaywallRenderModel.badges.length > 0 ? (
+        <div className="mx-paywall-card-badges">
+          {selectedPaywallRenderModel.badges.map((badge: string) => (
+            <span key={badge} className="mx-paywall-card-badge">
+              {badge}
+            </span>
+          ))}
+        </div>
+      ) : null}
+      <div className="mx-paywall-card-packages">
+        {selectedPaywallRenderModel.packages.map((item: MonetizationPaywallRenderPackage) => {
+          const normalizedPackageSlug = item.packageSlug.trim().toLowerCase();
+          const purchasePolicy = getPackagePurchasePolicy(item);
+          const isCurrentPackage = purchasePolicy.status === "current_recurring_plan";
+          const isOwnedAdditive = purchasePolicy.status === "owned_additive_unlock";
+          const isAdditiveCompanion =
+            purchasePolicy.transitionKind === "buy_additive_unlock" &&
+            subscriptionStatus === "active";
+          return (
+            <div
+              key={item.packageId || item.packageSlug}
+              className={`mx-paywall-card-package ${item.isDefault ? "is-default" : ""} ${
+                selectedPaywallPackageSlug && normalizedPackageSlug === selectedPaywallPackageSlug
+                  ? "is-selected"
+                  : ""
+              }`}
+            >
+              <div className="mx-paywall-card-package-head">
+                <div>
+                  <div className="mx-paywall-card-package-title">{item.packageTitle}</div>
+                  {item.description ? (
+                    <div className="mx-paywall-card-package-description">{item.description}</div>
+                  ) : null}
+                </div>
+                <div className="mx-paywall-card-money">{item.moneyLabel}</div>
+              </div>
+              <div className="mx-paywall-card-package-meta">
+                <span className="mx-paywall-card-package-fit">{item.fitLabel}</span>
+                {selectedPaywallPackageSlug &&
+                normalizedPackageSlug === selectedPaywallPackageSlug ? (
+                  <span className="mx-paywall-card-package-default">
+                    {t("xapp.selected_label", undefined, "Selected")}
+                  </span>
+                ) : null}
+                {isOwnedAdditive ? (
+                  <span className="mx-paywall-card-package-default">
+                    {t("xapp.owned_unlock_label", undefined, "Owned unlock")}
+                  </span>
+                ) : null}
+                {isCurrentPackage && !isOwnedAdditive ? (
+                  <span className="mx-paywall-card-package-default">
+                    {t("xapp.current_plan_label", undefined, "Current plan")}
+                  </span>
+                ) : null}
+                {isAdditiveCompanion ? (
+                  <span className="mx-paywall-card-package-default">
+                    {t("xapp.additive_unlock_label", undefined, "Add-on with membership")}
+                  </span>
+                ) : null}
+                {item.isDefault ? (
+                  <span className="mx-paywall-card-package-default">
+                    {t("xapp.default_label", undefined, "Default")}
+                  </span>
+                ) : null}
+              </div>
+              {item.signals.length > 0 ? (
+                <div className="mx-paywall-card-signals">
+                  {item.signals.map((signal: string) => (
+                    <span key={signal} className="mx-paywall-card-signal">
+                      {signal}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+              {isAdditiveCompanion ? (
+                <div className="mx-paywall-card-summary">
+                  {t(
+                    "xapp.additive_unlock_message",
+                    undefined,
+                    "This one-time unlock is additive. It adds access on top of the active recurring membership instead of replacing it.",
+                  )}
+                </div>
+              ) : null}
+              {typeof client.prepareMyXappPurchaseIntent === "function" &&
+              typeof client.createMyXappPurchasePaymentSession === "function" &&
+              canMutate ? (
+                <button
+                  className="mx-btn mx-btn-secondary"
+                  disabled={
+                    !purchasePolicy.canPurchase || checkoutBusyPackageSlug === normalizedPackageSlug
+                  }
+                  onClick={() => void startPackageCheckout(item.packageSlug)}
+                >
+                  {isOwnedAdditive
+                    ? t("xapp.owned_unlock_active", undefined, "Owned unlock active")
+                    : isCurrentPackage
+                      ? t("xapp.current_plan_active", undefined, "Current plan active")
+                      : checkoutBusyPackageSlug === normalizedPackageSlug
+                        ? t("xapp.checkout_starting", undefined, "Starting checkout...")
+                        : isAdditiveCompanion
+                          ? t("xapp.additive_unlock_action", undefined, "Purchase add-on unlock")
+                          : t("xapp.checkout_action", undefined, "Continue to checkout")}
+                </button>
+              ) : null}
+            </div>
+          );
+        })}
+      </div>
+      {checkoutNotice ? <div className="mx-paywall-card-summary">{checkoutNotice}</div> : null}
+      {checkoutError ? <div className="mx-payment-lock-error">{checkoutError}</div> : null}
+    </div>
+  ) : null;
+  if (plansOnlyMode) {
+    return (
+      <div className={`mx-detail-container ${isEmbedded ? "is-embedded" : ""}`}>
+        {error && <div className="mx-detail-error">{error}</div>}
+        {busy && !data ? (
+          <div className="mx-sidebar-card mx-detail-empty" aria-busy="true">
+            {t("common.loading", undefined, "Loading...")}
+          </div>
+        ) : (
+          <div className={`mx-plans-route ${widgetHostedPlansMode ? "is-widget-hosted" : ""}`}>
+            {!widgetHostedPlansMode ? (
+              <div className="mx-plans-route-header">
+                <div className="mx-plans-route-title">
+                  {t("xapp.plan_options_title", undefined, "Plans")}
+                </div>
+                <div className="mx-plans-route-subtitle">
+                  {title
+                    ? t(
+                        "xapp.plans_route_subtitle",
+                        { title },
+                        `Current access and published plans for ${title}.`,
+                      )
+                    : t(
+                        "xapp.plans_route_subtitle_default",
+                        undefined,
+                        "Current access and published plans for this app.",
+                      )}
+                </div>
+              </div>
+            ) : null}
+            <div className="mx-plans-route-grid">
+              <div className="mx-plans-route-main">
+                {currentAccessCard}
+                {plansCard || (
+                  <div className="mx-sidebar-card mx-detail-empty">
+                    {t(
+                      "xapp.no_plans_available",
+                      undefined,
+                      "No published plans are currently available.",
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
   return (
     <div className={`mx-detail-container ${isEmbedded ? "is-embedded" : ""}`}>
       <div className="mx-detail-topbar">
@@ -1041,8 +1762,11 @@ export function XappDetailPage() {
                                   ) : (
                                     <span className="mx-guard-row-order">{guardIdx + 1}</span>
                                   )}
-                                  <span className="mx-guard-row-name" title={guard.slug}>
-                                    {humanizeSlug(guard.slug)}
+                                  <span
+                                    className="mx-guard-row-name"
+                                    title={guard.label || guard.slug}
+                                  >
+                                    {guard.label ? guard.label : humanizeSlug(guard.slug)}
                                   </span>
                                 </div>
                                 <div className="mx-guard-row-right">
@@ -1127,93 +1851,7 @@ export function XappDetailPage() {
             </main>
 
             <aside className="mx-detail-sidebar">
-              {hasMonetizationState ? (
-                <div className="mx-sidebar-card">
-                  <h3 className="mx-section-title mx-detail-sidebar-title">
-                    {t("xapp.current_access_title", undefined, "Current Access")}
-                  </h3>
-                  {currentTier ? (
-                    <div className="mx-meta-item">
-                      <span className="mx-meta-label">
-                        {t("xapp.current_plan_label", undefined, "Current plan")}
-                      </span>
-                      <span className="mx-meta-value">{currentTier}</span>
-                    </div>
-                  ) : null}
-                  {accessState ? (
-                    <div className="mx-meta-item">
-                      <span className="mx-meta-label">
-                        {t("xapp.access_state_label", undefined, "Access state")}
-                      </span>
-                      <span className="mx-meta-value">{accessState}</span>
-                    </div>
-                  ) : null}
-                  {subscriptionStatus ? (
-                    <div className="mx-meta-item">
-                      <span className="mx-meta-label">
-                        {t("xapp.subscription_status_label", undefined, "Subscription status")}
-                      </span>
-                      <span className="mx-meta-value">{subscriptionStatus}</span>
-                    </div>
-                  ) : null}
-                  {subscriptionCoverage ? (
-                    <div className="mx-meta-item">
-                      <span className="mx-meta-label">
-                        {t("xapp.subscription_coverage_label", undefined, "Coverage")}
-                      </span>
-                      <span className="mx-meta-value">{subscriptionCoverage}</span>
-                    </div>
-                  ) : null}
-                  {subscriptionReason ? (
-                    <div className="mx-meta-item mx-meta-item-top">
-                      <span className="mx-meta-label">
-                        {t("xapp.subscription_reason_label", undefined, "Status reason")}
-                      </span>
-                      <span className="mx-meta-value">{subscriptionReason}</span>
-                    </div>
-                  ) : null}
-                  {overdueSince ? (
-                    <div className="mx-meta-item">
-                      <span className="mx-meta-label">
-                        {t("xapp.subscription_overdue_since_label", undefined, "Overdue since")}
-                      </span>
-                      <span className="mx-meta-value">{overdueSince}</span>
-                    </div>
-                  ) : null}
-                  {expiryBoundaryAt ? (
-                    <div className="mx-meta-item">
-                      <span className="mx-meta-label">
-                        {t("xapp.subscription_expiry_boundary_label", undefined, "Expiry boundary")}
-                      </span>
-                      <span className="mx-meta-value">{expiryBoundaryAt}</span>
-                    </div>
-                  ) : null}
-                  {renewsAt ? (
-                    <div className="mx-meta-item">
-                      <span className="mx-meta-label">
-                        {t("xapp.renews_at_label", undefined, "Renews at")}
-                      </span>
-                      <span className="mx-meta-value">{renewsAt}</span>
-                    </div>
-                  ) : null}
-                  {expiresAt ? (
-                    <div className="mx-meta-item">
-                      <span className="mx-meta-label">
-                        {t("xapp.expires_at_label", undefined, "Expires at")}
-                      </span>
-                      <span className="mx-meta-value">{expiresAt}</span>
-                    </div>
-                  ) : null}
-                  {creditsRemaining ? (
-                    <div className="mx-meta-item">
-                      <span className="mx-meta-label">
-                        {t("xapp.credits_remaining_label", undefined, "Credits remaining")}
-                      </span>
-                      <span className="mx-meta-value">{creditsRemaining}</span>
-                    </div>
-                  ) : null}
-                </div>
-              ) : null}
+              {currentAccessCard}
 
               {usageCreditSummary ? (
                 <div className="mx-sidebar-card">
@@ -1322,6 +1960,8 @@ export function XappDetailPage() {
                   ) : null}
                 </div>
               ) : null}
+
+              {plansCard}
 
               {installation && defaultWidget && hasSubject && (
                 <button
