@@ -145,6 +145,33 @@ const BASE_ENDPOINT_GROUPS = [
         path: "/api/uninstall",
         purpose: "Uninstall mutation proxy used by the host page.",
       },
+      {
+        method: "GET",
+        path: "/api/my-xapps/:xappId/monetization",
+        purpose:
+          "Loads current-subject monetization state and published paywalls for an installed xapp.",
+      },
+      {
+        method: "GET",
+        path: "/api/my-xapps/:xappId/monetization/history",
+        purpose:
+          "Loads recent current-subject XMS history for auditability across purchases, access, wallets, and invoices.",
+      },
+      {
+        method: "POST",
+        path: "/api/my-xapps/:xappId/monetization/purchase-intents/prepare",
+        purpose: "Prepares a current-subject XMS purchase intent for the host plans surface.",
+      },
+      {
+        method: "POST",
+        path: "/api/my-xapps/:xappId/monetization/purchase-intents/:intentId/payment-session",
+        purpose: "Starts hosted checkout for the selected published paywall package.",
+      },
+      {
+        method: "POST",
+        path: "/api/my-xapps/:xappId/monetization/purchase-intents/:intentId/payment-session/finalize",
+        purpose: "Finalizes hosted return and refreshes access for the current-subject XMS flow.",
+      },
     ],
   },
   {

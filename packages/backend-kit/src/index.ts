@@ -15,6 +15,7 @@ import {
 } from "./backend/paymentRuntime.js";
 import {
   activateXappPurchaseReference,
+  buildXappMonetizationReferenceSummary,
   consumeXappWalletCredits,
   finalizeXappHostedPurchase,
   findXappHostedPaymentPreset,
@@ -32,6 +33,8 @@ import {
   type ResolveXappHostedPaymentDefinitionInput,
   type ResolveXappMonetizationScopeInput,
   type StartXappHostedPurchaseInput,
+  type XappMonetizationReferencePackageSummary,
+  type XappMonetizationReferenceSummary,
 } from "./backend/xms.js";
 import {
   normalizeBackendKitOptions,
@@ -99,6 +102,8 @@ export type {
   ResolveXappHostedPaymentDefinitionInput,
   ResolveXappMonetizationScopeInput,
   StartXappHostedPurchaseInput,
+  XappMonetizationReferencePackageSummary,
+  XappMonetizationReferenceSummary,
 };
 
 export type VerifyBrowserWidgetContextInput = {
@@ -268,6 +273,7 @@ export {
   createReferenceSurfaceModule,
   createHostProxyService,
   activateXappPurchaseReference,
+  buildXappMonetizationReferenceSummary,
   consumeXappWalletCredits,
   createPaymentEvidenceHandler,
   createPaymentRuntime,

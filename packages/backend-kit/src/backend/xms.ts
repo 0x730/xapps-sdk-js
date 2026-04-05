@@ -82,6 +82,41 @@ export type ReadXappMonetizationSnapshotInput = ScopeFieldsInput & {
   settlement_ref?: string | null;
 };
 
+export type XappMonetizationReferencePackageSummary = {
+  package_slug: string | null;
+  paywall_slug: string | null;
+  product_family: string | null;
+  package_kind: string | null;
+  purchase_policy: {
+    can_purchase: boolean;
+    status: "available" | "current_recurring_plan" | "owned_additive_unlock";
+    transition_kind:
+      | "start_recurring"
+      | "replace_recurring"
+      | "buy_additive_unlock"
+      | "buy_credit_pack"
+      | "activate_hybrid"
+      | "none";
+    reason: string | null;
+  } | null;
+};
+
+export type XappMonetizationReferenceSummary = {
+  current_recurring_plan: {
+    product_slug: string | null;
+    package_slug: string | null;
+    status: string | null;
+    renews_at: string | null;
+  } | null;
+  owned_additive_unlocks: XappMonetizationReferencePackageSummary[];
+  available_additive_unlocks: XappMonetizationReferencePackageSummary[];
+  recurring_options: XappMonetizationReferencePackageSummary[];
+  credit_topups: XappMonetizationReferencePackageSummary[];
+  blocked_packages: XappMonetizationReferencePackageSummary[];
+  owned_entitlement_count: number;
+  has_current_access: boolean;
+};
+
 export type ConsumeXappWalletCreditsInput = {
   xappId: string;
   walletAccountId?: string | null;
@@ -122,6 +157,7 @@ type GatewayPurchaseFlowClient = {
   createXappPurchaseTransaction?: (input: UnknownRecord) => Promise<UnknownRecord>;
   getXappMonetizationAccess?: (input: UnknownRecord) => Promise<UnknownRecord>;
   getXappCurrentSubscription?: (input: UnknownRecord) => Promise<UnknownRecord>;
+  listXappEntitlements?: (input: UnknownRecord) => Promise<UnknownRecord>;
   listXappWalletAccounts?: (input: UnknownRecord) => Promise<UnknownRecord>;
   listXappWalletLedger?: (input: UnknownRecord) => Promise<UnknownRecord>;
   consumeXappWalletCredits?: (input: UnknownRecord) => Promise<UnknownRecord>;
@@ -154,6 +190,25 @@ function readMetadata(value: unknown): UnknownRecord | undefined {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return undefined;
   }
+  return value as UnknownRecord;
+}
+
+function readLower(value: unknown): string {
+  return readString(value).toLowerCase();
+}
+
+function readBoolean(value: unknown, fallback = false): boolean {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value !== 0;
+  const normalized = readLower(value);
+  if (!normalized) return fallback;
+  if (["1", "true", "yes", "on"].includes(normalized)) return true;
+  if (["0", "false", "no", "off"].includes(normalized)) return false;
+  return fallback;
+}
+
+function asRecord(value: unknown): UnknownRecord | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   return value as UnknownRecord;
 }
 
@@ -516,32 +571,42 @@ export async function readXappMonetizationSnapshot(
 ): Promise<UnknownRecord> {
   const getMonetizationAccess = requireGatewayMethod(gatewayClient, "getXappMonetizationAccess");
   const getCurrentSubscription = requireGatewayMethod(gatewayClient, "getXappCurrentSubscription");
+  const listEntitlements =
+    typeof gatewayClient.listXappEntitlements === "function"
+      ? gatewayClient.listXappEntitlements.bind(gatewayClient)
+      : null;
   const listWalletAccounts = requireGatewayMethod(gatewayClient, "listXappWalletAccounts");
   const scopePayload = buildSnapshotScopePayload(input);
   const includeWalletAccounts = input.includeWalletAccounts !== false;
   const includeWalletLedger = input.includeWalletLedger === true;
 
-  const [accessResult, currentSubscriptionResult, walletAccountsResult, walletLedgerResult] =
-    await Promise.all([
-      getMonetizationAccess(scopePayload),
-      getCurrentSubscription(scopePayload),
-      includeWalletAccounts ? listWalletAccounts(scopePayload) : Promise.resolve(null),
-      includeWalletLedger
-        ? requireGatewayMethod(
-            gatewayClient,
-            "listXappWalletLedger",
-          )({
-            xappId: input.xappId,
-            ...buildScopeFields(input),
-            wallet_account_id: readOptionalString(input.walletAccountId ?? input.wallet_account_id),
-            payment_session_id: readOptionalString(
-              input.paymentSessionId ?? input.payment_session_id,
-            ),
-            request_id: readOptionalString(input.requestId ?? input.request_id),
-            settlement_ref: readOptionalString(input.settlementRef ?? input.settlement_ref),
-          })
-        : Promise.resolve(null),
-    ]);
+  const [
+    accessResult,
+    currentSubscriptionResult,
+    entitlementsResult,
+    walletAccountsResult,
+    walletLedgerResult,
+  ] = await Promise.all([
+    getMonetizationAccess(scopePayload),
+    getCurrentSubscription(scopePayload),
+    listEntitlements ? listEntitlements(scopePayload) : Promise.resolve(null),
+    includeWalletAccounts ? listWalletAccounts(scopePayload) : Promise.resolve(null),
+    includeWalletLedger
+      ? requireGatewayMethod(
+          gatewayClient,
+          "listXappWalletLedger",
+        )({
+          xappId: input.xappId,
+          ...buildScopeFields(input),
+          wallet_account_id: readOptionalString(input.walletAccountId ?? input.wallet_account_id),
+          payment_session_id: readOptionalString(
+            input.paymentSessionId ?? input.payment_session_id,
+          ),
+          request_id: readOptionalString(input.requestId ?? input.request_id),
+          settlement_ref: readOptionalString(input.settlementRef ?? input.settlement_ref),
+        })
+      : Promise.resolve(null),
+  ]);
 
   return {
     access_projection:
@@ -553,12 +618,124 @@ export async function readXappMonetizationSnapshot(
       typeof currentSubscriptionResult.current_subscription === "object"
         ? currentSubscriptionResult.current_subscription
         : null,
+    entitlements:
+      entitlementsResult && Array.isArray((entitlementsResult as UnknownRecord).items)
+        ? ((entitlementsResult as UnknownRecord).items as unknown[])
+        : [],
     wallet_accounts:
       walletAccountsResult && Array.isArray(walletAccountsResult.items)
         ? walletAccountsResult.items
         : [],
     wallet_ledger:
       walletLedgerResult && Array.isArray(walletLedgerResult.items) ? walletLedgerResult.items : [],
+  };
+}
+
+function hasCurrentOwnedEntitlement(value: unknown): boolean {
+  const entitlement = asRecord(value);
+  if (!entitlement) return false;
+  const status = readLower(entitlement.status);
+  if (status !== "active" && status !== "grace_period") return false;
+  const expiresAt = readString(entitlement.expires_at);
+  if (!expiresAt) return true;
+  const expiresAtMs = Date.parse(expiresAt);
+  return Number.isNaN(expiresAtMs) || expiresAtMs > Date.now();
+}
+
+function normalizeReferencePackageSummary(
+  value: unknown,
+): XappMonetizationReferencePackageSummary | null {
+  const record = asRecord(value);
+  if (!record) return null;
+  const purchasePolicyRecord = asRecord(record.purchase_policy);
+  return {
+    package_slug: readOptionalString(record.package_slug) ?? null,
+    paywall_slug: readOptionalString(record.paywall_slug) ?? null,
+    product_family: readOptionalString(record.product_family) ?? null,
+    package_kind: readOptionalString(record.package_kind) ?? null,
+    purchase_policy: purchasePolicyRecord
+      ? {
+          can_purchase: readBoolean(
+            purchasePolicyRecord.can_purchase ?? purchasePolicyRecord.canPurchase,
+            true,
+          ),
+          status:
+            readLower(purchasePolicyRecord.status) === "current_recurring_plan"
+              ? "current_recurring_plan"
+              : readLower(purchasePolicyRecord.status) === "owned_additive_unlock"
+                ? "owned_additive_unlock"
+                : "available",
+          transition_kind:
+            readLower(
+              purchasePolicyRecord.transition_kind ?? purchasePolicyRecord.transitionKind,
+            ) === "start_recurring"
+              ? "start_recurring"
+              : readLower(
+                    purchasePolicyRecord.transition_kind ?? purchasePolicyRecord.transitionKind,
+                  ) === "replace_recurring"
+                ? "replace_recurring"
+                : readLower(
+                      purchasePolicyRecord.transition_kind ?? purchasePolicyRecord.transitionKind,
+                    ) === "buy_additive_unlock"
+                  ? "buy_additive_unlock"
+                  : readLower(
+                        purchasePolicyRecord.transition_kind ?? purchasePolicyRecord.transitionKind,
+                      ) === "buy_credit_pack"
+                    ? "buy_credit_pack"
+                    : readLower(
+                          purchasePolicyRecord.transition_kind ??
+                            purchasePolicyRecord.transitionKind,
+                        ) === "activate_hybrid"
+                      ? "activate_hybrid"
+                      : "none",
+          reason: readOptionalString(purchasePolicyRecord.reason) ?? null,
+        }
+      : null,
+  };
+}
+
+export function buildXappMonetizationReferenceSummary(input: {
+  snapshot?: unknown;
+  paywallPackages?: unknown;
+}): XappMonetizationReferenceSummary {
+  const snapshot = asRecord(input.snapshot) ?? {};
+  const currentSubscription = asRecord(snapshot.current_subscription);
+  const entitlements = Array.isArray(snapshot.entitlements) ? snapshot.entitlements : [];
+  const accessProjection = asRecord(snapshot.access_projection);
+  const paywallPackages = (Array.isArray(input.paywallPackages) ? input.paywallPackages : [])
+    .map((item) => normalizeReferencePackageSummary(item))
+    .filter((item): item is XappMonetizationReferencePackageSummary => Boolean(item));
+
+  return {
+    current_recurring_plan: currentSubscription
+      ? {
+          product_slug: readOptionalString(currentSubscription.product_slug) ?? null,
+          package_slug: readOptionalString(currentSubscription.package_slug) ?? null,
+          status: readOptionalString(currentSubscription.status) ?? null,
+          renews_at: readOptionalString(currentSubscription.renews_at) ?? null,
+        }
+      : null,
+    owned_additive_unlocks: paywallPackages.filter(
+      (item) => item.purchase_policy?.status === "owned_additive_unlock",
+    ),
+    available_additive_unlocks: paywallPackages.filter(
+      (item) =>
+        (readLower(item.product_family) === "one_time_unlock" ||
+          readLower(item.package_kind) === "one_time_unlock") &&
+        item.purchase_policy?.can_purchase !== false,
+    ),
+    recurring_options: paywallPackages.filter((item) => {
+      const transitionKind = item.purchase_policy?.transition_kind ?? "none";
+      return transitionKind === "start_recurring" || transitionKind === "replace_recurring";
+    }),
+    credit_topups: paywallPackages.filter(
+      (item) => item.purchase_policy?.transition_kind === "buy_credit_pack",
+    ),
+    blocked_packages: paywallPackages.filter(
+      (item) => item.purchase_policy?.can_purchase === false,
+    ),
+    owned_entitlement_count: entitlements.filter((item) => hasCurrentOwnedEntitlement(item)).length,
+    has_current_access: readBoolean(accessProjection?.has_current_access, false),
   };
 }
 

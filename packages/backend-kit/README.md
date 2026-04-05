@@ -164,6 +164,8 @@ Current route surface includes:
 - reference
 - host core
 - lifecycle
+- current-user host monetization lifecycle under `/api/my-xapps/:xappId/...`
+  - includes `/api/my-xapps/:xappId/monetization/history` for recent current-user XMS audit buckets
 - bridge
 - payment
 - guard
@@ -182,7 +184,19 @@ Current workflow helpers also include:
 - `findXappHostedPaymentPreset(...)`
   looks up one hosted-lane preset by `paymentGuardRef`
 - `readXappMonetizationSnapshot(...)`
-  reads the common app-facing XMS state bundle: access, current subscription, and wallet accounts
+  reads the common app-facing XMS state bundle: access, current subscription, entitlements, and wallet accounts
+- `buildXappMonetizationReferenceSummary(...)`
+  interprets the current-user XMS snapshot plus projected paywall packages into:
+  - primary recurring membership
+  - owned additive unlocks
+  - available additive unlocks
+  - recurring options
+  - credit top-ups
+  - blocked packages
+- host-mounted plans surfaces can now also consume the recent current-user history bundle exposed through:
+  - `/api/my-xapps/:xappId/monetization/history`
+  - portal `/v1/me/xapps/:xappId/monetization/history`
+  - embed `/embed/my-xapps/:xappId/monetization/history`
 - `consumeXappWalletCredits(...)`
   consumes credits from one wallet account through the XMS API and returns the updated wallet, ledger entry, and refreshed access projection
 - `startXappHostedPurchase(...)`
@@ -202,7 +216,9 @@ the browser-facing host API surface, including:
 - `/api/resolve-subject`
 - `/api/create-catalog-session`
 - `/api/create-widget-session`
+- `/api/widget-tool-request`
 - lifecycle routes under `/api/install*`
+- current-user XMS host routes under `/api/my-xapps/:xappId/...`
 - bridge routes under `/api/bridge/*`
 
 For the secure long-term hosted-integrator path, use a short-lived bootstrap

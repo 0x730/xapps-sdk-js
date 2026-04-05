@@ -1,5 +1,6 @@
 import {
   activateXappPurchaseReference,
+  buildXappMonetizationReferenceSummary,
   consumeXappWalletCredits,
   createBackendKit,
   evaluateWidgetBootstrapOriginPolicy,
@@ -346,6 +347,54 @@ assert(
 assert(
   Array.isArray(snapshot.wallet_accounts) && snapshot.wallet_accounts[0]?.id === "wallet_123",
   "backend-kit readXappMonetizationSnapshot wallet mismatch",
+);
+
+const referenceSummary = buildXappMonetizationReferenceSummary({
+  snapshot: {
+    ...snapshot,
+    entitlements: [{ status: "active", product_slug: "starter-unlock" }],
+  },
+  paywallPackages: [
+    {
+      package_slug: "creator-pro-monthly",
+      product_family: "subscription_plan",
+      purchase_policy: {
+        can_purchase: false,
+        status: "current_recurring_plan",
+        transition_kind: "none",
+      },
+    },
+    {
+      package_slug: "creator-starter-unlock",
+      product_family: "one_time_unlock",
+      purchase_policy: {
+        can_purchase: false,
+        status: "owned_additive_unlock",
+        transition_kind: "none",
+      },
+    },
+    {
+      package_slug: "creator-boost-credits",
+      product_family: "credit_pack",
+      purchase_policy: {
+        can_purchase: true,
+        status: "available",
+        transition_kind: "buy_credit_pack",
+      },
+    },
+  ],
+});
+assert(
+  referenceSummary.current_recurring_plan?.status === "active",
+  "backend-kit buildXappMonetizationReferenceSummary recurring mismatch",
+);
+assert(
+  referenceSummary.owned_additive_unlocks[0]?.package_slug === "creator-starter-unlock",
+  "backend-kit buildXappMonetizationReferenceSummary unlock mismatch",
+);
+assert(
+  referenceSummary.credit_topups[0]?.package_slug === "creator-boost-credits",
+  "backend-kit buildXappMonetizationReferenceSummary credit mismatch",
 );
 
 const consumedCredits = await consumeXappWalletCredits(fakeGatewayClient, {
