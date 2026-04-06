@@ -68,15 +68,29 @@ describe("server-sdk gatewayApiClient", () => {
 
       if (href === "https://gateway.example.test/v1/subjects/resolve" && method === "POST") {
         const payload = JSON.parse(String(init?.body || "{}")) as Record<string, unknown>;
-        expect(payload).toMatchObject({
-          type: "user",
-          identifier: {
-            idType: "email",
-            value: "user@example.test",
-            hint: "user@example.test",
-          },
-          email: "user@example.test",
-        });
+        if (String((payload.identifier as any)?.idType || "") === "email") {
+          expect(payload).toMatchObject({
+            type: "user",
+            identifier: {
+              idType: "email",
+              value: "user@example.test",
+              hint: "user@example.test",
+            },
+            email: "user@example.test",
+          });
+        } else {
+          expect(payload).toMatchObject({
+            type: "business_member",
+            identifier: {
+              idType: "tenant_member_id",
+              value: "acct-123",
+              hint: "Account 123",
+            },
+            email: "billing@example.test",
+            metadata: { company_ref: "company_a" },
+            linkId: "tenant-link-123",
+          });
+        }
         return new Response(JSON.stringify({ subjectId: "sub_123" }), {
           status: 201,
           headers: { "content-type": "application/json" },
@@ -321,6 +335,20 @@ describe("server-sdk gatewayApiClient", () => {
           hint: "user@example.test",
         },
         email: "user@example.test",
+      }),
+    ).resolves.toEqual({ subjectId: "sub_123" });
+
+    await expect(
+      client.resolveSubject({
+        type: "business_member",
+        identifier: {
+          idType: "tenant_member_id",
+          value: "acct-123",
+          hint: "Account 123",
+        },
+        email: "billing@example.test",
+        metadata: { company_ref: "company_a" },
+        linkId: "tenant-link-123",
       }),
     ).resolves.toEqual({ subjectId: "sub_123" });
 

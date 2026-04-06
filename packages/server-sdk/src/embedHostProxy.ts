@@ -45,12 +45,21 @@ export type EmbedHostConfigResult = {
 };
 
 export type EmbedHostResolveSubjectInput = {
-  email: string;
+  subjectId?: string | null;
+  type?: string | null;
+  identifier?: {
+    idType?: string | null;
+    value?: string | null;
+    hint?: string | null;
+  } | null;
+  email?: string | null;
   name?: string | null;
+  metadata?: Record<string, unknown> | null;
+  linkId?: string | null;
 };
 
 export type EmbedHostResolveSubjectResult = GatewaySubjectResolveResult & {
-  email: string;
+  email: string | null;
   name: string | null;
 };
 
@@ -308,22 +317,56 @@ export function createEmbedHostProxyService(options: EmbedHostProxyServiceOption
     async resolveSubject(
       input: EmbedHostResolveSubjectInput,
     ): Promise<EmbedHostResolveSubjectResult> {
-      const email = requireTrimmedString(input.email, "email").toLowerCase();
+      const directSubjectId = readOptionalString(input.subjectId);
+      const email = readOptionalString(input.email)?.toLowerCase() ?? null;
+      const name = readOptionalString(input.name);
+
+      const rawIdentifier =
+        input.identifier && typeof input.identifier === "object" && !Array.isArray(input.identifier)
+          ? input.identifier
+          : null;
+      const explicitIdType = readOptionalString(rawIdentifier?.idType);
+      const explicitIdentifierValue = readOptionalString(rawIdentifier?.value);
+      const identifierIdType = explicitIdType ?? (email ? "email" : null);
+      const identifierValue =
+        explicitIdentifierValue ?? (identifierIdType === "email" ? email : null);
+      if (directSubjectId && !identifierIdType && !identifierValue) {
+        throw new EmbedHostProxyInputError(
+          "subjectId requires identifier.idType + identifier.value or email for validation",
+        );
+      }
+      if (!identifierIdType || !identifierValue) {
+        throw new EmbedHostProxyInputError(
+          "subjectId or identifier.idType + identifier.value (or email) is required",
+        );
+      }
       const payload: GatewaySubjectResolveInput = {
-        type: "user",
+        type: readOptionalString(input.type) ?? "user",
         identifier: {
-          idType: "email",
-          value: email,
-          hint: email,
+          idType: identifierIdType,
+          value: identifierValue,
+          ...(readOptionalString(rawIdentifier?.hint)
+            ? { hint: readOptionalString(rawIdentifier?.hint)! }
+            : {}),
         },
-        email,
+        ...(email ? { email } : {}),
+        ...(input.metadata && typeof input.metadata === "object" && !Array.isArray(input.metadata)
+          ? { metadata: input.metadata }
+          : {}),
+        ...(readOptionalString(input.linkId) ? { linkId: readOptionalString(input.linkId)! } : {}),
       };
       const result: GatewaySubjectResolveResult =
         await options.gatewayClient.resolveSubject(payload);
+      if (directSubjectId && result.subjectId !== directSubjectId) {
+        throw new EmbedHostProxyInputError(
+          "subjectId does not match the resolved subject for the provided identity",
+          403,
+        );
+      }
       return {
         subjectId: result.subjectId,
         email,
-        name: readOptionalString(input.name),
+        name,
       };
     },
 

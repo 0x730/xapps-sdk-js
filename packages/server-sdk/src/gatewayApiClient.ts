@@ -49,6 +49,8 @@ export type GatewaySubjectResolveInput = {
     hint?: string;
   };
   email?: string;
+  metadata?: Record<string, unknown>;
+  linkId?: string | null;
 };
 
 export type GatewaySubjectResolveResult = {
@@ -1063,6 +1065,12 @@ export function createGatewayApiClient(options: GatewayApiClientOptions) {
           ...(input.identifier.hint ? { hint: input.identifier.hint } : {}),
         },
         ...(typeof input.email === "string" && input.email.trim() ? { email: input.email } : {}),
+        ...(input.metadata && typeof input.metadata === "object" && !Array.isArray(input.metadata)
+          ? { metadata: input.metadata }
+          : {}),
+        ...(typeof input.linkId === "string" && input.linkId.trim()
+          ? { linkId: input.linkId.trim() }
+          : {}),
       });
       const result = extractResultObject<any>(payload);
       const subjectId = String(result.subjectId || "").trim();

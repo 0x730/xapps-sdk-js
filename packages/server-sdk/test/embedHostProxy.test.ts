@@ -94,9 +94,57 @@ describe("server-sdk embedHostProxy", () => {
       identifier: {
         idType: "email",
         value: "user@example.test",
-        hint: "user@example.test",
       },
       email: "user@example.test",
+    });
+
+    await expect(
+      service.resolveSubject({
+        type: "business_member",
+        identifier: {
+          idType: "tenant_member_id",
+          value: "acct-123",
+          hint: "Account 123",
+        },
+        email: "billing@example.test",
+        metadata: { company_ref: "company_a" },
+        linkId: "tenant-link-123",
+      }),
+    ).resolves.toEqual({
+      subjectId: "sub_123",
+      email: "billing@example.test",
+      name: null,
+    });
+    expect(gatewayClient.resolveSubject).toHaveBeenCalledWith({
+      type: "business_member",
+      identifier: {
+        idType: "tenant_member_id",
+        value: "acct-123",
+        hint: "Account 123",
+      },
+      email: "billing@example.test",
+      metadata: { company_ref: "company_a" },
+      linkId: "tenant-link-123",
+    });
+
+    gatewayClient.resolveSubject.mockResolvedValueOnce({ subjectId: "sub_direct" });
+    await expect(
+      service.resolveSubject({
+        subjectId: "sub_direct",
+        email: "billing@example.test",
+      }),
+    ).resolves.toEqual({
+      subjectId: "sub_direct",
+      email: "billing@example.test",
+      name: null,
+    });
+    expect(gatewayClient.resolveSubject).toHaveBeenCalledWith({
+      type: "user",
+      identifier: {
+        idType: "email",
+        value: "billing@example.test",
+      },
+      email: "billing@example.test",
     });
 
     await expect(
@@ -202,6 +250,20 @@ describe("server-sdk embedHostProxy", () => {
   });
 
   it("supports optional bridge handlers and rejects missing required inputs", async () => {
+    const mismatchGatewayClient = {
+      resolveSubject: vi.fn(async () => ({ subjectId: "sub_other" })),
+      createCatalogSession: vi.fn(),
+      createWidgetSession: vi.fn(async () => ({
+        token: "widget_token",
+        embedUrl: "https://gateway.example.test/embed/widgets/widget_123?token=widget_token",
+      })),
+      getEmbedMyXappMonetizationHistory: vi.fn(),
+      listInstallations: vi.fn(),
+      installXapp: vi.fn(),
+      updateInstallation: vi.fn(),
+      uninstallInstallation: vi.fn(),
+      runWidgetToolRequest: vi.fn(),
+    };
     const service = createEmbedHostProxyService({
       gatewayClient: {
         resolveSubject: vi.fn(),
@@ -230,6 +292,21 @@ describe("server-sdk embedHostProxy", () => {
     await expect(service.resolveSubject({ email: "" })).rejects.toBeInstanceOf(
       EmbedHostProxyInputError,
     );
+    await expect(service.resolveSubject({ subjectId: "sub_direct" })).rejects.toBeInstanceOf(
+      EmbedHostProxyInputError,
+    );
+    const mismatchService = createEmbedHostProxyService({
+      gatewayClient: mismatchGatewayClient,
+    });
+    await expect(
+      mismatchService.resolveSubject({
+        subjectId: "sub_direct",
+        email: "billing@example.test",
+      }),
+    ).rejects.toMatchObject({
+      name: "EmbedHostProxyInputError",
+      status: 403,
+    });
     await expect(
       service.createWidgetSession({
         installationId: "inst_123",
