@@ -43,6 +43,18 @@ type HostProxyServiceDeps = {
     gatewayClient: unknown;
     gatewayUrl: string;
     hostModes?: HostSurface[];
+    installationPolicy?: {
+      mode?: "manual" | "auto_available";
+      update_mode?: "manual" | "auto_update_compatible";
+    };
+    resolveInstallationPolicy?: () => Promise<
+      | {
+          mode?: "manual" | "auto_available";
+          update_mode?: "manual" | "auto_update_compatible";
+        }
+      | null
+      | undefined
+    >;
   }) => unknown;
 };
 
@@ -138,10 +150,50 @@ export function createHostProxyService(
   const apiKey = readString(gateway.apiKey).trim();
   const hostModes = normalizeHostModes(reference.hostSurfaces);
 
+  const gatewayClient = createGatewayClient({ baseUrl: gatewayUrl, apiKey }) as {
+    getClientSelf?: () => Promise<{
+      client?: {
+        installation_policy?: {
+          mode?: "manual" | "auto_available";
+          update_mode?: "manual" | "auto_update_compatible";
+        } | null;
+      } | null;
+    }>;
+  };
+  const referencePolicyResolver =
+    reference &&
+    typeof (reference as Record<string, unknown>).resolveInstallationPolicy === "function"
+      ? ((reference as Record<string, unknown>).resolveInstallationPolicy as () => Promise<
+          | {
+              mode?: "manual" | "auto_available";
+              update_mode?: "manual" | "auto_update_compatible";
+            }
+          | null
+          | undefined
+        >)
+      : null;
+
   return createEmbedHostProxyService({
-    gatewayClient: createGatewayClient({ baseUrl: gatewayUrl, apiKey }),
+    gatewayClient,
     gatewayUrl,
     hostModes: hostModes.length > 0 ? hostModes : undefined,
+    installationPolicy:
+      reference.installationPolicy &&
+      typeof reference.installationPolicy === "object" &&
+      !Array.isArray(reference.installationPolicy)
+        ? (reference.installationPolicy as {
+            mode?: "manual" | "auto_available";
+            update_mode?: "manual" | "auto_update_compatible";
+          })
+        : undefined,
+    resolveInstallationPolicy: async () => {
+      if (referencePolicyResolver) {
+        return await referencePolicyResolver();
+      }
+      if (typeof gatewayClient?.getClientSelf !== "function") return undefined;
+      const current = await gatewayClient.getClientSelf();
+      return current?.client?.installation_policy ?? undefined;
+    },
   });
 }
 

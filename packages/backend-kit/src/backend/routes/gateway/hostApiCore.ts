@@ -18,8 +18,12 @@ export default async function hostApiCoreRoutes(
   const service = requireHostProxyService(hostProxyService);
   fastify.get("/api/host-config", async (request, reply) => {
     if (!ensureHostApiOriginAllowed(request, reply, allowedOrigins)) return;
+    const config =
+      typeof service.getHostConfigForRequest === "function"
+        ? await service.getHostConfigForRequest({ request })
+        : service.getHostConfig();
     return reply.send({
-      ...service.getHostConfig(),
+      ...config,
     });
   });
 
