@@ -61,6 +61,27 @@ describe("server-sdk embedHostProxy", () => {
       ],
     });
 
+    const dynamicService = createEmbedHostProxyService({
+      gatewayClient,
+      gatewayUrl: "https://gateway.example.test",
+      resolveInstallationPolicy: async () => ({
+        mode: "auto_available",
+        update_mode: "auto_update_compatible",
+      }),
+    });
+    await expect(dynamicService.getHostConfigForRequest()).resolves.toEqual({
+      ok: true,
+      gatewayUrl: "https://gateway.example.test",
+      hostModes: [
+        { key: "single-panel", label: "Single Panel" },
+        { key: "split-panel", label: "Split Panel" },
+      ],
+      installationPolicy: {
+        mode: "auto_available",
+        update_mode: "auto_update_compatible",
+      },
+    });
+
     await expect(
       service.resolveSubject({ email: " User@Example.Test ", name: "Daniel" }),
     ).resolves.toEqual({

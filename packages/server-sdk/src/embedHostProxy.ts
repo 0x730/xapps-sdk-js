@@ -38,6 +38,10 @@ export type EmbedHostConfigResult = {
   ok: true;
   gatewayUrl?: string;
   hostModes: EmbedHostMode[];
+  installationPolicy?: {
+    mode: "manual" | "auto_available";
+    update_mode: "manual" | "auto_update_compatible";
+  };
 };
 
 export type EmbedHostResolveSubjectInput = {
@@ -161,6 +165,27 @@ export type EmbedHostProxyServiceOptions = {
   >;
   gatewayUrl?: string;
   hostModes?: EmbedHostMode[];
+  installationPolicy?: {
+    mode?: "manual" | "auto_available";
+    update_mode?: "manual" | "auto_update_compatible";
+  };
+  resolveInstallationPolicy?:
+    | (() =>
+        | Promise<
+            | {
+                mode?: "manual" | "auto_available";
+                update_mode?: "manual" | "auto_update_compatible";
+              }
+            | null
+            | undefined
+          >
+        | {
+            mode?: "manual" | "auto_available";
+            update_mode?: "manual" | "auto_update_compatible";
+          }
+        | null
+        | undefined)
+    | null;
   tokenRefreshTtlSeconds?: number;
   bridge?: {
     sign?:
@@ -230,6 +255,23 @@ export function createEmbedHostProxyService(options: EmbedHostProxyServiceOption
       ? Math.floor(Number(options.tokenRefreshTtlSeconds))
       : 900;
 
+  function normalizeInstallationPolicy(
+    value:
+      | {
+          mode?: "manual" | "auto_available";
+          update_mode?: "manual" | "auto_update_compatible";
+        }
+      | null
+      | undefined,
+  ) {
+    if (!value) return undefined;
+    return {
+      mode: value.mode === "auto_available" ? "auto_available" : "manual",
+      update_mode:
+        value.update_mode === "auto_update_compatible" ? "auto_update_compatible" : "manual",
+    } as const;
+  }
+
   return {
     getNoStoreHeaders(): EmbedHostNoStoreHeaders {
       return { ...NO_STORE_HEADERS };
@@ -242,6 +284,24 @@ export function createEmbedHostProxyService(options: EmbedHostProxyServiceOption
           ? { gatewayUrl: String(options.gatewayUrl).trim() }
           : {}),
         hostModes,
+        ...(normalizeInstallationPolicy(options.installationPolicy)
+          ? { installationPolicy: normalizeInstallationPolicy(options.installationPolicy) }
+          : {}),
+      };
+    },
+
+    async getHostConfigForRequest(): Promise<EmbedHostConfigResult> {
+      const resolvedPolicy =
+        typeof options.resolveInstallationPolicy === "function"
+          ? normalizeInstallationPolicy(await options.resolveInstallationPolicy())
+          : normalizeInstallationPolicy(options.installationPolicy);
+      return {
+        ok: true,
+        ...(readOptionalString(options.gatewayUrl)
+          ? { gatewayUrl: String(options.gatewayUrl).trim() }
+          : {}),
+        hostModes,
+        ...(resolvedPolicy ? { installationPolicy: resolvedPolicy } : {}),
       };
     },
 

@@ -68,6 +68,21 @@ export type CatalogSessionResult = {
   embedUrl: string;
 };
 
+export type ClientInstallationPolicyResult = {
+  mode: "manual" | "auto_available";
+  update_mode: "manual" | "auto_update_compatible";
+};
+
+export type ClientSelfResult = {
+  client: {
+    id: string;
+    name?: string;
+    slug?: string;
+    status?: string;
+    installation_policy: ClientInstallationPolicyResult;
+  };
+};
+
 export type XappMonetizationScopeInput = {
   xappId: string;
   /** @deprecated Use `subject_id`. */
@@ -1082,6 +1097,44 @@ export function createGatewayApiClient(options: GatewayApiClientOptions) {
         });
       }
       return { token, embedUrl };
+    },
+
+    async getClientSelf(): Promise<ClientSelfResult> {
+      const payload = await requestJson("GET", "/v1/client-self");
+      const result = extractResultObject<any>(payload);
+      const client =
+        result.client && typeof result.client === "object" && !Array.isArray(result.client)
+          ? (result.client as Record<string, unknown>)
+          : null;
+      const clientId = String(client?.id || "").trim();
+      if (!client || !clientId) {
+        throw new GatewayApiClientError({
+          code: "GATEWAY_API_INVALID_RESPONSE",
+          message: "Gateway getClientSelf returned malformed response",
+          details: payload,
+        });
+      }
+      const policy =
+        client.installation_policy &&
+        typeof client.installation_policy === "object" &&
+        !Array.isArray(client.installation_policy)
+          ? (client.installation_policy as Record<string, unknown>)
+          : null;
+      return {
+        client: {
+          id: clientId,
+          ...(typeof client.name === "string" ? { name: client.name } : {}),
+          ...(typeof client.slug === "string" ? { slug: client.slug } : {}),
+          ...(typeof client.status === "string" ? { status: client.status } : {}),
+          installation_policy: {
+            mode: policy?.mode === "auto_available" ? "auto_available" : "manual",
+            update_mode:
+              policy?.update_mode === "auto_update_compatible"
+                ? "auto_update_compatible"
+                : "manual",
+          },
+        },
+      };
     },
 
     async createWidgetSession(input: WidgetSessionInput): Promise<WidgetSessionResult> {

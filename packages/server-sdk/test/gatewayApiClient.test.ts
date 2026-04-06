@@ -108,6 +108,23 @@ describe("server-sdk gatewayApiClient", () => {
         );
       }
 
+      if (href === "https://gateway.example.test/v1/client-self" && method === "GET") {
+        return new Response(
+          JSON.stringify({
+            client: {
+              id: "client_123",
+              slug: "tenant-a",
+              status: "active",
+              installation_policy: {
+                mode: "auto_available",
+                update_mode: "auto_update_compatible",
+              },
+            },
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        );
+      }
+
       if (href === "https://gateway.example.test/v1/widget-sessions" && method === "POST") {
         const payload = JSON.parse(String(init?.body || "{}")) as Record<string, unknown>;
         expect(payload).toMatchObject({
@@ -330,6 +347,18 @@ describe("server-sdk gatewayApiClient", () => {
     ).resolves.toEqual({
       token: "catalog_token",
       embedUrl: "/embed/catalog?token=catalog_token",
+    });
+
+    await expect(client.getClientSelf()).resolves.toEqual({
+      client: {
+        id: "client_123",
+        slug: "tenant-a",
+        status: "active",
+        installation_policy: {
+          mode: "auto_available",
+          update_mode: "auto_update_compatible",
+        },
+      },
     });
 
     await expect(
