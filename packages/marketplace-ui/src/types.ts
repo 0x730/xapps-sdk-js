@@ -145,6 +145,11 @@ export type InstallationInfo = {
   updateAvailable?: boolean;
 };
 
+export type MarketplaceInstallationPolicy = {
+  mode: "manual" | "auto_available";
+  update_mode: "manual" | "auto_update_compatible";
+};
+
 export type MarketplaceClient = {
   listCatalogXapps(): Promise<{ items: CatalogXapp[] }>;
   getCatalogXapp(
@@ -331,6 +336,7 @@ export type MarketplaceHostAdapter = {
   subjectId?: string | null;
   theme?: Record<string, unknown> | null;
   locale?: string | null;
+  installationPolicy?: MarketplaceInstallationPolicy | null;
 
   /**
    * Whether the current runtime is allowed to perform Marketplace mutations (install/update/uninstall).
@@ -347,12 +353,22 @@ export type MarketplaceHostAdapter = {
   requestInstall(input: {
     xappId: string;
     defaultWidgetId?: string | null;
+    xappTitle?: string | null;
+    widgetName?: string | null;
+    openAfterInstall?: boolean;
     subjectId?: string | null;
     termsAccepted?: boolean;
   }): void;
 
   // Host-driven mutations (portal can implement via direct API calls; embed via postMessage).
-  requestUpdate?(input: { installationId: string; xappId: string; termsAccepted?: boolean }): void;
+  requestUpdate?(input: {
+    installationId: string;
+    xappId: string;
+    widgetId?: string | null;
+    xappTitle?: string | null;
+    widgetName?: string | null;
+    termsAccepted?: boolean;
+  }): void;
   requestUninstall?(input: { installationId: string; xappId: string }): void;
 
   openWidget(input: {
@@ -383,6 +399,8 @@ export type MarketplaceHostAdapter = {
 export type MarketplaceEnv = {
   locale?: string;
   title?: string;
+  installationPolicy?: MarketplaceInstallationPolicy | null;
+  installationPolicyResolved?: boolean;
   copy?: {
     addAppLabel?: string;
     removeAppLabel?: string;

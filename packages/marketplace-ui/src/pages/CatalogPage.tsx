@@ -35,6 +35,17 @@ function getDefaultWidgetId(x: CatalogXapp): string | null {
   return readFirstString(asRecord(pick).id) || null;
 }
 
+function getDefaultWidgetName(x: CatalogXapp, locale?: string | null): string | null {
+  const rawWidgets = asRecord(x.manifest).widgets;
+  const widgets: unknown[] | null = Array.isArray(rawWidgets) ? rawWidgets : null;
+  if (!widgets || widgets.length === 0) return null;
+  const def = widgets.find((w) => asRecord(w).default === true);
+  const pick = asRecord(def || widgets[0]);
+  return (
+    resolveMarketplaceText(pick.title as any, locale) || readFirstString(pick.name, pick.id) || null
+  );
+}
+
 function buildCatalogFilterStorageKey(input: {
   isEmbedded: boolean;
   singleXappMode?: boolean;
@@ -79,6 +90,18 @@ export function CatalogPage() {
   const canMutate = host.canMutate ? host.canMutate() : true;
   const addAppLabel = env?.copy?.addAppLabel || "Add app";
   const removeAppLabel = env?.copy?.removeAppLabel || "Remove app";
+  const openAppLabel = env?.copy?.openAppLabel || t("xapp.open_app", undefined, "Open app");
+  const installationPolicyResolved = env?.installationPolicyResolved !== false;
+  const mutationControlsReady = installationPolicyResolved || !host.subjectId || !canMutate;
+  const autoUpdateMode =
+    mutationControlsReady &&
+    (env?.installationPolicy ?? host.installationPolicy)?.update_mode ===
+      "auto_update_compatible" &&
+    Boolean(host.subjectId);
+  const autoAvailableMode =
+    mutationControlsReady &&
+    (env?.installationPolicy ?? host.installationPolicy)?.mode === "auto_available" &&
+    Boolean(host.subjectId);
   const loc = useLocation();
   const token = useQueryToken();
   const tokenSearch = buildTokenSearch(token, loc.search);
@@ -154,6 +177,15 @@ export function CatalogPage() {
     setInstalledOnly(Boolean(stored?.addedOnly));
     setSelectedTag(typeof stored?.selectedTag === "string" ? stored.selectedTag : defaultTag);
   }, [defaultTag, storageKey]);
+
+  useEffect(() => {
+    if (!autoAvailableMode || !installedOnly) return;
+    setInstalledOnly(false);
+    writeStoredCatalogFilters(storageKey, {
+      addedOnly: false,
+      selectedTag: selectedTag || "",
+    });
+  }, [autoAvailableMode, installedOnly, selectedTag, storageKey]);
 
   useEffect(() => {
     const restrictedTags = env?.tags ?? [];
@@ -288,24 +320,26 @@ export function CatalogPage() {
             </select>
           </div>
 
-          <label className="mx-checkbox-label">
-            <input
-              type="checkbox"
-              checked={installedOnly}
-              onChange={(e) => {
-                const next = e.target.checked;
-                setInstalledOnly(next);
-                writeStoredCatalogFilters(storageKey, {
-                  addedOnly: next,
-                  selectedTag: selectedTag || "",
-                });
-              }}
-              className="mx-checkbox"
-            />
-            <span className="mx-label mx-label-inline">
-              {t("common.added_only", undefined, "Added only")}
-            </span>
-          </label>
+          {mutationControlsReady && !autoAvailableMode ? (
+            <label className="mx-checkbox-label">
+              <input
+                type="checkbox"
+                checked={installedOnly}
+                onChange={(e) => {
+                  const next = e.target.checked;
+                  setInstalledOnly(next);
+                  writeStoredCatalogFilters(storageKey, {
+                    addedOnly: next,
+                    selectedTag: selectedTag || "",
+                  });
+                }}
+                className="mx-checkbox"
+              />
+              <span className="mx-label mx-label-inline">
+                {t("common.added_only", undefined, "Added only")}
+              </span>
+            </label>
+          ) : null}
         </div>
       </div>
 
@@ -357,7 +391,7 @@ export function CatalogPage() {
                   {t("catalog.no_apps_found", undefined, "No apps found")}
                 </div>
                 <div className="mx-empty-catalog-desc">
-                  {installedOnly && items.length > 0
+                  {!autoAvailableMode && installedOnly && items.length > 0
                     ? t(
                         "catalog.empty_added_only",
                         undefined,
@@ -392,7 +426,10 @@ export function CatalogPage() {
                     : "https://picsum.photos/seed/" + x.slug + "/560/320";
                 const inst = installationsByXappId[String(x.id)];
                 const installed = Boolean(inst);
+                const updateAvailable = Boolean(inst?.updateAvailable);
                 const defaultWidgetId = getDefaultWidgetId(x);
+                const defaultWidgetName =
+                  getDefaultWidgetName(x, locale) || t("common.widget", undefined, "Widget");
 
                 const xTerms = asRecord(manifest.terms);
                 const requiresTerms = Boolean(
@@ -440,7 +477,7 @@ export function CatalogPage() {
                             </div>
                           )}
                           <div className="mx-card-badges">
-                            {installed && (
+                            {!autoAvailableMode && installed && (
                               <span className="mx-card-installed-badge">
                                 <span className="mx-card-installed-badge-dot" />
                                 {t("common.added", undefined, "Added")}
@@ -477,6 +514,7 @@ export function CatalogPage() {
                         {t("catalog.view_details", undefined, "View details")}
                       </Link>
                       {canMutate &&
+                        mutationControlsReady &&
                         (!installed ? (
                           <button
                             className="mx-btn mx-btn-primary mx-btn-sm"
@@ -490,13 +528,51 @@ export function CatalogPage() {
                               host.requestInstall({
                                 xappId: String(x.id),
                                 defaultWidgetId,
+                                xappTitle: title,
+                                widgetName: defaultWidgetName,
+                                openAfterInstall: autoAvailableMode && Boolean(defaultWidgetId),
                                 subjectId: host.subjectId ?? null,
                               });
                             }}
                           >
-                            {addAppLabel}
+                            {autoAvailableMode ? openAppLabel : addAppLabel}
                           </button>
-                        ) : (
+                        ) : autoAvailableMode ? (
+                          <button
+                            className="mx-btn mx-btn-primary mx-btn-sm"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              if (!defaultWidgetId || !inst?.installationId) {
+                                navigate(detailTo);
+                                return;
+                              }
+                              if (updateAvailable && host.requestUpdate && autoUpdateMode) {
+                                host.requestUpdate({
+                                  installationId: inst.installationId,
+                                  xappId: String(x.id),
+                                  widgetId: defaultWidgetId,
+                                  xappTitle: title,
+                                  widgetName: defaultWidgetName,
+                                });
+                                return;
+                              }
+                              if (updateAvailable) {
+                                navigate(detailTo);
+                                return;
+                              }
+                              host.openWidget({
+                                installationId: inst.installationId,
+                                widgetId: defaultWidgetId,
+                                xappId: String(x.id),
+                                xappTitle: title,
+                                widgetName: t("common.widget", undefined, "Widget"),
+                              });
+                            }}
+                          >
+                            {openAppLabel}
+                          </button>
+                        ) : !autoAvailableMode ? (
                           <button
                             className="mx-btn mx-btn-outline mx-btn-sm mx-btn-danger-text"
                             disabled={!inst?.installationId}
@@ -514,7 +590,7 @@ export function CatalogPage() {
                           >
                             {removeAppLabel}
                           </button>
-                        ))}
+                        ) : null)}
                     </div>
                   </div>
                 );

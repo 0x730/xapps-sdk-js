@@ -24,6 +24,7 @@ export type {
   MarketplaceClient,
   MarketplaceEnv,
   MarketplaceHostAdapter,
+  MarketplaceInstallationPolicy,
   OperationalSurfaceDescriptor,
   OperationalSurfacePlacement,
   OperationalSurfacesDescriptor,

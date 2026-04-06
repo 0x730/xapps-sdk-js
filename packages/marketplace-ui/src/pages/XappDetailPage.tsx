@@ -379,6 +379,10 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
     t("xapp.remove_from_workspace", undefined, "Remove from workspace");
   const updateAppLabel = env?.copy?.updateAppLabel || t("xapp.update_app", undefined, "Update app");
   const openAppLabel = env?.copy?.openAppLabel || t("xapp.open_app", undefined, "Open app");
+  const hasSubject = Boolean(host.subjectId);
+  const installationPolicyResolved = env?.installationPolicyResolved !== false;
+  const mutationControlsReady = installationPolicyResolved || !hasSubject || !canMutate;
+  const installationPolicy = env?.installationPolicy ?? host.installationPolicy ?? null;
 
   const [data, setData] = useState<Record<string, unknown> | null>(null);
   const [monetization, setMonetization] = useState<MarketplaceXappMonetizationState | null>(null);
@@ -391,6 +395,8 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
   const [termsOpen, setTermsOpen] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [termsAction, setTermsAction] = useState<"none" | "install" | "update">("none");
+  const [termsWidgetId, setTermsWidgetId] = useState<string | null>(null);
+  const [termsWidgetName, setTermsWidgetName] = useState<string | null>(null);
   const [removeConfirmOpen, setRemoveConfirmOpen] = useState(false);
   const [guardSummaryOpen, setGuardSummaryOpen] = useState(false);
   const [checkoutBusyPackageSlug, setCheckoutBusyPackageSlug] = useState("");
@@ -398,7 +404,6 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
   const [checkoutNotice, setCheckoutNotice] = useState<string | null>(null);
   const checkoutFinalizeKeyRef = useRef<string>("");
 
-  const hasSubject = Boolean(host.subjectId);
   const installationsByXappId = hasSubject ? host.getInstallationsByXappId() : {};
   const routeInstallationId = String(routeQuery.get("installationId") || "").trim();
   const installation =
@@ -411,7 +416,20 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
           }
         : null;
   const updateAvailable = Boolean(installation?.updateAvailable);
-  const widgetsEnabled = Boolean(installation) && !updateAvailable && hasSubject;
+  const autoAvailableMode =
+    mutationControlsReady &&
+    installationPolicy?.mode === "auto_available" &&
+    Boolean(hasSubject) &&
+    canMutate;
+  const autoUpdateMode =
+    mutationControlsReady &&
+    installationPolicy?.update_mode === "auto_update_compatible" &&
+    Boolean(hasSubject) &&
+    canMutate;
+  const widgetsEnabled =
+    Boolean(hasSubject) &&
+    (Boolean(installation) || autoAvailableMode) &&
+    (!updateAvailable || autoUpdateMode);
 
   const isEmbedded = window.location.pathname.startsWith("/embed");
   const singleXappMode = env?.singleXappMode;
@@ -536,24 +554,116 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
   const hasTermsContent = Boolean(termsText || termsUrl);
   const requiresTerms = Boolean(terms || action === "install" || action === "update");
 
+  function requestInstallForWidget(
+    widgetId: string | null,
+    widgetName: string | null = null,
+    acceptedTerms = false,
+    openAfterInstall = false,
+  ) {
+    host.requestInstall({
+      xappId: String(xappId ?? ""),
+      defaultWidgetId: widgetId,
+      xappTitle: String(title),
+      widgetName,
+      openAfterInstall,
+      subjectId: host.subjectId ?? null,
+      ...(acceptedTerms ? { termsAccepted: true } : {}),
+    });
+  }
+
+  function requestUpdateForWidget(widgetId: string | null, acceptedTerms = false) {
+    if (!installation?.installationId || !host.requestUpdate) return;
+    const activeWidget =
+      widgetId && Array.isArray(widgets)
+        ? widgets.find((entry) => readString(entry.id) === widgetId) || null
+        : null;
+    host.requestUpdate({
+      installationId: installation.installationId,
+      xappId: String(xappId ?? ""),
+      widgetId,
+      xappTitle: String(title),
+      widgetName:
+        resolveMarketplaceText(activeWidget?.title as any, locale) ||
+        readString(activeWidget?.name) ||
+        null,
+      ...(acceptedTerms ? { termsAccepted: true } : {}),
+    });
+  }
+
+  function openInstalledWidget(widgetId: string, widgetName: string, toolName?: string) {
+    if (!installation) return;
+    if (env?.embedMode) {
+      navigate({
+        pathname: isEmbedded
+          ? `/widget/${encodeURIComponent(installation.installationId)}/${encodeURIComponent(widgetId)}`
+          : `/marketplace/widget/${encodeURIComponent(installation.installationId)}/${encodeURIComponent(widgetId)}`,
+        search: tokenSearch,
+      });
+      return;
+    }
+    host.openWidget({
+      installationId: installation.installationId,
+      widgetId,
+      xappId: String(xappId ?? ""),
+      xappTitle: String(title),
+      widgetName,
+      toolName,
+    });
+  }
+
+  function launchWidgetForSubject(widgetId: string, widgetName: string, toolName?: string) {
+    if (!hasSubject || !widgetId) return;
+    if (!installation) {
+      if (requiresTerms) {
+        setTermsAccepted(false);
+        setTermsAction("install");
+        setTermsWidgetId(widgetId);
+        setTermsWidgetName(widgetName);
+        setTermsOpen(true);
+        return;
+      }
+      requestInstallForWidget(widgetId, widgetName, false, true);
+      return;
+    }
+    if (updateAvailable) {
+      if (autoUpdateMode && host.requestUpdate) {
+        if (requiresTerms) {
+          setTermsAccepted(false);
+          setTermsAction("update");
+          setTermsWidgetId(widgetId);
+          setTermsWidgetName(widgetName);
+          setTermsOpen(true);
+          return;
+        }
+        requestUpdateForWidget(widgetId);
+      }
+      return;
+    }
+    openInstalledWidget(widgetId, widgetName, toolName);
+  }
+
   useEffect(() => {
     if (action === "install") {
       setTermsAccepted(false);
       setTermsAction("install");
+      setTermsWidgetId(readString(defaultWidget?.id) || null);
+      setTermsWidgetName(resolveMarketplaceText(defaultWidget?.title as any, locale) || null);
       setTermsOpen(true);
       return;
     }
     if (action === "update" && installation) {
       setTermsAccepted(false);
       setTermsAction("update");
+      setTermsWidgetId(null);
+      setTermsWidgetName(null);
       setTermsOpen(true);
     }
-  }, [action, installation]);
+  }, [action, defaultWidget, installation, locale]);
 
   useEffect(() => {
     if (action !== "open-widget") return;
     if (env?.embedMode) return;
-    if (!installation || !widgetsEnabled) return;
+    if (!requestedWidget || !widgetsEnabled) return;
 
     const widget = requestedWidget;
     const widgetId = readString(widget?.id);
@@ -561,34 +671,29 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
 
     const key = [
       String(xappId ?? ""),
-      installation.installationId,
+      installation?.installationId || "auto",
       widgetId,
       readString(queryToolName),
     ].join(":");
     if (autoOpenedWidgetKeyRef.current === key) return;
     autoOpenedWidgetKeyRef.current = key;
 
-    host.openWidget({
-      installationId: installation.installationId,
+    launchWidgetForSubject(
       widgetId,
-      xappId: String(xappId ?? ""),
-      xappTitle: String(title),
-      widgetName:
-        resolveMarketplaceText(widget?.title as any, locale) ||
+      resolveMarketplaceText(widget?.title as any, locale) ||
         readString(widget?.widget_name) ||
         readString(widget?.name) ||
         t("common.widget", undefined, "Widget"),
-      toolName: readString(widget?.bind_tool_name),
-    });
+      readString(widget?.bind_tool_name),
+    );
   }, [
     action,
     env?.embedMode,
-    host,
     installation,
+    launchWidgetForSubject,
     locale,
     queryToolName,
     requestedWidget,
-    title,
     widgetsEnabled,
     xappId,
   ]);
@@ -1417,9 +1522,12 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
               </div>
             </div>
             <div className="mx-detail-actions">
-              {canMutate ? (
+              {canMutate && mutationControlsReady ? (
                 <>
-                  {installation && updateAvailable && host.requestUpdate ? (
+                  {installation &&
+                  updateAvailable &&
+                  host.requestUpdate &&
+                  installationPolicy?.update_mode !== "auto_update_compatible" ? (
                     <button
                       className="mx-btn mx-btn-primary"
                       disabled={busy || !installation.installationId}
@@ -1427,14 +1535,13 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
                         if (requiresTerms) {
                           setTermsAccepted(false);
                           setTermsAction("update");
+                          setTermsWidgetId(null);
+                          setTermsWidgetName(null);
                           setTermsOpen(true);
                           return;
                         }
                         if (!installation.installationId) return;
-                        host.requestUpdate?.({
-                          installationId: installation.installationId,
-                          xappId: String(xappId ?? ""),
-                        });
+                        requestUpdateForWidget(null);
                       }}
                     >
                       {updateAppLabel}
@@ -1449,19 +1556,24 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
                         if (requiresTerms) {
                           setTermsAccepted(false);
                           setTermsAction("install");
+                          setTermsWidgetId(readString(defaultWidget?.id) || null);
+                          setTermsWidgetName(
+                            resolveMarketplaceText(defaultWidget?.title as any, locale) || null,
+                          );
                           setTermsOpen(true);
                           return;
                         }
-                        host.requestInstall({
-                          xappId: String(xappId ?? ""),
-                          defaultWidgetId: readString(defaultWidget?.id) || null,
-                          subjectId: host.subjectId ?? null,
-                        });
+                        requestInstallForWidget(
+                          readString(defaultWidget?.id) || null,
+                          resolveMarketplaceText(defaultWidget?.title as any, locale) || null,
+                          false,
+                          autoAvailableMode,
+                        );
                       }}
                     >
-                      {addAppLabel}
+                      {autoAvailableMode ? openAppLabel : addAppLabel}
                     </button>
-                  ) : (
+                  ) : !autoAvailableMode ? (
                     <button
                       className="mx-btn mx-btn-outline"
                       data-variant="danger"
@@ -1473,7 +1585,7 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
                     >
                       {removeAppLabel}
                     </button>
-                  )}
+                  ) : null}
                 </>
               ) : null}
             </div>
@@ -1493,17 +1605,29 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
                 {!widgetsEnabled ? (
                   <div className="mx-sidebar-card mx-detail-empty">
                     {!installation
-                      ? t(
-                          "xapp.add_to_access_views",
-                          undefined,
-                          "Add this app to your workspace to access its available views.",
-                        )
-                      : updateAvailable
+                      ? autoAvailableMode
                         ? t(
-                            "xapp.update_to_access_views",
+                            "xapp.open_to_access_views",
                             undefined,
-                            "An update is available. Please update the app to access its available views.",
+                            "Open this app to start and install it automatically for your workspace.",
                           )
+                        : t(
+                            "xapp.add_to_access_views",
+                            undefined,
+                            "Add this app to your workspace to access its available views.",
+                          )
+                      : updateAvailable
+                        ? autoUpdateMode
+                          ? t(
+                              "xapp.update_to_access_views_auto",
+                              undefined,
+                              "Open a view to update the app automatically for your workspace.",
+                            )
+                          : t(
+                              "xapp.update_to_access_views",
+                              undefined,
+                              "An update is available. Please update the app to access its available views.",
+                            )
                         : !hasSubject
                           ? t(
                               "xapp.load_as_user_to_access",
@@ -1540,28 +1664,10 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
                           disabled={disabled}
                           className={`mx-detail-widget-card ${disabled ? "is-disabled" : ""} ${isDefault ? "is-default" : ""}`}
                           onClick={() => {
-                            if (!installation || !widgetsEnabled) return;
+                            if (!widgetsEnabled) return;
                             const widgetId = readString(w.id);
                             if (!widgetId) return;
-
-                            if (env?.embedMode && installation) {
-                              navigate({
-                                pathname: isEmbedded
-                                  ? `/widget/${encodeURIComponent(installation.installationId)}/${encodeURIComponent(widgetId)}`
-                                  : `/marketplace/widget/${encodeURIComponent(installation.installationId)}/${encodeURIComponent(widgetId)}`,
-                                search: tokenSearch,
-                              });
-                              return;
-                            }
-
-                            host.openWidget({
-                              installationId: installation.installationId,
-                              widgetId,
-                              xappId: String(xappId ?? ""),
-                              xappTitle: String(title),
-                              widgetName: name,
-                              toolName: readString(w.bind_tool_name),
-                            });
+                            launchWidgetForSubject(widgetId, name, readString(w.bind_tool_name));
                           }}
                         >
                           <div className="mx-detail-widget-icon">
@@ -1963,31 +2069,20 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
 
               {plansCard}
 
-              {installation && defaultWidget && hasSubject && (
+              {defaultWidget && hasSubject && (installation || autoAvailableMode) && (
                 <button
                   className="mx-btn mx-btn-primary mx-detail-primary-cta"
                   onClick={() => {
-                    if (env?.embedMode) {
-                      navigate({
-                        pathname: isEmbedded
-                          ? `/widget/${encodeURIComponent(installation.installationId)}/${encodeURIComponent(String(defaultWidget.id))}`
-                          : `/marketplace/widget/${encodeURIComponent(installation.installationId)}/${encodeURIComponent(String(defaultWidget.id))}`,
-                        search: tokenSearch,
-                      });
-                      return;
-                    }
-                    host.openWidget({
-                      installationId: installation.installationId,
-                      widgetId: readString(defaultWidget.id),
-                      xappId: String(xappId ?? ""),
-                      xappTitle: String(title),
-                      widgetName:
-                        resolveMarketplaceText(defaultWidget?.title as any, locale) ||
+                    const widgetId = readString(defaultWidget.id);
+                    if (!widgetId) return;
+                    launchWidgetForSubject(
+                      widgetId,
+                      resolveMarketplaceText(defaultWidget?.title as any, locale) ||
                         readString(defaultWidget?.widget_name) ||
                         readString(defaultWidget?.name) ||
                         t("common.widget", undefined, "Widget"),
-                      toolName: readString(defaultWidget?.bind_tool_name),
-                    });
+                      readString(defaultWidget?.bind_tool_name),
+                    );
                   }}
                 >
                   {openAppLabel}
@@ -2211,7 +2306,15 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
                 </div>
 
                 <div className="mx-detail-modal-actions">
-                  <button className="mx-btn mx-btn-outline" onClick={() => setTermsOpen(false)}>
+                  <button
+                    className="mx-btn mx-btn-outline"
+                    onClick={() => {
+                      setTermsOpen(false);
+                      setTermsAction("none");
+                      setTermsWidgetId(null);
+                      setTermsWidgetName(null);
+                    }}
+                  >
                     {t("common.cancel", undefined, "Cancel")}
                   </button>
                   {termsAction === "install" ? (
@@ -2219,14 +2322,18 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
                       className="mx-btn mx-btn-primary"
                       disabled={!termsAccepted}
                       onClick={() => {
-                        host.requestInstall({
-                          xappId: String(xappId ?? ""),
-                          defaultWidgetId: readString(defaultWidget?.id) || null,
-                          subjectId: host.subjectId ?? null,
-                          termsAccepted: true,
-                        });
+                        requestInstallForWidget(
+                          termsWidgetId ?? readString(defaultWidget?.id) ?? null,
+                          termsWidgetName ||
+                            resolveMarketplaceText(defaultWidget?.title as any, locale) ||
+                            null,
+                          true,
+                          autoAvailableMode,
+                        );
                         setTermsOpen(false);
                         setTermsAction("none");
+                        setTermsWidgetId(null);
+                        setTermsWidgetName(null);
                       }}
                     >
                       {t("xapp.accept_add_app", undefined, "Accept & Add app")}
@@ -2237,13 +2344,11 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
                       disabled={!termsAccepted || !installation}
                       onClick={() => {
                         if (!installation) return;
-                        host.requestUpdate?.({
-                          installationId: installation.installationId,
-                          xappId: String(xappId ?? ""),
-                          termsAccepted: true,
-                        });
+                        requestUpdateForWidget(termsWidgetId, true);
                         setTermsOpen(false);
                         setTermsAction("none");
+                        setTermsWidgetId(null);
+                        setTermsWidgetName(null);
                       }}
                     >
                       {t("xapp.accept_update", undefined, "Accept & Update")}
