@@ -227,6 +227,18 @@ function listDetailRows(candidate: Record<string, unknown>): string[] {
   return values.filter(Boolean);
 }
 
+function summarizeDetailRows(candidate: Record<string, unknown>): {
+  visible: string[];
+  hiddenCount: number;
+} {
+  const details = listDetailRows(candidate);
+  const visible = details.slice(0, 4);
+  return {
+    visible,
+    hiddenCount: Math.max(0, details.length - visible.length),
+  };
+}
+
 function buildOriginText(candidate: Record<string, unknown>): string {
   const origin = readRecord(candidate.origin);
   const sourceLabel = readString(origin?.source_label);
@@ -249,6 +261,21 @@ const i18nCatalog = {
   en: {
     title: "Billing profile",
     subtitle: "Choose an existing profile or complete the required invoicing details.",
+    available_profiles: "Available profiles",
+    profiles_summary: "{count} saved · {ready} ready to use",
+    current_profile: "Current profile",
+    current_profile_missing: "No current billing profile selected yet",
+    current_profile_ready: "Ready to continue",
+    current_profile_review: "Review saved profiles or create a new one below.",
+    complete_required_profile: "Complete the required profile",
+    complete_required_profile_help:
+      "This flow needs a complete billing profile before it can continue.",
+    continue_with_current_profile: "Continue with the current profile",
+    continue_with_current_profile_help:
+      "You can continue immediately with the selected billing profile, edit it, or create another one.",
+    use_current_profile: "Use current profile",
+    create_profile_hint:
+      "Create a new billing profile only if the saved profiles are not the right fit.",
     current: "Current",
     ready: "ready",
     default: "default",
@@ -267,6 +294,7 @@ const i18nCatalog = {
     hide_more_sources: "Hide additional sources",
     additional_sources: "Additional sources",
     profile_sources: "Profile sources",
+    more_details_count: "+{count} more",
     create_from_current_identity: "Create from current identity",
     create_private_copy: "Create private copy",
     edit_billing_profile: "Edit billing profile",
@@ -284,6 +312,20 @@ const i18nCatalog = {
   ro: {
     title: "Profil de facturare",
     subtitle: "Alege un profil existent sau completează detaliile necesare pentru facturare.",
+    available_profiles: "Profiluri disponibile",
+    profiles_summary: "{count} salvate · {ready} gata de folosit",
+    current_profile: "Profil curent",
+    current_profile_missing: "Nu este selectat încă un profil curent de facturare",
+    current_profile_ready: "Gata pentru a continua",
+    current_profile_review: "Revizuiește profilurile salvate sau creează unul nou mai jos.",
+    complete_required_profile: "Completează profilul necesar",
+    complete_required_profile_help:
+      "Acest flux are nevoie de un profil complet de facturare înainte să poată continua.",
+    continue_with_current_profile: "Continuă cu profilul curent",
+    continue_with_current_profile_help:
+      "Poți continua imediat cu profilul selectat, îl poți edita sau poți crea unul nou.",
+    use_current_profile: "Folosește profilul curent",
+    create_profile_hint: "Creează un profil nou doar dacă profilurile salvate nu sunt potrivite.",
     current: "curent",
     ready: "gata",
     default: "implicit",
@@ -303,6 +345,7 @@ const i18nCatalog = {
     hide_more_sources: "Ascunde sursele suplimentare",
     additional_sources: "Surse suplimentare",
     profile_sources: "Surse profil",
+    more_details_count: "+{count} altele",
     create_from_current_identity: "Creează din identitatea curentă",
     create_private_copy: "Creează copie privată",
     edit_billing_profile: "Editează profilul de facturare",
@@ -334,63 +377,141 @@ function translate(
 
 export const subjectProfileGuardSurfaceStyles = `
   .xapps-subject-profile {
+    --xapps-subject-profile-columns: minmax(0, 1.08fr) minmax(0, 0.92fr);
+    --sp-primary: #2563eb;
+    --sp-primary-hover: #1d4ed8;
+    --sp-primary-bg: rgba(37, 99, 235, 0.06);
+    --sp-primary-border: rgba(37, 99, 235, 0.18);
+    --sp-success: #059669;
+    --sp-success-bg: rgba(5, 150, 105, 0.07);
+    --sp-success-border: rgba(5, 150, 105, 0.2);
+    --sp-amber: #b45309;
+    --sp-amber-bg: rgba(180, 83, 9, 0.07);
+    --sp-amber-border: rgba(180, 83, 9, 0.18);
+    --sp-purple: #7c3aed;
+    --sp-purple-bg: rgba(124, 58, 237, 0.07);
+    --sp-purple-border: rgba(124, 58, 237, 0.18);
+    --sp-text: #0f172a;
+    --sp-text-2: #334155;
+    --sp-text-3: #475569;
+    --sp-text-muted: #64748b;
+    --sp-surface: #ffffff;
+    --sp-bg: #f8fafc;
+    --sp-border: rgba(148, 163, 184, 0.22);
+    --sp-shadow-sm: 0 1px 2px rgba(15,23,42,0.04);
+    --sp-shadow: 0 1px 3px rgba(15,23,42,0.03), 0 6px 16px rgba(15,23,42,0.06);
+    --sp-shadow-lg: 0 2px 6px rgba(15,23,42,0.03), 0 10px 28px rgba(15,23,42,0.08);
+    --sp-focus-ring: 0 0 0 3px rgba(37, 99, 235, 0.15);
+    --sp-ease: cubic-bezier(0.4, 0, 0.2, 1);
     display: grid;
-    gap: 14px;
-    color: #0f172a;
-    font-family: "IBM Plex Sans", system-ui, sans-serif;
+    gap: 16px;
+    color: var(--sp-text);
+    font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
   .xapps-subject-profile__header {
     display: grid;
     gap: 6px;
   }
+  .xapps-subject-profile__summary {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: var(--xapps-subject-profile-columns);
+  }
+  .xapps-subject-profile__summary-card {
+    display: grid;
+    gap: 8px;
+    border: 1px solid var(--sp-border);
+    border-radius: 16px;
+    background: linear-gradient(180deg, var(--sp-surface) 0%, var(--sp-bg) 100%);
+    padding: 14px 16px;
+    transition: box-shadow 200ms var(--sp-ease), border-color 200ms var(--sp-ease);
+  }
+  .xapps-subject-profile__summary-card:hover {
+    box-shadow: var(--sp-shadow-sm);
+    border-color: rgba(148, 163, 184, 0.35);
+  }
+  .xapps-subject-profile__summary-label {
+    color: var(--sp-text-muted);
+    font: 600 0.7rem/1.2 system-ui, sans-serif;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .xapps-subject-profile__summary-title {
+    font: 600 0.92rem/1.3 system-ui, sans-serif;
+    color: var(--sp-text);
+  }
+  .xapps-subject-profile__summary-meta {
+    color: var(--sp-text-3);
+    font: 400 0.8rem/1.45 system-ui, sans-serif;
+  }
+  .xapps-subject-profile__focus-card {
+    display: grid;
+    gap: 14px;
+    border: 1px solid var(--sp-border);
+    border-radius: 16px;
+    background: linear-gradient(180deg, rgba(248,250,255,0.95) 0%, var(--sp-surface) 100%);
+    padding: 18px;
+  }
+  .xapps-subject-profile__focus-copy {
+    display: grid;
+    gap: 6px;
+  }
   .xapps-subject-profile__title {
     margin: 0;
-    font: 700 1rem/1.2 "IBM Plex Serif", Georgia, serif;
-    color: #0f172a;
+    font: 700 1.05rem/1.25 "IBM Plex Sans", system-ui, sans-serif;
+    color: var(--sp-text);
+    letter-spacing: -0.01em;
   }
   .xapps-subject-profile__subtitle {
-    color: #64748b;
-    font: 500 0.85rem/1.45 system-ui, sans-serif;
+    color: var(--sp-text-muted);
+    font: 400 0.85rem/1.5 system-ui, sans-serif;
   }
   .xapps-subject-profile__notice,
   .xapps-subject-profile__error {
-    border-radius: 14px;
-    padding: 12px 14px;
-    font: 500 0.82rem/1.45 system-ui, sans-serif;
+    border-radius: 12px;
+    padding: 12px 16px;
+    font: 400 0.82rem/1.5 system-ui, sans-serif;
   }
   .xapps-subject-profile__notice {
-    background: #eef6ff;
-    border: 1px solid #c7def8;
-    color: #0f4c81;
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    color: #1e40af;
   }
   .xapps-subject-profile__error {
-    background: #fff3f2;
-    border: 1px solid #f3c1bc;
-    color: #b42318;
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    color: #b91c1c;
   }
   .xapps-subject-profile__layout {
     display: grid;
     gap: 14px;
-    grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+    grid-template-columns: var(--xapps-subject-profile-columns);
+    align-items: start;
   }
   .xapps-subject-profile__card {
-    border: 1px solid rgba(148, 163, 184, 0.28);
+    border: 1px solid var(--sp-border);
     border-radius: 18px;
-    background: linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(248,250,252,0.96) 100%);
-    box-shadow: 0 10px 26px rgba(15, 23, 42, 0.08);
-    padding: 16px;
+    background: var(--sp-surface);
+    box-shadow: var(--sp-shadow);
+    padding: 18px;
     display: grid;
-    gap: 12px;
+    gap: 14px;
+    align-content: start;
     min-width: 0;
   }
   .xapps-subject-profile__section-title {
     margin: 0;
-    font: 700 0.94rem/1.2 system-ui, sans-serif;
-    color: #0f172a;
+    font: 600 0.9rem/1.25 system-ui, sans-serif;
+    color: var(--sp-text);
+    letter-spacing: -0.005em;
   }
   .xapps-subject-profile__section-meta {
-    color: #64748b;
-    font: 500 0.8rem/1.4 system-ui, sans-serif;
+    color: var(--sp-text-muted);
+    font: 400 0.78rem/1.45 system-ui, sans-serif;
   }
   .xapps-subject-profile__toolbar,
   .xapps-subject-profile__toolbar-actions,
@@ -405,21 +526,58 @@ export const subjectProfileGuardSurfaceStyles = `
   .xapps-subject-profile__toolbar {
     justify-content: space-between;
   }
+  .xapps-subject-profile__toolbar-copy {
+    display: grid;
+    gap: 4px;
+  }
   .xapps-subject-profile__candidate-list {
     display: grid;
-    gap: 10px;
+    gap: 8px;
+    max-height: 420px;
+    overflow-y: auto;
+    padding-right: 2px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(148,163,184,0.3) transparent;
+  }
+  .xapps-subject-profile__candidate-list::-webkit-scrollbar {
+    width: 5px;
+  }
+  .xapps-subject-profile__candidate-list::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .xapps-subject-profile__candidate-list::-webkit-scrollbar-thumb {
+    background: rgba(148,163,184,0.3);
+    border-radius: 999px;
   }
   .xapps-subject-profile__candidate {
-    border: 1px solid rgba(148, 163, 184, 0.28);
-    border-radius: 16px;
-    background: #fff;
-    padding: 12px 14px;
+    border: 1px solid var(--sp-border);
+    border-radius: 12px;
+    background: var(--sp-surface);
+    padding: 14px 16px;
     display: grid;
     gap: 10px;
+    position: relative;
+    transition: border-color 200ms var(--sp-ease), box-shadow 200ms var(--sp-ease);
+    cursor: default;
+  }
+  .xapps-subject-profile__candidate:hover {
+    border-color: rgba(148, 163, 184, 0.4);
+    box-shadow: var(--sp-shadow-sm);
   }
   .xapps-subject-profile__candidate.is-selected {
-    border-color: rgba(37, 99, 235, 0.42);
-    box-shadow: 0 10px 24px rgba(37, 99, 235, 0.09);
+    border-color: rgba(37, 99, 235, 0.35);
+    background: linear-gradient(180deg, rgba(239,246,255,0.5) 0%, var(--sp-surface) 100%);
+    box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.08), var(--sp-shadow);
+  }
+  .xapps-subject-profile__candidate.is-selected::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 14px;
+    bottom: 14px;
+    width: 3px;
+    border-radius: 999px;
+    background: linear-gradient(180deg, var(--sp-primary) 0%, #0ea5e9 100%);
   }
   .xapps-subject-profile__candidate-head {
     display: flex;
@@ -428,97 +586,256 @@ export const subjectProfileGuardSurfaceStyles = `
     gap: 10px;
   }
   .xapps-subject-profile__candidate-title {
-    font: 700 0.9rem/1.25 system-ui, sans-serif;
-    color: #0f172a;
+    font: 600 0.88rem/1.3 system-ui, sans-serif;
+    color: var(--sp-text);
   }
   .xapps-subject-profile__candidate-meta,
   .xapps-subject-profile__candidate-origin,
   .xapps-subject-profile__empty {
-    color: #64748b;
-    font: 500 0.78rem/1.4 system-ui, sans-serif;
+    color: var(--sp-text-muted);
+    font: 400 0.78rem/1.45 system-ui, sans-serif;
+  }
+  .xapps-subject-profile__empty {
+    text-align: center;
+    padding: 24px 16px;
   }
   .xapps-subject-profile__candidate-badges,
   .xapps-subject-profile__candidate-details,
   .xapps-subject-profile__chips {
     display: flex;
-    gap: 6px;
+    gap: 5px;
     flex-wrap: wrap;
   }
-  .xapps-subject-profile__badge,
+  .xapps-subject-profile__candidate-main {
+    display: grid;
+    gap: 6px;
+  }
   .xapps-subject-profile__chip {
     display: inline-flex;
     align-items: center;
-    justify-content: center;
-    min-height: 24px;
+    min-height: 22px;
     border-radius: 999px;
-    border: 1px solid rgba(37, 99, 235, 0.16);
-    background: rgba(37, 99, 235, 0.08);
-    color: #1d4ed8;
-    padding: 0 9px;
-    font: 700 0.7rem/1 system-ui, sans-serif;
+    border: 1px solid var(--sp-primary-border);
+    background: var(--sp-primary-bg);
+    color: var(--sp-primary);
+    padding: 0 8px;
+    font: 600 0.68rem/1 system-ui, sans-serif;
     white-space: nowrap;
+  }
+  .xapps-subject-profile__badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 22px;
+    border-radius: 999px;
+    padding: 0 8px;
+    font: 600 0.67rem/1 system-ui, sans-serif;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+    border: 1px solid rgba(148, 163, 184, 0.3);
+    background: rgba(248, 250, 252, 0.9);
+    color: var(--sp-text-3);
+  }
+  .xapps-subject-profile__badge[data-badge="ready"] {
+    border-color: var(--sp-success-border);
+    background: var(--sp-success-bg);
+    color: var(--sp-success);
+  }
+  .xapps-subject-profile__badge[data-badge="current"] {
+    border-color: var(--sp-primary-border);
+    background: var(--sp-primary-bg);
+    color: var(--sp-primary);
+  }
+  .xapps-subject-profile__badge[data-badge="default"] {
+    border-color: var(--sp-amber-border);
+    background: var(--sp-amber-bg);
+    color: var(--sp-amber);
+  }
+  .xapps-subject-profile__badge[data-badge="editing"] {
+    border-color: var(--sp-purple-border);
+    background: var(--sp-purple-bg);
+    color: var(--sp-purple);
   }
   .xapps-subject-profile__detail {
     border-radius: 999px;
-    border: 1px solid rgba(203, 213, 225, 0.95);
-    background: #f8fafc;
-    color: #334155;
-    padding: 4px 9px;
-    font: 600 0.72rem/1.2 system-ui, sans-serif;
+    border: 1px solid rgba(226, 232, 240, 0.9);
+    background: var(--sp-bg);
+    color: var(--sp-text-2);
+    padding: 3px 9px;
+    font: 500 0.72rem/1.3 system-ui, sans-serif;
   }
   .xapps-subject-profile__button {
     appearance: none;
-    border: 1px solid rgba(148, 163, 184, 0.34);
-    background: #fff;
-    color: #0f172a;
-    border-radius: 999px;
-    padding: 8px 12px;
-    font: 700 0.78rem/1.2 system-ui, sans-serif;
+    border: 1px solid var(--sp-border);
+    background: var(--sp-surface);
+    color: var(--sp-text);
+    border-radius: 8px;
+    padding: 8px 14px;
+    font: 600 0.78rem/1.2 system-ui, sans-serif;
     cursor: pointer;
+    transition: all 180ms var(--sp-ease);
+    user-select: none;
+    white-space: nowrap;
   }
   .xapps-subject-profile__button:hover {
-    border-color: rgba(37, 99, 235, 0.34);
-    color: #1d4ed8;
+    border-color: var(--sp-primary-border);
+    color: var(--sp-primary);
+    box-shadow: var(--sp-shadow-sm);
+  }
+  .xapps-subject-profile__button:active {
+    transform: scale(0.97);
+  }
+  .xapps-subject-profile__button:focus-visible {
+    outline: none;
+    box-shadow: var(--sp-focus-ring);
   }
   .xapps-subject-profile__button[data-kind="primary"] {
-    border-color: #1d4ed8;
-    background: #1d4ed8;
+    border-color: var(--sp-primary);
+    background: var(--sp-primary);
+    color: #fff;
+    box-shadow: 0 1px 3px rgba(37, 99, 235, 0.25);
+  }
+  .xapps-subject-profile__button[data-kind="primary"]:hover {
+    background: var(--sp-primary-hover);
+    border-color: var(--sp-primary-hover);
+    box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3);
     color: #fff;
   }
+  .xapps-subject-profile__button[data-kind="primary"]:focus-visible {
+    box-shadow: 0 1px 3px rgba(37, 99, 235, 0.25), var(--sp-focus-ring);
+  }
+  .xapps-subject-profile__button[data-kind="subtle"] {
+    border-color: rgba(226, 232, 240, 0.9);
+    background: var(--sp-bg);
+    color: var(--sp-text-3);
+    box-shadow: none;
+  }
+  .xapps-subject-profile__button[data-kind="subtle"]:hover {
+    background: rgba(241, 245, 249, 0.95);
+    border-color: rgba(203, 213, 225, 0.95);
+    color: var(--sp-text);
+  }
   .xapps-subject-profile__button:disabled {
-    opacity: 0.6;
+    opacity: 0.5;
     cursor: not-allowed;
+    pointer-events: none;
   }
   .xapps-subject-profile__form {
     display: grid;
-    gap: 12px;
+    gap: 14px;
+  }
+  .xapps-subject-profile__form-shell {
+    display: grid;
+    gap: 14px;
   }
   .xapps-subject-profile__field {
     display: grid;
     gap: 6px;
   }
   .xapps-subject-profile__field label {
-    font: 700 0.78rem/1.2 system-ui, sans-serif;
-    color: #334155;
+    font: 600 0.78rem/1.2 system-ui, sans-serif;
+    color: var(--sp-text-2);
   }
-  .xapps-subject-profile__field input,
+  .xapps-subject-profile__field input[type="text"],
+  .xapps-subject-profile__field input[type="email"],
   .xapps-subject-profile__field select,
   .xapps-subject-profile__field textarea {
     width: 100%;
-    border: 1px solid rgba(148, 163, 184, 0.38);
-    border-radius: 12px;
+    border: 1px solid rgba(203, 213, 225, 0.7);
+    border-radius: 8px;
+    background: var(--sp-surface);
+    padding: 9px 12px;
+    color: var(--sp-text);
+    font: 400 0.82rem/1.4 system-ui, sans-serif;
+    transition: border-color 180ms var(--sp-ease), box-shadow 180ms var(--sp-ease);
+    outline: none;
+    box-sizing: border-box;
+  }
+  .xapps-subject-profile__field input[type="text"]:focus,
+  .xapps-subject-profile__field input[type="email"]:focus,
+  .xapps-subject-profile__field select:focus,
+  .xapps-subject-profile__field textarea:focus {
+    border-color: var(--sp-primary);
+    box-shadow: var(--sp-focus-ring);
+  }
+  .xapps-subject-profile__field input[type="text"]::placeholder,
+  .xapps-subject-profile__field input[type="email"]::placeholder,
+  .xapps-subject-profile__field textarea::placeholder {
+    color: rgba(148, 163, 184, 0.7);
+  }
+  .xapps-subject-profile__field input[type="checkbox"] {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 36px;
+    height: 20px;
+    border-radius: 999px;
+    background: rgba(203, 213, 225, 0.6);
+    border: none;
+    cursor: pointer;
+    position: relative;
+    transition: background 180ms var(--sp-ease);
+    flex-shrink: 0;
+  }
+  .xapps-subject-profile__field input[type="checkbox"]::after {
+    content: "";
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
     background: #fff;
-    padding: 10px 12px;
-    color: #0f172a;
-    font: 500 0.82rem/1.35 system-ui, sans-serif;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+    transition: transform 180ms var(--sp-ease);
+  }
+  .xapps-subject-profile__field input[type="checkbox"]:checked {
+    background: var(--sp-primary);
+  }
+  .xapps-subject-profile__field input[type="checkbox"]:checked::after {
+    transform: translateX(16px);
+  }
+  .xapps-subject-profile__field input[type="checkbox"]:focus-visible {
+    box-shadow: var(--sp-focus-ring);
   }
   .xapps-subject-profile__field-help {
-    color: #64748b;
-    font: 500 0.74rem/1.35 system-ui, sans-serif;
+    color: var(--sp-text-muted);
+    font: 400 0.73rem/1.4 system-ui, sans-serif;
+  }
+  .xapps-subject-profile__sources-disclosure {
+    border: 1px solid rgba(226, 232, 240, 0.8);
+    border-radius: 12px;
+    background: rgba(248, 250, 252, 0.72);
+  }
+  .xapps-subject-profile__sources-disclosure summary {
+    list-style: none;
+    cursor: pointer;
+    padding: 10px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .xapps-subject-profile__sources-disclosure summary::-webkit-details-marker {
+    display: none;
+  }
+  .xapps-subject-profile__sources-disclosure summary::after {
+    content: "+";
+    color: var(--sp-text-muted);
+    font: 600 0.95rem/1 system-ui, sans-serif;
+  }
+  .xapps-subject-profile__sources-disclosure[open] summary::after {
+    content: "−";
+  }
+  .xapps-subject-profile__sources-disclosure-body {
+    padding: 0 12px 12px;
   }
   .xapps-subject-profile__refresh-panel {
     display: grid;
     gap: 8px;
+    padding: 12px 14px;
+    border-radius: 12px;
+    background: var(--sp-bg);
+    border: 1px solid rgba(226, 232, 240, 0.8);
   }
   .xapps-subject-profile__secondary-sources {
     display: none;
@@ -528,12 +845,207 @@ export const subjectProfileGuardSurfaceStyles = `
   .xapps-subject-profile__secondary-sources.is-open {
     display: flex;
   }
+  .xapps-subject-profile__form-actions--sticky {
+    position: sticky;
+    bottom: 0;
+    z-index: 1;
+    margin-top: 4px;
+    padding-top: 12px;
+    background: linear-gradient(180deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.94) 28%, rgba(255,255,255,1) 100%);
+  }
+  .xapps-subject-profile.is-form-open .xapps-subject-profile__summary {
+    gap: 8px;
+  }
+  .xapps-subject-profile.is-form-open .xapps-subject-profile__toolbar {
+    align-items: flex-start;
+  }
+  .xapps-subject-profile.is-form-open .xapps-subject-profile__candidate-list {
+    gap: 6px;
+    max-height: 320px;
+  }
+  .xapps-subject-profile.is-form-open .xapps-subject-profile__candidate {
+    padding: 10px 14px;
+  }
+  .xapps-subject-profile.is-form-open .xapps-subject-profile__candidate-main {
+    gap: 5px;
+  }
+  .xapps-subject-profile.is-form-open .xapps-subject-profile__candidate-actions {
+    gap: 6px;
+  }
+  .xapps-subject-profile.is-form-open .xapps-subject-profile__refresh-panel {
+    gap: 6px;
+    padding: 10px 12px;
+  }
   @media (max-width: 960px) {
+    .xapps-subject-profile__summary {
+      grid-template-columns: 1fr;
+    }
     .xapps-subject-profile__layout {
       grid-template-columns: 1fr;
     }
   }
+  @media (max-width: 480px) {
+    .xapps-subject-profile__card {
+      padding: 14px;
+      border-radius: 14px;
+    }
+    .xapps-subject-profile__candidate {
+      padding: 12px;
+    }
+    .xapps-subject-profile__form-actions {
+      flex-direction: column;
+    }
+    .xapps-subject-profile__form-actions .xapps-subject-profile__button {
+      width: 100%;
+      justify-content: center;
+      text-align: center;
+    }
+  }
 `;
+
+export function createSubjectProfileOverlay(options?: {
+  locale?: string;
+  title?: string;
+  subtitle?: string;
+  onClose?: () => void;
+}): {
+  root: HTMLElement;
+  overlay: HTMLElement;
+  destroy: () => void;
+} {
+  const locale = readString(options?.locale);
+  const isRo = readLower(locale).startsWith("ro");
+  const titleText =
+    readString(options?.title) || (isRo ? "Profil de facturare" : "Billing profile");
+  const subtitleText =
+    readString(options?.subtitle) ||
+    (isRo
+      ? "Alege un profil existent sau completează detaliile necesare pentru facturare."
+      : "Choose an existing billing profile or complete the required invoicing details.");
+  const onClose = typeof options?.onClose === "function" ? options.onClose : null;
+
+  const overlay = document.createElement("div");
+  Object.assign(overlay.style, {
+    position: "fixed",
+    inset: "0",
+    background: "rgba(15,23,42,0.45)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: "24px",
+    overflow: "auto",
+    zIndex: "2147483000",
+    backdropFilter: "blur(6px)",
+  });
+  (overlay.style as any).webkitBackdropFilter = "blur(6px)";
+
+  const panel = document.createElement("div");
+  Object.assign(panel.style, {
+    width: "min(1080px, 96vw)",
+    maxWidth: "1080px",
+    maxHeight: "min(88vh, 740px)",
+    background: "#ffffff",
+    border: "1px solid rgba(148, 163, 184, 0.22)",
+    borderRadius: "18px",
+    boxShadow: "0 2px 6px rgba(15,23,42,0.03), 0 24px 60px rgba(15,23,42,0.2)",
+    overflow: "hidden",
+    display: "flex",
+    flexDirection: "column",
+  });
+
+  const header = document.createElement("div");
+  Object.assign(header.style, {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: "12px",
+    padding: "16px 18px",
+    borderBottom: "1px solid rgba(226, 232, 240, 0.8)",
+    flexShrink: "0",
+  });
+
+  const titleWrap = document.createElement("div");
+  const titleEl = document.createElement("div");
+  titleEl.textContent = titleText;
+  Object.assign(titleEl.style, {
+    font: '700 1.05rem/1.25 "IBM Plex Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif',
+    color: "#0f172a",
+    letterSpacing: "-0.01em",
+  });
+  const subtitleEl = document.createElement("div");
+  subtitleEl.textContent = subtitleText;
+  Object.assign(subtitleEl.style, {
+    marginTop: "4px",
+    font: "400 0.82rem/1.5 system-ui,sans-serif",
+    color: "#64748b",
+  });
+  titleWrap.appendChild(titleEl);
+  titleWrap.appendChild(subtitleEl);
+
+  const closeBtn = document.createElement("button");
+  closeBtn.type = "button";
+  closeBtn.textContent = "\u00d7";
+  closeBtn.setAttribute("aria-label", isRo ? "Închide" : "Close");
+  Object.assign(closeBtn.style, {
+    padding: "4px 10px",
+    border: "none",
+    borderRadius: "8px",
+    background: "transparent",
+    cursor: "pointer",
+    font: "400 1.4rem/1 system-ui,sans-serif",
+    color: "#64748b",
+    transition: "background 180ms ease, color 180ms ease",
+    flexShrink: "0",
+  });
+  closeBtn.addEventListener("mouseenter", () => {
+    closeBtn.style.background = "#f1f5f9";
+    closeBtn.style.color = "#0f172a";
+  });
+  closeBtn.addEventListener("mouseleave", () => {
+    closeBtn.style.background = "transparent";
+    closeBtn.style.color = "#64748b";
+  });
+
+  const body = document.createElement("div");
+  Object.assign(body.style, {
+    padding: "18px",
+    flex: "1 1 auto",
+    minHeight: "0",
+    overflow: "auto",
+    scrollbarWidth: "thin",
+    scrollbarColor: "rgba(148,163,184,0.3) transparent",
+  });
+
+  const root = document.createElement("div");
+  body.appendChild(root);
+
+  closeBtn.addEventListener("click", () => onClose?.());
+  overlay.addEventListener("click", (event) => {
+    if (event.target === overlay) onClose?.();
+  });
+  panel.addEventListener("click", (event) => event.stopPropagation());
+
+  const onKeyDown = (event: KeyboardEvent) => {
+    if (event.key === "Escape") onClose?.();
+  };
+  document.addEventListener("keydown", onKeyDown);
+
+  header.appendChild(titleWrap);
+  header.appendChild(closeBtn);
+  panel.appendChild(header);
+  panel.appendChild(body);
+  overlay.appendChild(panel);
+  document.body.appendChild(overlay);
+
+  return {
+    root,
+    overlay,
+    destroy() {
+      document.removeEventListener("keydown", onKeyDown);
+      overlay.remove();
+    },
+  };
+}
 
 export function renderSubjectProfileGuardSurface(
   root: Element,
@@ -727,9 +1239,17 @@ export function renderSubjectProfileGuardSurface(
 
   function render() {
     const candidates = currentCandidates();
+    const allCandidates = listCandidates(currentDescriptor);
     const refreshSources = listRefreshSources(currentDescriptor);
     const showHeader = options.showHeader !== false;
+    const currentCandidate =
+      allCandidates.find((candidate) => candidate.selected === true) ||
+      allCandidates.find((candidate) => candidate.is_default === true) ||
+      null;
+    const readyCount = allCandidates.filter((candidate) => shouldUseCandidate(candidate)).length;
     const activeForm = readActiveForm();
+    const showForm = formMode !== "hidden" || allCandidates.length === 0;
+    const showCollapsedSources = refreshSources.length > 0 && allCandidates.length > 0;
     const activeSchema = readRecord(activeForm.schema) || {};
     const properties = readRecord(activeSchema.properties) || {};
     const orderedFields = Array.isArray((readRecord(activeForm.ui_schema) || {}).elements)
@@ -749,7 +1269,7 @@ export function renderSubjectProfileGuardSurface(
     );
     root.innerHTML = `
       ${options.includeStyles !== false ? `<style>${subjectProfileGuardSurfaceStyles}</style>` : ""}
-      <section class="xapps-subject-profile">
+      <section class="xapps-subject-profile ${showForm ? "is-form-open" : "is-choice-mode"}">
         ${
           showHeader
             ? `<div class="xapps-subject-profile__header">
@@ -769,25 +1289,70 @@ export function renderSubjectProfileGuardSurface(
               </div>`
             : ""
         }
+        <div class="xapps-subject-profile__summary">
+          <section class="xapps-subject-profile__summary-card">
+            <div class="xapps-subject-profile__summary-label">${escapeHtml(
+              t("available_profiles", "Available profiles"),
+            )}</div>
+            <div class="xapps-subject-profile__summary-title">${escapeHtml(
+              t("profiles_summary", "{count} saved · {ready} ready to use", {
+                count: allCandidates.length,
+                ready: readyCount,
+              }),
+            )}</div>
+            <div class="xapps-subject-profile__chips">
+              ${
+                activeFamily
+                  ? `<span class="xapps-subject-profile__chip">${escapeHtml(
+                      familyLabel(activeFamily, locale),
+                    )}</span>`
+                  : ""
+              }
+              ${
+                refreshSources.length
+                  ? `<span class="xapps-subject-profile__chip">${escapeHtml(
+                      `${refreshSources.length} ${t("profile_sources", "Profile sources").toLowerCase()}`,
+                    )}</span>`
+                  : ""
+              }
+            </div>
+          </section>
+          <section class="xapps-subject-profile__summary-card">
+            <div class="xapps-subject-profile__summary-label">${escapeHtml(
+              t("current_profile", "Current profile"),
+            )}</div>
+            <div class="xapps-subject-profile__summary-title">${escapeHtml(
+              currentCandidate
+                ? candidateLabel(currentCandidate, locale)
+                : t("current_profile_missing", "No current billing profile selected yet"),
+            )}</div>
+            <div class="xapps-subject-profile__summary-meta">${escapeHtml(
+              currentCandidate
+                ? t("current_profile_ready", "Ready to continue")
+                : t("current_profile_review", "Review saved profiles or create a new one below."),
+            )}</div>
+          </section>
+        </div>
         ${currentNotice ? `<div class="xapps-subject-profile__notice">${escapeHtml(currentNotice)}</div>` : ""}
         ${currentError ? `<div class="xapps-subject-profile__error">${escapeHtml(currentError)}</div>` : ""}
         <div class="xapps-subject-profile__layout">
           <section class="xapps-subject-profile__card">
             <div class="xapps-subject-profile__toolbar">
-              <div>
-                <h4 class="xapps-subject-profile__section-title">${escapeHtml(t("title", "Billing profile"))}</h4>
+              <div class="xapps-subject-profile__toolbar-copy">
+                <h4 class="xapps-subject-profile__section-title">${escapeHtml(
+                  t("available_profiles", "Available profiles"),
+                )}</h4>
                 <div class="xapps-subject-profile__section-meta">${escapeHtml(
-                  readLocalizedText(currentRemediation.description, locale) ||
-                    t(
-                      "subtitle",
-                      "Choose an existing profile or complete the required invoicing details.",
-                    ),
+                  t("profiles_summary", "{count} saved · {ready} ready to use", {
+                    count: allCandidates.length,
+                    ready: readyCount,
+                  }),
                 )}</div>
               </div>
               <div class="xapps-subject-profile__toolbar-actions">
                 ${
-                  interactive
-                    ? `<button type="button" class="xapps-subject-profile__button" data-action="new-profile">${escapeHtml(
+                  interactive && !showForm
+                    ? `<button type="button" class="xapps-subject-profile__button" data-action="new-profile" data-kind="subtle">${escapeHtml(
                         t("new_profile", "New profile"),
                       )}</button>`
                     : ""
@@ -796,26 +1361,49 @@ export function renderSubjectProfileGuardSurface(
             </div>
             ${
               refreshSources.length
-                ? `<div class="xapps-subject-profile__refresh-panel">
-                    <div class="xapps-subject-profile__toolbar">
-                      <div>
-                        <div class="xapps-subject-profile__section-title">${escapeHtml(
+                ? showCollapsedSources
+                  ? `<details class="xapps-subject-profile__sources-disclosure">
+                      <summary>
+                        <span class="xapps-subject-profile__section-title">${escapeHtml(
                           t("profile_sources", "Profile sources"),
-                        )}</div>
+                        )}</span>
+                      </summary>
+                      <div class="xapps-subject-profile__sources-disclosure-body">
+                        <div class="xapps-subject-profile__refresh-panel">
+                          <div class="xapps-subject-profile__toolbar-actions" data-role="refresh-primary"></div>
+                          ${
+                            refreshSources.length > 1
+                              ? `<div class="xapps-subject-profile__toolbar-actions">
+                                  <button type="button" class="xapps-subject-profile__button" data-action="toggle-more-sources" data-kind="subtle">${escapeHtml(
+                                    t("more_sources", "More sources"),
+                                  )}</button>
+                                  <div class="xapps-subject-profile__secondary-sources" data-role="refresh-secondary"></div>
+                                </div>`
+                              : ""
+                          }
+                        </div>
                       </div>
-                      <div class="xapps-subject-profile__toolbar-actions" data-role="refresh-primary"></div>
-                    </div>
-                    ${
-                      refreshSources.length > 1
-                        ? `<div class="xapps-subject-profile__toolbar-actions">
-                            <button type="button" class="xapps-subject-profile__button" data-action="toggle-more-sources">${escapeHtml(
-                              t("more_sources", "More sources"),
-                            )}</button>
-                            <div class="xapps-subject-profile__secondary-sources" data-role="refresh-secondary"></div>
-                          </div>`
-                        : ""
-                    }
-                  </div>`
+                    </details>`
+                  : `<div class="xapps-subject-profile__refresh-panel">
+                      <div class="xapps-subject-profile__toolbar">
+                        <div>
+                          <div class="xapps-subject-profile__section-title">${escapeHtml(
+                            t("profile_sources", "Profile sources"),
+                          )}</div>
+                        </div>
+                        <div class="xapps-subject-profile__toolbar-actions" data-role="refresh-primary"></div>
+                      </div>
+                      ${
+                        refreshSources.length > 1
+                          ? `<div class="xapps-subject-profile__toolbar-actions">
+                              <button type="button" class="xapps-subject-profile__button" data-action="toggle-more-sources" data-kind="subtle">${escapeHtml(
+                                t("more_sources", "More sources"),
+                              )}</button>
+                              <div class="xapps-subject-profile__secondary-sources" data-role="refresh-secondary"></div>
+                            </div>`
+                          : ""
+                      }
+                    </div>`
                 : ""
             }
             <div class="xapps-subject-profile__candidate-list">
@@ -824,22 +1412,37 @@ export function renderSubjectProfileGuardSurface(
                   ? candidates
                       .map((candidate) => {
                         const candidateId = readString(candidate.candidate_id);
-                        const badges = [
-                          readString(candidate.profile_family)
-                            ? familyLabel(readString(candidate.profile_family), locale)
-                            : "",
-                          shouldUseCandidate(candidate) ? t("ready", "ready") : "",
-                          candidate.is_default ? t("default", "default") : "",
-                          candidate.selected ? t("current", "Current") : "",
-                          formCandidate &&
-                          readString(formCandidate.candidate_id) &&
-                          readString(formCandidate.candidate_id) === candidateId
-                            ? t("editing", "editing")
-                            : "",
-                        ].filter(Boolean);
+                        const detailSummary = summarizeDetailRows(candidate);
+                        const badges = (
+                          [
+                            readString(candidate.profile_family)
+                              ? {
+                                  text: familyLabel(readString(candidate.profile_family), locale),
+                                  type: "family",
+                                }
+                              : null,
+                            shouldUseCandidate(candidate)
+                              ? { text: t("ready", "ready"), type: "ready" }
+                              : null,
+                            candidate.is_default
+                              ? { text: t("default", "default"), type: "default" }
+                              : null,
+                            candidate.selected
+                              ? { text: t("current", "Current"), type: "current" }
+                              : null,
+                            formCandidate &&
+                            readString(formCandidate.candidate_id) &&
+                            readString(formCandidate.candidate_id) === candidateId
+                              ? { text: t("editing", "editing"), type: "editing" }
+                              : null,
+                          ] as Array<{ text: string; type: string } | null>
+                        ).filter(
+                          (b): b is { text: string; type: string } => b !== null && Boolean(b.text),
+                        );
                         return `<article class="xapps-subject-profile__candidate ${
                           candidateId && candidateId === selectedCandidateId ? "is-selected" : ""
                         }" data-candidate-id="${escapeHtml(candidateId)}">
+                          <div class="xapps-subject-profile__candidate-main">
                           <div class="xapps-subject-profile__candidate-head">
                             <div>
                               <div class="xapps-subject-profile__candidate-title">${escapeHtml(
@@ -854,22 +1457,28 @@ export function renderSubjectProfileGuardSurface(
                                 ? `<div class="xapps-subject-profile__candidate-badges">${badges
                                     .map(
                                       (badge) =>
-                                        `<span class="xapps-subject-profile__badge">${escapeHtml(badge)}</span>`,
+                                        `<span class="xapps-subject-profile__badge" data-badge="${escapeHtml(badge.type)}">${escapeHtml(badge.text)}</span>`,
                                     )
                                     .join("")}</div>`
                                 : ""
                             }
                           </div>
                           ${
-                            listDetailRows(candidate).length
-                              ? `<div class="xapps-subject-profile__candidate-details">${listDetailRows(
-                                  candidate,
-                                )
+                            detailSummary.visible.length
+                              ? `<div class="xapps-subject-profile__candidate-details">${detailSummary.visible
                                   .map(
                                     (row) =>
                                       `<span class="xapps-subject-profile__detail">${escapeHtml(row)}</span>`,
                                   )
-                                  .join("")}</div>`
+                                  .join("")}${
+                                  detailSummary.hiddenCount
+                                    ? `<span class="xapps-subject-profile__detail">${escapeHtml(
+                                        t("more_details_count", "+{count} more", {
+                                          count: detailSummary.hiddenCount,
+                                        }),
+                                      )}</span>`
+                                    : ""
+                                }</div>`
                               : ""
                           }
                           ${
@@ -895,7 +1504,7 @@ export function renderSubjectProfileGuardSurface(
                                     shouldEditCandidate(candidate)
                                       ? `<button type="button" class="xapps-subject-profile__button" data-action="edit-candidate" data-candidate-id="${escapeHtml(
                                           candidateId,
-                                        )}">${escapeHtml(
+                                        )}" data-kind="subtle">${escapeHtml(
                                           readString(candidate.source) === "subject_self_profile"
                                             ? t("edit", "Edit")
                                             : t("edit_copy", "Edit copy"),
@@ -905,6 +1514,7 @@ export function renderSubjectProfileGuardSurface(
                                 </div>`
                               : ""
                           }
+                          </div>
                         </article>`;
                       })
                       .join("")
@@ -918,13 +1528,20 @@ export function renderSubjectProfileGuardSurface(
             </div>
           </section>
           <section class="xapps-subject-profile__card">
-            <div>
-              <h4 class="xapps-subject-profile__section-title">${escapeHtml(buildFormTitle())}</h4>
-              <div class="xapps-subject-profile__section-meta">${escapeHtml(
-                readLocalizedText(activeForm.description, locale) || "",
-              )}</div>
-            </div>
-            <form class="xapps-subject-profile__form" data-role="form">
+            ${
+              showForm
+                ? `<div class="xapps-subject-profile__form-shell">
+                    <div>
+                    <h4 class="xapps-subject-profile__section-title">${escapeHtml(buildFormTitle())}</h4>
+                    <div class="xapps-subject-profile__section-meta">${escapeHtml(
+                      readLocalizedText(activeForm.description, locale) ||
+                        t(
+                          "complete_required_profile_help",
+                          "This flow needs a complete billing profile before it can continue.",
+                        ),
+                    )}</div>
+                  </div>
+                  <form class="xapps-subject-profile__form" data-role="form">
               ${
                 readAvailableFamilies(currentDescriptor).length > 1
                   ? `<div class="xapps-subject-profile__field">
@@ -1034,25 +1651,88 @@ export function renderSubjectProfileGuardSurface(
               </div>
               ${
                 interactive
-                  ? `<div class="xapps-subject-profile__form-actions">
+                  ? `<div class="xapps-subject-profile__form-actions xapps-subject-profile__form-actions--sticky">
                       <button type="submit" class="xapps-subject-profile__button" data-kind="primary">${escapeHtml(
                         formMode === "update_existing"
                           ? t("save_and_continue", "Save and continue")
                           : t("create_and_continue", "Create and continue"),
                       )}</button>
-                      <button type="button" class="xapps-subject-profile__button" data-action="reset-form">${escapeHtml(
+                      <button type="button" class="xapps-subject-profile__button" data-action="reset-form" data-kind="subtle">${escapeHtml(
                         t("back_to_list", "Back to list"),
                       )}</button>
                     </div>`
                   : ""
               }
-            </form>
+                  </form>
+                  </div>`
+                : `<div class="xapps-subject-profile__focus-card">
+                    <div class="xapps-subject-profile__focus-copy">
+                      <h4 class="xapps-subject-profile__section-title">${escapeHtml(
+                        currentCandidate
+                          ? t("continue_with_current_profile", "Continue with the current profile")
+                          : t("complete_required_profile", "Complete the required profile"),
+                      )}</h4>
+                      <div class="xapps-subject-profile__section-meta">${escapeHtml(
+                        currentCandidate
+                          ? t(
+                              "continue_with_current_profile_help",
+                              "You can continue immediately with the selected billing profile, edit it, or create another one.",
+                            )
+                          : t(
+                              "create_profile_hint",
+                              "Create a new billing profile only if the saved profiles are not the right fit.",
+                            ),
+                      )}</div>
+                    </div>
+                    ${
+                      currentCandidate
+                        ? `<div class="xapps-subject-profile__summary-card">
+                            <div class="xapps-subject-profile__summary-label">${escapeHtml(
+                              t("current_profile", "Current profile"),
+                            )}</div>
+                            <div class="xapps-subject-profile__summary-title">${escapeHtml(
+                              candidateLabel(currentCandidate, locale),
+                            )}</div>
+                            <div class="xapps-subject-profile__summary-meta">${escapeHtml(
+                              readProfileSummary(currentCandidate) ||
+                                t("current_profile_ready", "Ready to continue"),
+                            )}</div>
+                          </div>`
+                        : ""
+                    }
+                    <div class="xapps-subject-profile__form-actions">
+                      ${
+                        currentCandidate && shouldUseCandidate(currentCandidate)
+                          ? `<button type="button" class="xapps-subject-profile__button" data-action="use-current-profile" data-kind="primary">${escapeHtml(
+                              t("use_current_profile", "Use current profile"),
+                            )}</button>`
+                          : ""
+                      }
+                      ${
+                        !currentCandidate ||
+                        (!shouldUseCandidate(currentCandidate) &&
+                          !shouldEditCandidate(currentCandidate))
+                          ? `<button type="button" class="xapps-subject-profile__button" data-action="new-profile" data-kind="primary">${escapeHtml(
+                              t("new_profile", "New profile"),
+                            )}</button>`
+                          : ""
+                      }
+                      ${
+                        currentCandidate && shouldEditCandidate(currentCandidate)
+                          ? `<button type="button" class="xapps-subject-profile__button" data-action="edit-current-profile" data-kind="subtle">${escapeHtml(
+                              t("edit", "Edit"),
+                            )}</button>`
+                          : ""
+                      }
+                    </div>
+                  </div>`
+            }
           </section>
         </div>
         ${
           interactive && onCancel
             ? `<div class="xapps-subject-profile__footer">
-                <button type="button" class="xapps-subject-profile__button" data-action="cancel">${escapeHtml(
+                <button type="button" class="xapps-subject-profile__button" data-action="cancel" data-kind="subtle">${escapeHtml(
                   t("cancel", "Cancel"),
                 )}</button>
               </div>`
@@ -1069,8 +1749,20 @@ export function renderSubjectProfileGuardSurface(
       activeFamily = readString(familyInput.value);
       render();
     });
-    root.querySelector("[data-action='new-profile']")?.addEventListener("click", () => {
-      openCreateForm();
+    for (const button of Array.from(root.querySelectorAll("[data-action='new-profile']"))) {
+      button.addEventListener("click", () => {
+        openCreateForm();
+      });
+    }
+    root.querySelector("[data-action='use-current-profile']")?.addEventListener("click", () => {
+      if (!currentCandidate) return;
+      const payload = buildUseCandidatePayload(currentCandidate);
+      if (!payload) return;
+      onResolve?.(payload);
+    });
+    root.querySelector("[data-action='edit-current-profile']")?.addEventListener("click", () => {
+      if (!currentCandidate) return;
+      openEditForm(currentCandidate);
     });
     root.querySelector("[data-action='reset-form']")?.addEventListener("click", () => {
       formMode = "hidden";
@@ -1126,6 +1818,7 @@ export function renderSubjectProfileGuardSurface(
         const button = document.createElement("button");
         button.type = "button";
         button.className = "xapps-subject-profile__button";
+        button.dataset.kind = "subtle";
         button.textContent =
           readLocalizedText(primary.label, locale) || t("refreshing", "Refreshing...");
         button.addEventListener("click", async () => {
@@ -1148,6 +1841,7 @@ export function renderSubjectProfileGuardSurface(
         const button = document.createElement("button");
         button.type = "button";
         button.className = "xapps-subject-profile__button";
+        button.dataset.kind = "subtle";
         button.textContent =
           readLocalizedText(entry.label, locale) || readString(entry.provider_key);
         button.addEventListener("click", async () => {

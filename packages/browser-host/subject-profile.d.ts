@@ -7,6 +7,17 @@ export type SubjectProfileGuardRefreshInput = {
 
 export const subjectProfileGuardSurfaceStyles: string;
 
+export function createSubjectProfileOverlay(options?: {
+  locale?: string;
+  title?: string;
+  subtitle?: string;
+  onClose?: () => void;
+}): {
+  root: HTMLElement;
+  overlay: HTMLElement;
+  destroy: () => void;
+};
+
 export function renderSubjectProfileGuardSurface(
   root: Element,
   input: unknown,

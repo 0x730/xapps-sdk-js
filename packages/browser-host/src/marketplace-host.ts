@@ -185,6 +185,7 @@ export async function bootMarketplaceHost(config) {
     gatewayBaseUrl,
     currentSubjectId: String(identity.subjectId || "").trim() || null,
     locale: initialLocale,
+    installationPolicy: hostConfig.installationPolicy || null,
     themeKey,
     paymentResumeState: createHostPaymentResumeState(window.location.href, {
       autoCleanUrl: true,

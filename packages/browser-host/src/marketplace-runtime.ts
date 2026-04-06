@@ -27,6 +27,10 @@ type MarketplaceRuntimeOptions = {
     baseUrl: string;
     subjectId: string;
     locale?: string | null;
+    installationPolicy?: {
+      mode?: "manual" | "auto_available";
+      update_mode?: "manual" | "auto_update_compatible";
+    } | null;
     paymentResumeState: unknown;
     hostUi: unknown;
     theme: ReferenceTheme;
@@ -43,6 +47,10 @@ type MarketplaceRuntimeOptions = {
   gatewayBaseUrl: string;
   currentSubjectId: string;
   locale?: string | null;
+  installationPolicy?: {
+    mode?: "manual" | "auto_available";
+    update_mode?: "manual" | "auto_update_compatible";
+  } | null;
   paymentResumeState: unknown;
   hostDomUi: unknown;
   theme: ReferenceTheme;
@@ -76,6 +84,7 @@ export function createMarketplaceRuntime(options: MarketplaceRuntimeOptions): un
     baseUrl: options.gatewayBaseUrl,
     subjectId: options.currentSubjectId,
     locale: options.locale || null,
+    installationPolicy: options.installationPolicy || null,
     paymentResumeState: options.paymentResumeState,
     hostUi: options.hostDomUi,
     theme: options.theme,

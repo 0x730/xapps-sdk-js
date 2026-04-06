@@ -994,7 +994,8 @@ function readHistoryBucket(
 ): { total: number; items: Array<Record<string, unknown>> } {
   const bucketSource = history ? history[key] : undefined;
   const bucket = readRecord(bucketSource);
-  const items = (Array.isArray(bucket?.items) ? bucket?.items : [])
+  const bucketItems = bucket ? bucket.items : undefined;
+  const items = (Array.isArray(bucketItems) ? bucketItems : [])
     .map((item) => readRecord(item))
     .filter((item): item is Record<string, unknown> => Boolean(item));
   return {
@@ -1175,7 +1176,7 @@ export function buildMonetizationPlansSurfaceHtml(
     .filter(Boolean);
   const accessRows = [
     currentTier ? ["Current plan", currentTier] : null,
-    accessState ? ["Access state", accessState] : null,
+    accessState ? ["Membership access", accessState] : null,
     subscriptionStatus ? ["Subscription status", subscriptionStatus] : null,
     renewsAt ? ["Renews at", renewsAt] : null,
     expiresAt ? ["Expires at", expiresAt] : null,
@@ -1365,7 +1366,7 @@ export function buildMonetizationPlansSurfaceHtml(
       ${
         accessRows.length || additiveUnlocks.length
           ? `<section class="xapps-xms-plans__card">
-              <h4 class="xapps-xms-plans__section-title">Current access</h4>
+              <h4 class="xapps-xms-plans__section-title">Current coverage</h4>
               <div class="xapps-xms-plans__meta">
                 ${accessRows
                   .map(

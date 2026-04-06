@@ -123,6 +123,10 @@ type CreateReferenceMarketplaceRuntimeOptions = {
     baseUrl: string;
     subjectId: string;
     locale?: string | null;
+    installationPolicy?: {
+      mode?: "manual" | "auto_available";
+      update_mode?: "manual" | "auto_update_compatible";
+    } | null;
     paymentResumeState: unknown;
     hostUi: unknown;
     theme: ReferenceTheme;
@@ -139,6 +143,10 @@ type CreateReferenceMarketplaceRuntimeOptions = {
   gatewayBaseUrl: string;
   currentSubjectId: string;
   locale?: string | null;
+  installationPolicy?: {
+    mode?: "manual" | "auto_available";
+    update_mode?: "manual" | "auto_update_compatible";
+  } | null;
   paymentResumeState: unknown;
   hostDomUi: unknown;
   themeKey?: string | null;
@@ -175,6 +183,7 @@ export function createReferenceMarketplaceRuntime(
     gatewayBaseUrl: options.gatewayBaseUrl,
     currentSubjectId: options.currentSubjectId,
     locale: options.locale || null,
+    installationPolicy: options.installationPolicy || null,
     paymentResumeState: options.paymentResumeState,
     hostDomUi: options.hostDomUi,
     theme:
