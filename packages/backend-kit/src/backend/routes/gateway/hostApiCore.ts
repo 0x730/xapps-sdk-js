@@ -32,14 +32,19 @@ export default async function hostApiCoreRoutes(
       const body = readBodyRecord(request.body);
       const { signingSecret, ttlSeconds } = requireHostBootstrapRequest(request, bootstrap);
       const resolved = await service.resolveSubject({
+        subjectId: body.subjectId,
+        type: body.type,
+        identifier: body.identifier,
         email: body.email,
         name: body.name,
+        metadata: body.metadata,
+        linkId: body.linkId ?? body.link_id,
       });
       return reply.send(
         buildHostBootstrapResult({
           subjectId: resolved.subjectId,
-          email: body.email,
-          name: body.name,
+          email: resolved.email ?? body.email,
+          name: resolved.name ?? body.name,
           origin: body.origin,
           signingSecret,
           ttlSeconds,
@@ -57,8 +62,13 @@ export default async function hostApiCoreRoutes(
       applyHostApiCorsHeaders(reply, request, allowedOrigins);
       return reply.send(
         await service.resolveSubject({
+          subjectId: body.subjectId,
+          type: body.type,
+          identifier: body.identifier,
           email: body.email,
           name: body.name,
+          metadata: body.metadata,
+          linkId: body.linkId ?? body.link_id,
         }),
       );
     } catch (err) {
