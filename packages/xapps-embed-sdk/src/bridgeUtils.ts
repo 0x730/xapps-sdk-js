@@ -21,6 +21,17 @@ export function readRecordString(record: BridgeMessageRecord, key: string): stri
   return readStringValue(record[key]);
 }
 
+export function readRecordBoolean(record: BridgeMessageRecord, key: string): boolean | null {
+  const value = record[key];
+  if (typeof value === "boolean") return value;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === "true") return true;
+    if (normalized === "false") return false;
+  }
+  return null;
+}
+
 export function readNestedRecordString(
   record: BridgeMessageRecord,
   key: string,
@@ -99,7 +110,7 @@ export function readRecordArray(value: unknown, key: string): unknown[] {
 
 export function readInstallationSummary(
   value: unknown,
-): { id: string; xappId: string; status: string } | null {
+): { id: string; xappId: string; status: string; updateAvailable: boolean } | null {
   const record = asRecord(value);
   const id = readRecordString(record, "id");
   const xappId = readRecordString(record, "xapp_id") || readRecordString(record, "xappId");
@@ -108,6 +119,9 @@ export function readInstallationSummary(
     id,
     xappId,
     status: readRecordString(record, "status").toLowerCase(),
+    updateAvailable: Boolean(
+      readRecordBoolean(record, "updateAvailable") ?? readRecordBoolean(record, "update_available"),
+    ),
   };
 }
 

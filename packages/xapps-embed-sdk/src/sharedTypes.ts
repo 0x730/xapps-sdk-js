@@ -61,3 +61,8 @@ export type OpenOperationalSurfaceInput = {
   invoiceId?: string;
   notificationId?: string;
 };
+
+export type InstallationPolicy = {
+  mode: "manual" | "auto_available";
+  update_mode: "manual" | "auto_update_compatible";
+};

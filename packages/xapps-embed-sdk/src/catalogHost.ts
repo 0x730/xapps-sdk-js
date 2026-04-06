@@ -8,7 +8,10 @@ import {
   renderMonetizationPlansSurface,
   selectXappMonetizationPaywall,
 } from "@xapps-platform/browser-host/xms";
-import { renderSubjectProfileGuardSurface } from "@xapps-platform/browser-host/subject-profile";
+import {
+  createSubjectProfileOverlay,
+  renderSubjectProfileGuardSurface,
+} from "@xapps-platform/browser-host/subject-profile";
 import {
   messageFromUnknownError,
   normalizeOpenOperationalSurfaceInput,
@@ -18,7 +21,12 @@ import {
   readRecordArray,
   readRecordString,
 } from "./bridgeUtils";
-import type { OpenOperationalSurfaceInput, SessionExpiredPayload, Theme } from "./sharedTypes";
+import type {
+  InstallationPolicy,
+  OpenOperationalSurfaceInput,
+  SessionExpiredPayload,
+  Theme,
+} from "./sharedTypes";
 
 export type CatalogOptions = {
   container: HTMLElement;
@@ -27,6 +35,7 @@ export type CatalogOptions = {
   theme?: Theme;
   locale?: string;
   subjectId?: string;
+  installationPolicy?: InstallationPolicy | null;
   onEvent?: (evt: CatalogEvent) => void;
   onError?: (err: Error) => void;
   confirmDialog?: (input: {
@@ -105,22 +114,33 @@ export type CatalogEvent =
       data: {
         xappId: string;
         defaultWidgetId?: string | null;
+        openAfterInstall?: boolean;
         subjectId?: string | null;
         termsAccepted?: boolean;
       };
     }
   | {
       type: "XAPPS_MARKETPLACE_INSTALL_SUCCESS";
-      data: { installationId: string; xappId: string; defaultWidgetId?: string | null };
+      data: {
+        installationId: string;
+        xappId: string;
+        defaultWidgetId?: string | null;
+        openAfterInstall?: boolean;
+      };
     }
   | { type: "XAPPS_MARKETPLACE_INSTALL_FAILURE"; data: { xappId: string; message: string } }
   | {
       type: "XAPPS_MARKETPLACE_REQUEST_UPDATE";
-      data: { installationId: string; xappId: string; termsAccepted?: boolean };
+      data: {
+        installationId: string;
+        xappId: string;
+        widgetId?: string | null;
+        termsAccepted?: boolean;
+      };
     }
   | {
       type: "XAPPS_MARKETPLACE_UPDATE_SUCCESS";
-      data: { installationId: string; xappId: string };
+      data: { installationId: string; xappId: string; widgetId?: string | null };
     }
   | {
       type: "XAPPS_MARKETPLACE_UPDATE_FAILURE";
@@ -135,7 +155,12 @@ export type CatalogEvent =
   | { type: "XAPPS_MARKETPLACE_GET_INSTALLATIONS"; data?: Record<string, unknown> }
   | {
       type: "XAPPS_MARKETPLACE_INSTALLATIONS";
-      data: { byXappId: Record<string, { installationId: string }> };
+      data: {
+        byXappId: Record<
+          string,
+          { installationId: string; status?: string; updateAvailable?: boolean }
+        >;
+      };
     }
   | { type: "XAPPS_OPEN_WIDGET"; data: { installationId: string; widgetId: string } }
   | { type: "XAPPS_OPEN_OPERATIONAL_SURFACE"; data: OpenOperationalSurfaceInput }
@@ -341,12 +366,17 @@ export function createMarketplaceMutationEventHandler(options: MarketplaceMutati
             installationId,
             xappId,
             defaultWidgetId: evt.data.defaultWidgetId || null,
+            openAfterInstall: Boolean(evt.data.openAfterInstall),
           },
         });
         if (refreshAfterMutation) {
           host.emitToCatalog({ type: "XAPPS_MARKETPLACE_GET_INSTALLATIONS", data: {} });
         }
-        if (openDefaultWidgetAfterInstall && evt.data.defaultWidgetId) {
+        if (
+          openDefaultWidgetAfterInstall &&
+          evt.data.defaultWidgetId &&
+          evt.data.openAfterInstall
+        ) {
           await host.openWidget({
             installationId,
             widgetId: String(evt.data.defaultWidgetId),
@@ -385,10 +415,17 @@ export function createMarketplaceMutationEventHandler(options: MarketplaceMutati
           data: {
             installationId: evt.data.installationId,
             xappId: evt.data.xappId,
+            widgetId: evt.data.widgetId || null,
           },
         });
         if (refreshAfterMutation) {
           host.emitToCatalog({ type: "XAPPS_MARKETPLACE_GET_INSTALLATIONS", data: {} });
+        }
+        if (evt.data.widgetId) {
+          await host.openWidget({
+            installationId: evt.data.installationId,
+            widgetId: String(evt.data.widgetId),
+          });
         }
         if (options.onUpdateSuccess) await options.onUpdateSuccess({ event: evt, result });
       } catch (error) {
@@ -1181,7 +1218,21 @@ export class XappsHost {
     widgetId: string;
     hostReturnUrl?: string;
   }): Promise<void> {
-    if (!this.options.widgetMount?.container) return;
+    if (!this.options.widgetMount?.container) {
+      const currentSrc = String(
+        this.catalogIframe?.src || `${this.options.baseUrl.replace(/\/+$/, "")}/embed/catalog`,
+      ).trim();
+      if (!currentSrc) return;
+      const nextUrl = new URL(currentSrc, window.location.href);
+      nextUrl.pathname = `/embed/catalog/widget/${encodeURIComponent(input.installationId)}/${encodeURIComponent(
+        input.widgetId,
+      )}`;
+      this.activeWidget = { installationId: input.installationId, widgetId: input.widgetId };
+      if (this.catalogIframe) {
+        this.catalogIframe.src = nextUrl.toString();
+      }
+      return;
+    }
     const { baseUrl } = this.options;
     const hostReturnUrl = this.resolveHostReturnUrl(input.hostReturnUrl);
     let session: WidgetSession;
@@ -1578,72 +1629,6 @@ export class XappsHost {
     let executionSessionPromise: Promise<WidgetSession> | null = null;
 
     return await new Promise<Record<string, unknown> | null>((resolve, reject) => {
-      const overlay = document.createElement("div");
-      overlay.style.position = "fixed";
-      overlay.style.inset = "0";
-      overlay.style.background = "rgba(2,6,23,0.56)";
-      overlay.style.display = "flex";
-      overlay.style.alignItems = "flex-start";
-      overlay.style.justifyContent = "center";
-      overlay.style.padding = "16px";
-      overlay.style.overflow = "auto";
-      overlay.style.zIndex = "2147483000";
-      overlay.style.backdropFilter = "blur(3px)";
-      (overlay.style as any).webkitBackdropFilter = "blur(3px)";
-
-      const panel = document.createElement("div");
-      panel.style.width = "min(1100px, 96vw)";
-      panel.style.maxWidth = "1100px";
-      panel.style.background = "#ffffff";
-      panel.style.border = "1px solid rgba(148, 163, 184, 0.28)";
-      panel.style.borderRadius = "18px";
-      panel.style.boxShadow = "0 28px 70px rgba(15, 23, 42, 0.28)";
-      panel.style.overflow = "hidden";
-
-      const header = document.createElement("div");
-      header.style.display = "flex";
-      header.style.alignItems = "center";
-      header.style.justifyContent = "space-between";
-      header.style.gap = "12px";
-      header.style.padding = "14px 16px";
-      header.style.borderBottom = "1px solid rgba(226, 232, 240, 0.95)";
-      header.style.background =
-        "linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(248,250,252,0.96) 100%)";
-
-      const titleWrap = document.createElement("div");
-      const title = document.createElement("div");
-      title.textContent = "Billing profile";
-      title.style.font = '700 1rem "IBM Plex Serif", Georgia, serif';
-      title.style.color = "#0f172a";
-      const subtitle = document.createElement("div");
-      subtitle.textContent =
-        "Choose an existing billing profile or complete the required invoicing details.";
-      subtitle.style.marginTop = "4px";
-      subtitle.style.font = "500 0.8125rem system-ui,sans-serif";
-      subtitle.style.color = "#64748b";
-      titleWrap.appendChild(title);
-      titleWrap.appendChild(subtitle);
-
-      const closeBtn = document.createElement("button");
-      closeBtn.type = "button";
-      closeBtn.textContent = "Close";
-      closeBtn.style.padding = "8px 12px";
-      closeBtn.style.border = "1px solid rgba(148,163,184,0.32)";
-      closeBtn.style.borderRadius = "999px";
-      closeBtn.style.background = "#ffffff";
-      closeBtn.style.cursor = "pointer";
-      closeBtn.style.font = "600 0.875rem system-ui,sans-serif";
-      closeBtn.style.color = "#0f172a";
-
-      const body = document.createElement("div");
-      body.style.padding = "16px";
-      body.style.maxHeight = "min(860px, calc(100vh - 104px))";
-      body.style.overflow = "auto";
-      body.style.background = "linear-gradient(180deg, #f8fafc 0%, #ffffff 22%)";
-
-      const root = document.createElement("div");
-      body.appendChild(root);
-
       let surfaceCleanup: (() => void) | null = null;
       let settled = false;
 
@@ -1651,18 +1636,18 @@ export class XappsHost {
         if (settled) return;
         settled = true;
         try {
-          document.removeEventListener("keydown", onKeyDown);
           surfaceCleanup?.();
-          overlay.remove();
+          shell.destroy();
         } catch {}
         this.activeSubjectProfileOverlayCleanup = null;
         if (error) reject(error);
         else resolve(payload);
       };
 
-      const onKeyDown = (event: KeyboardEvent) => {
-        if (event.key === "Escape") finish(null);
-      };
+      const shell = createSubjectProfileOverlay({
+        locale: String(this.options.locale || "").trim() || "en",
+        onClose: () => finish(null),
+      });
 
       const ensureExecutionSession = async () => {
         executionSessionPromise ||= this.createWidgetSession({
@@ -1678,11 +1663,9 @@ export class XappsHost {
 
       const renderSurface = (notice?: string | null, error?: string | null) => {
         surfaceCleanup?.();
-        surfaceCleanup = renderSubjectProfileGuardSurface(root, guardUi, {
+        surfaceCleanup = renderSubjectProfileGuardSurface(shell.root, guardUi, {
           locale: String(this.options.locale || "").trim() || "en",
-          title: "Billing profile",
-          subtitle:
-            "Choose an existing billing profile or complete the required invoicing details.",
+          showHeader: false,
           notice,
           error,
           onResolve: (payload) => finish(payload),
@@ -1710,19 +1693,6 @@ export class XappsHost {
         }).destroy;
       };
 
-      closeBtn.addEventListener("click", () => finish(null));
-      overlay.addEventListener("click", (event) => {
-        if (event.target === overlay) finish(null);
-      });
-      panel.addEventListener("click", (event) => event.stopPropagation());
-
-      header.appendChild(titleWrap);
-      header.appendChild(closeBtn);
-      panel.appendChild(header);
-      panel.appendChild(body);
-      overlay.appendChild(panel);
-      document.addEventListener("keydown", onKeyDown);
-      document.body.appendChild(overlay);
       this.activeSubjectProfileOverlayCleanup = () => finish(null);
       renderSurface();
     });
@@ -2000,6 +1970,7 @@ export class XappsHost {
           theme: t,
           locale: this.options.locale || null,
           subjectId: this.options.subjectId || null,
+          installationPolicy: this.options.installationPolicy || null,
         },
         this.catalogOrigin,
       );
@@ -2027,11 +1998,18 @@ export class XappsHost {
         const items = readRecordArray(data, "items").length
           ? readRecordArray(data, "items")
           : readRecordArray(data, "installations");
-        const byXappId: Record<string, { installationId: string }> = {};
+        const byXappId: Record<
+          string,
+          { installationId: string; status?: string; updateAvailable?: boolean }
+        > = {};
         for (const it of items) {
           const summary = readInstallationSummary(it);
           if (!summary || (summary.status && summary.status !== "installed")) continue;
-          byXappId[summary.xappId] = { installationId: summary.id };
+          byXappId[summary.xappId] = {
+            installationId: summary.id,
+            status: summary.status,
+            updateAvailable: summary.updateAvailable,
+          };
         }
         this.catalogIframe?.contentWindow?.postMessage(
           { type: "XAPPS_MARKETPLACE_INSTALLATIONS", data: { byXappId } },
@@ -2161,7 +2139,15 @@ export class XappsHost {
         const payload = readMessageData(msg);
         const installationId = readRecordString(payload, "installationId");
         const defaultWidgetId = readRecordString(payload, "defaultWidgetId");
-        if (installationId && defaultWidgetId && this.options.widgetMount?.container) {
+        const openAfterInstall =
+          payload.openAfterInstall === true ||
+          readRecordString(payload, "openAfterInstall") === "true";
+        if (
+          installationId &&
+          defaultWidgetId &&
+          openAfterInstall &&
+          this.options.widgetMount?.container
+        ) {
           void this.openWidget({ installationId, widgetId: defaultWidgetId });
         }
       }

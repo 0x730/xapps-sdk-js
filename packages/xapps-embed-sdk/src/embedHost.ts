@@ -150,6 +150,7 @@ export type CreateStandardMarketplaceRuntimeOptions = {
   baseUrl: string;
   subjectId?: string | null;
   locale?: string | null;
+  installationPolicy?: CatalogOptions["installationPolicy"];
   paymentResumeState: ReturnType<typeof createHostPaymentResumeState>;
   hostUi: StandardMarketplaceRuntimeUi;
   widgetContext?: EmbedHostWidgetContextController;
@@ -482,6 +483,7 @@ export function createStandardMarketplaceRuntime(
       baseUrl: options.baseUrl,
       subjectId: String(options.subjectId || "").trim() || undefined,
       locale: String(options.locale || "").trim() || undefined,
+      installationPolicy: options.installationPolicy || undefined,
       theme: options.theme,
       ...(mode === "split-panel" && widgetMount ? { widgetMount: { container: widgetMount } } : {}),
       apiBasePath,
@@ -807,9 +809,10 @@ export function createSplitPanelMutationCallbacks(
 
   return {
     onInstallSuccess: async ({ event, installation }) => {
+      const shouldOpenAfterInstall = Boolean(event.data?.openAfterInstall);
       options.setWidgetContext({
         installationId: installation.installationId || null,
-        widgetId: event.data?.defaultWidgetId || null,
+        widgetId: shouldOpenAfterInstall ? event.data?.defaultWidgetId || null : null,
         xappId:
           installation.xappId || (event.data as Record<string, unknown> | undefined)?.xappId
             ? String(
@@ -828,16 +831,21 @@ export function createSplitPanelMutationCallbacks(
         await options.notify("App updated.", "success");
       }
       try {
-        if (!options.widgetMount) return;
         const current = options.getWidgetContext();
-        if (!current.installationId || !current.widgetId) return;
+        const targetWidgetId = String(event.data?.widgetId || current.widgetId || "").trim();
+        if (!current.installationId || !targetWidgetId) return;
+        options.setWidgetContext({
+          ...current,
+          widgetId: targetWidgetId,
+        });
+        if (!options.widgetMount) return;
         if (options.widgetMount.offsetParent === null) return;
         if (current.installationId !== event.data?.installationId) return;
         const host = options.getHost();
         if (!host) return;
         await host.openWidget({
           installationId: current.installationId,
-          widgetId: current.widgetId,
+          widgetId: targetWidgetId,
         });
       } catch {}
     },
