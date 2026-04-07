@@ -234,7 +234,21 @@ export function WidgetView() {
     let alive = true;
     void (async () => {
       try {
-        const { token: wToken, context } = await client.getWidgetToken(installationId, widgetId);
+        const widgetTokenResponse = await client.getWidgetToken(installationId, widgetId);
+        const resolvedWidgetId = readString(asRecord(widgetTokenResponse).widgetId);
+        if (resolvedWidgetId && resolvedWidgetId !== widgetId) {
+          navigate(
+            {
+              pathname: isEmbedded
+                ? `/widget/${encodeURIComponent(installationId)}/${encodeURIComponent(resolvedWidgetId)}`
+                : `/marketplace/widget/${encodeURIComponent(installationId)}/${encodeURIComponent(resolvedWidgetId)}`,
+              search: tokenSearch,
+            },
+            { replace: true },
+          );
+          return;
+        }
+        const { token: wToken, context } = widgetTokenResponse;
         if (!alive) return;
         setSessionExpired(null);
         setWidgetToken(wToken);
@@ -248,7 +262,7 @@ export function WidgetView() {
     return () => {
       alive = false;
     };
-  }, [installationId, widgetId, client]);
+  }, [installationId, widgetId, client, isEmbedded, navigate, tokenSearch]);
 
   async function remintWidgetSession() {
     if (!installationId || !widgetId) {
