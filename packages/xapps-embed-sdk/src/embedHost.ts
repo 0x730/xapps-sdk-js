@@ -682,6 +682,7 @@ export function createStandardMarketplaceRuntime(
       mutationHandler: {
         getSubjectId: () => String(options.subjectId || "").trim() || undefined,
         callApi: callBridgeApi,
+        openWidgetAfterUpdate: false,
         ...splitPanelMutations,
         ...failureCallbacks,
       },

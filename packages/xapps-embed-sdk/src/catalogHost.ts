@@ -203,6 +203,7 @@ export type MarketplaceMutationHelperOptions = {
   };
   refreshInstallationsAfterMutation?: boolean;
   openDefaultWidgetAfterInstall?: boolean;
+  openWidgetAfterUpdate?: boolean;
   onInstallSuccess?: (input: {
     event: Extract<CatalogEvent, { type: "XAPPS_MARKETPLACE_REQUEST_INSTALL" }>;
     result: Record<string, unknown> | null | undefined;
@@ -314,6 +315,7 @@ export function createMarketplaceMutationEventHandler(options: MarketplaceMutati
   const uninstallUrl = String(options.endpoints?.uninstall || "/api/uninstall");
   const refreshAfterMutation = options.refreshInstallationsAfterMutation !== false;
   const openDefaultWidgetAfterInstall = options.openDefaultWidgetAfterInstall !== false;
+  const openWidgetAfterUpdate = options.openWidgetAfterUpdate !== false;
 
   return async function handleMarketplaceEvent(evt: CatalogEvent) {
     const host = options.getHost();
@@ -421,7 +423,7 @@ export function createMarketplaceMutationEventHandler(options: MarketplaceMutati
         if (refreshAfterMutation) {
           host.emitToCatalog({ type: "XAPPS_MARKETPLACE_GET_INSTALLATIONS", data: {} });
         }
-        if (evt.data.widgetId) {
+        if (evt.data.widgetId && openWidgetAfterUpdate) {
           await host.openWidget({
             installationId: evt.data.installationId,
             widgetId: String(evt.data.widgetId),
@@ -1313,6 +1315,7 @@ export class XappsHost {
     }
 
     this.activePlansOverlayCleanup?.();
+    const hasSubjectContext = Boolean(String(this.options.subjectId || "").trim());
 
     const overlay = document.createElement("div");
     overlay.style.position = "fixed";
@@ -1435,7 +1438,11 @@ export class XappsHost {
           null;
 
         const returnState = this.readMonetizationReturnState();
-        let notice = String(state?.notice || "").trim() || null;
+        let notice =
+          String(state?.notice || "").trim() ||
+          (!hasSubjectContext
+            ? "Checkout requires a subject-bound catalog session. Start from a signed host session to purchase plans."
+            : null);
         let error = String(state?.error || "").trim() || null;
 
         if (
@@ -1492,97 +1499,104 @@ export class XappsHost {
             notice,
             error,
             showHeader: false,
-            onCheckoutPackage: ({ packageSlug }) => {
-              void (async () => {
-                try {
-                  await renderState({ busyPackageSlug: packageSlug, notice: null, error: null });
-                  const pkg = Array.isArray((selectedPaywall as any)?.packages)
-                    ? (selectedPaywall as any).packages.find(
-                        (item: any) =>
-                          String(item?.slug || "")
-                            .trim()
-                            .toLowerCase() === packageSlug.trim().toLowerCase(),
-                      )
-                    : null;
-                  const price = Array.isArray(pkg?.prices) ? pkg.prices[0] || null : null;
-                  if (!pkg?.offering_id || !pkg?.id || !price?.id) {
-                    throw new Error(
-                      "This package is missing purchase metadata in the published paywall.",
-                    );
-                  }
-                  const prepared = await this.fetchMyXappHostApiJson<Record<string, any>>(
-                    xappId,
-                    "/monetization/purchase-intents/prepare",
-                    {
-                      method: "POST",
-                      body: {
-                        offering_id: String(pkg.offering_id || "").trim(),
-                        package_id: String(pkg.id || "").trim(),
-                        price_id: String(price.id || "").trim(),
-                        ...(installationId ? { installation_id: installationId } : {}),
-                      },
-                    },
-                  );
-                  const intentId = String(
-                    prepared?.prepared_intent?.purchase_intent_id || "",
-                  ).trim();
-                  if (!intentId) {
-                    throw new Error("Purchase intent was created without an identifier.");
-                  }
-                  const returnUrl = this.buildMonetizationCheckoutReturnUrl({
-                    xappId,
-                    intentId,
-                    installationId,
-                    paywallSlug: String((selectedPaywall as any)?.slug || "").trim() || null,
-                    packageSlug,
-                  });
-                  const payment = await this.fetchMyXappHostApiJson<Record<string, any>>(
-                    xappId,
-                    `/monetization/purchase-intents/${encodeURIComponent(intentId)}/payment-session`,
-                    {
-                      method: "POST",
-                      body: {
-                        return_url: returnUrl,
-                        cancel_url: returnUrl,
-                        xapps_resume: returnUrl,
-                        locale: String(this.options.locale || "").trim() || null,
-                      },
-                    },
-                  );
-                  const paymentPageUrl = String(payment?.payment_page_url || "").trim();
-                  const paymentStatus = String(payment?.payment_session?.status || "")
-                    .trim()
-                    .toLowerCase();
-                  if (
-                    !paymentPageUrl &&
-                    (paymentStatus === "paid" || paymentStatus === "completed")
-                  ) {
-                    await this.fetchMyXappHostApiJson(
-                      xappId,
-                      `/monetization/purchase-intents/${encodeURIComponent(intentId)}/payment-session/finalize`,
-                      { method: "POST", body: {} },
-                    );
-                    await renderState({
-                      notice: "Payment completed and access was refreshed.",
-                      error: null,
-                    });
-                    return;
-                  }
-                  if (!paymentPageUrl) {
-                    throw new Error("Payment page is not available for this package.");
-                  }
-                  this.navigateToHostedCheckout(paymentPageUrl);
-                } catch (error) {
-                  await renderState({
-                    notice: null,
-                    error:
-                      error instanceof Error && error.message
-                        ? error.message
-                        : "Unable to start checkout for this package.",
-                  });
+            interactive: hasSubjectContext,
+            onCheckoutPackage: hasSubjectContext
+              ? ({ packageSlug }) => {
+                  void (async () => {
+                    try {
+                      await renderState({
+                        busyPackageSlug: packageSlug,
+                        notice: null,
+                        error: null,
+                      });
+                      const pkg = Array.isArray((selectedPaywall as any)?.packages)
+                        ? (selectedPaywall as any).packages.find(
+                            (item: any) =>
+                              String(item?.slug || "")
+                                .trim()
+                                .toLowerCase() === packageSlug.trim().toLowerCase(),
+                          )
+                        : null;
+                      const price = Array.isArray(pkg?.prices) ? pkg.prices[0] || null : null;
+                      if (!pkg?.offering_id || !pkg?.id || !price?.id) {
+                        throw new Error(
+                          "This package is missing purchase metadata in the published paywall.",
+                        );
+                      }
+                      const prepared = await this.fetchMyXappHostApiJson<Record<string, any>>(
+                        xappId,
+                        "/monetization/purchase-intents/prepare",
+                        {
+                          method: "POST",
+                          body: {
+                            offering_id: String(pkg.offering_id || "").trim(),
+                            package_id: String(pkg.id || "").trim(),
+                            price_id: String(price.id || "").trim(),
+                            ...(installationId ? { installation_id: installationId } : {}),
+                          },
+                        },
+                      );
+                      const intentId = String(
+                        prepared?.prepared_intent?.purchase_intent_id || "",
+                      ).trim();
+                      if (!intentId) {
+                        throw new Error("Purchase intent was created without an identifier.");
+                      }
+                      const returnUrl = this.buildMonetizationCheckoutReturnUrl({
+                        xappId,
+                        intentId,
+                        installationId,
+                        paywallSlug: String((selectedPaywall as any)?.slug || "").trim() || null,
+                        packageSlug,
+                      });
+                      const payment = await this.fetchMyXappHostApiJson<Record<string, any>>(
+                        xappId,
+                        `/monetization/purchase-intents/${encodeURIComponent(intentId)}/payment-session`,
+                        {
+                          method: "POST",
+                          body: {
+                            return_url: returnUrl,
+                            cancel_url: returnUrl,
+                            xapps_resume: returnUrl,
+                            locale: String(this.options.locale || "").trim() || null,
+                          },
+                        },
+                      );
+                      const paymentPageUrl = String(payment?.payment_page_url || "").trim();
+                      const paymentStatus = String(payment?.payment_session?.status || "")
+                        .trim()
+                        .toLowerCase();
+                      if (
+                        !paymentPageUrl &&
+                        (paymentStatus === "paid" || paymentStatus === "completed")
+                      ) {
+                        await this.fetchMyXappHostApiJson(
+                          xappId,
+                          `/monetization/purchase-intents/${encodeURIComponent(intentId)}/payment-session/finalize`,
+                          { method: "POST", body: {} },
+                        );
+                        await renderState({
+                          notice: "Payment completed and access was refreshed.",
+                          error: null,
+                        });
+                        return;
+                      }
+                      if (!paymentPageUrl) {
+                        throw new Error("Payment page is not available for this package.");
+                      }
+                      this.navigateToHostedCheckout(paymentPageUrl);
+                    } catch (error) {
+                      await renderState({
+                        notice: null,
+                        error:
+                          error instanceof Error && error.message
+                            ? error.message
+                            : "Unable to start checkout for this package.",
+                      });
+                    }
+                  })();
                 }
-              })();
-            },
+              : null,
           },
         ).destroy;
       } catch (error) {
