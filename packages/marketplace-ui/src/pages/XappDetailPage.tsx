@@ -1158,6 +1158,7 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
       item,
       currentSubscription: monetizationSubscription,
       additiveEntitlements: activeAdditiveEntitlements,
+      accessProjection: monetizationAccessProjection,
     });
   }
   const currentAccessCard = hasMonetizationState ? (
@@ -1281,6 +1282,13 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
         {selectedPaywallRenderModel.packages.map((item: MonetizationPaywallRenderPackage) => {
           const normalizedPackageSlug = item.packageSlug.trim().toLowerCase();
           const purchasePolicy = getPackagePurchasePolicy(item);
+          const packageSignals = item.signals.filter(
+            (signal: string) =>
+              !(
+                purchasePolicy.transitionKind === "replace_recurring" &&
+                signal.toLowerCase().includes("trial")
+              ),
+          );
           const isCurrentPackage = purchasePolicy.status === "current_recurring_plan";
           const isOwnedAdditive = purchasePolicy.status === "owned_additive_unlock";
           const isAdditiveCompanion =
@@ -1333,9 +1341,9 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
                   </span>
                 ) : null}
               </div>
-              {item.signals.length > 0 ? (
+              {packageSignals.length > 0 ? (
                 <div className="mx-paywall-card-signals">
-                  {item.signals.map((signal: string) => (
+                  {packageSignals.map((signal: string) => (
                     <span key={signal} className="mx-paywall-card-signal">
                       {signal}
                     </span>
