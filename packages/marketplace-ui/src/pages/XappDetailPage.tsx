@@ -970,6 +970,16 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
     ) {
       return;
     }
+    if (!hasSubject || !canMutate) {
+      setCheckoutError(
+        t(
+          "xapp.checkout_session_required",
+          undefined,
+          "Checkout requires a subject-bound catalog session. Start from a signed host session to purchase plans.",
+        ),
+      );
+      return;
+    }
 
     const pkg = selectedPaywallPackageRecords.find(
       (item: MonetizationPaywallPackageRecord) =>
@@ -1343,6 +1353,7 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
               ) : null}
               {typeof client.prepareMyXappPurchaseIntent === "function" &&
               typeof client.createMyXappPurchasePaymentSession === "function" &&
+              hasSubject &&
               canMutate ? (
                 <button
                   className="mx-btn mx-btn-secondary"
