@@ -451,6 +451,31 @@ describe("@xapps-platform/browser-host xms helpers", () => {
       status: "owned_additive_unlock",
       transitionKind: "none",
     });
+
+    expect(
+      resolveMonetizationPackagePurchasePolicy({
+        item: {
+          productId: "prod_unlock_4",
+          productFamily: "one_time_unlock",
+          packageKind: "one_time_unlock",
+          productSlug: "cert_single_unlock",
+          metadata: {
+            included_credits: 2,
+          },
+        },
+        additiveEntitlements: [
+          {
+            status: "active",
+            product_id: "prod_unlock_4",
+            product_slug: "cert_single_unlock",
+          },
+        ],
+      }),
+    ).toMatchObject({
+      canPurchase: true,
+      status: "available",
+      transitionKind: "buy_additive_unlock",
+    });
   });
 
   it("builds candidate packages for a feature paywall", () => {
@@ -546,5 +571,22 @@ describe("@xapps-platform/browser-host xms helpers", () => {
     expect(summary.currentSubscription.coverageLabel).toBe("Still active");
     expect(summary.wallet.creditsRemaining).toBe("500");
     expect(summary.wallet.currentAccessLabel).toBe("Yes");
+  });
+
+  it("marks exhausted included-credit unlock coverage as consumed", () => {
+    const summary = summarizeXappMonetizationSnapshot({
+      access_projection: {
+        entitlement_state: "active",
+        has_current_access: true,
+        tier: "cert_single_unlock",
+        credits_remaining: null,
+        balance_state: "empty",
+      },
+      current_subscription: null,
+    });
+
+    expect(summary.accessCoverage.available).toBe(false);
+    expect(summary.accessCoverage.coverageLabel).toBe("Consumed");
+    expect(summary.wallet.currentAccessLabel).toBe("No");
   });
 });

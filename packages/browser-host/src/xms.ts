@@ -105,9 +105,39 @@ function formatStateLabel(value: unknown, fallback = "—"): string {
   return raw.replace(/_/g, " ");
 }
 
-function formatCoverageLabel(accessProjection: Record<string, unknown> | null): string {
-  if (accessProjection?.has_current_access) return "Available";
-  return formatStateLabel(accessProjection?.entitlement_state, "Unavailable");
+function hasPositiveCredits(accessProjection: Record<string, unknown> | null): boolean {
+  return readNumber(accessProjection?.credits_remaining, 0) > 0;
+}
+
+function isExhaustedIncludedCreditAccess(input: {
+  accessProjection: Record<string, unknown> | null;
+  currentSubscription?: Record<string, unknown> | null;
+}): boolean {
+  const balanceState = readLower(input.accessProjection?.balance_state);
+  const entitlementState = readLower(input.accessProjection?.entitlement_state);
+  return (
+    !input.currentSubscription &&
+    entitlementState === "active" &&
+    !hasPositiveCredits(input.accessProjection) &&
+    (balanceState === "empty" || balanceState === "insufficient")
+  );
+}
+
+function hasEffectiveCoverage(input: {
+  accessProjection: Record<string, unknown> | null;
+  currentSubscription?: Record<string, unknown> | null;
+}): boolean {
+  if (isExhaustedIncludedCreditAccess(input)) return false;
+  return Boolean(input.accessProjection?.has_current_access);
+}
+
+function formatCoverageLabel(input: {
+  accessProjection: Record<string, unknown> | null;
+  currentSubscription?: Record<string, unknown> | null;
+}): string {
+  if (isExhaustedIncludedCreditAccess(input)) return "Consumed";
+  if (hasEffectiveCoverage(input)) return "Available";
+  return formatStateLabel(input.accessProjection?.entitlement_state, "Unavailable");
 }
 
 export function hasSubjectMonetizationContext(session: unknown): boolean {
@@ -1164,7 +1194,7 @@ export function buildMonetizationPlansSurfaceHtml(
   const includeStyles = options.includeStyles !== false;
   const showHeader = options.showHeader !== false;
   const currentTier = readString(currentSubscription?.tier) || readString(accessProjection?.tier);
-  const accessState = formatCoverageLabel(accessProjection);
+  const accessState = formatCoverageLabel({ accessProjection, currentSubscription });
   const subscriptionStatus = formatStateLabel(currentSubscription?.status, "");
   const renewsAt = formatPlansDateTime(currentSubscription?.renews_at, locale);
   const expiresAt =
@@ -1274,7 +1304,15 @@ export function buildMonetizationPlansSurfaceHtml(
             item: packageRecord,
             currentSubscription,
             additiveEntitlements,
+            accessProjection,
           });
+          const packageSignals = item.signals.filter(
+            (signal) =>
+              !(
+                purchasePolicy.transitionKind === "replace_recurring" &&
+                readLower(signal).includes("trial")
+              ),
+          );
           const badges = [item.fitLabel];
           if (selectedPackageSlug && readLower(item.packageSlug) === selectedPackageSlug) {
             badges.push("Selected");
@@ -1315,8 +1353,8 @@ export function buildMonetizationPlansSurfaceHtml(
                   .join("")}
               </div>
               ${
-                item.signals.length
-                  ? `<div class="xapps-xms-plans__signals">${item.signals
+                packageSignals.length
+                  ? `<div class="xapps-xms-plans__signals">${packageSignals
                       .map(
                         (signal) =>
                           `<span class="xapps-xms-plans__signal">${escapeHtml(signal)}</span>`,
@@ -1672,6 +1710,7 @@ export function resolveMonetizationPackagePurchasePolicy(input: {
   item: unknown;
   currentSubscription?: unknown;
   additiveEntitlements?: unknown;
+  accessProjection?: unknown;
 }): {
   canPurchase: boolean;
   status: "available" | "current_recurring_plan" | "owned_additive_unlock";
@@ -1701,6 +1740,7 @@ export function resolveMonetizationPackagePurchasePolicy(input: {
   const packageKind = readLower(item.packageKind);
   const productId = readLower(item.productId);
   const currentSubscriptionProductId = readLower(currentSubscription.product_id);
+  const includedCredits = readPackageCredits(item);
   const ownershipCandidates = new Set(collectPackageOwnershipCandidates(item));
   const ownedAdditiveUnlock = additiveEntitlements.some((entry) => {
     const entitlement =
@@ -1728,6 +1768,19 @@ export function resolveMonetizationPackagePurchasePolicy(input: {
       status: "current_recurring_plan",
       transitionKind: "none",
       reason: "current_recurring_plan",
+    };
+  }
+
+  const consumableOneTimeUnlock =
+    (productFamily === "one_time_unlock" || packageKind === "one_time_unlock") &&
+    includedCredits > 0;
+
+  if (consumableOneTimeUnlock) {
+    return {
+      canPurchase: true,
+      status: "available",
+      transitionKind: "buy_additive_unlock",
+      reason: null,
     };
   }
 
@@ -2131,8 +2184,8 @@ export function summarizeXappMonetizationSnapshot(input: unknown): {
 
   return {
     accessCoverage: {
-      available: Boolean(accessProjection?.has_current_access),
-      coverageLabel: formatCoverageLabel(accessProjection),
+      available: hasEffectiveCoverage({ accessProjection, currentSubscription }),
+      coverageLabel: formatCoverageLabel({ accessProjection, currentSubscription }),
       accessStateLabel: formatStateLabel(accessProjection?.entitlement_state, "inactive"),
       tierLabel: formatStateLabel(accessProjection?.tier),
       sourceRefLabel: formatStateLabel(accessProjection?.source_ref),
@@ -2152,7 +2205,9 @@ export function summarizeXappMonetizationSnapshot(input: unknown): {
     wallet: {
       creditsRemaining: readString(accessProjection?.credits_remaining) || "0",
       balanceStateLabel: formatStateLabel(accessProjection?.balance_state, "unknown"),
-      currentAccessLabel: accessProjection?.has_current_access ? "Yes" : "No",
+      currentAccessLabel: hasEffectiveCoverage({ accessProjection, currentSubscription })
+        ? "Yes"
+        : "No",
     },
   };
 }

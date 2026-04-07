@@ -107,4 +107,5 @@ export function resolveMonetizationPackagePurchasePolicy(input: {
   item: unknown;
   currentSubscription?: unknown;
   additiveEntitlements?: unknown;
+  accessProjection?: unknown;
 }): MonetizationPackagePurchasePolicy;
