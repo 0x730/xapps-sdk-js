@@ -40,8 +40,15 @@ The current core wrapper in `src/validation/xappManifest.ts` exists only to:
 - map shared warnings into gateway logger output
 
 The package also owns additive draft manifest surfaces such as the top-level `monetization`
-catalog block (`products`, `offerings`, `packages`, `prices`) when those surfaces are only
+catalog block (`products`, `offerings`, `packages`, `prices`, `paywalls`) when those surfaces are only
 being validated structurally and kept inert at runtime.
+
+`monetization.paywalls[]` is the current additive paywalls `v1` contract:
+
+- presentation-only and non-authoritative
+- references existing `offerings` / `packages`
+- does not replace catalog, payment-session, or access truth
+- intended for gateway/API projection and shared browser/server helper consumption
 
 ## Minimal usage
 

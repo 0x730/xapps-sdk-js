@@ -201,6 +201,13 @@ export type XappManifest = {
       status?: "draft" | "active" | "archived";
       metadata?: Record<string, unknown>;
     }>;
+    usage_policies?: Array<{
+      tool_name: string;
+      unit?: string;
+      credit_cost: number;
+      status?: "draft" | "active" | "archived";
+      metadata?: Record<string, unknown>;
+    }>;
   };
   payment_guard_definitions?: Array<{
     name: string;

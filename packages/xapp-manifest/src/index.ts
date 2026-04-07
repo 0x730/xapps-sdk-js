@@ -232,6 +232,31 @@ export type XappManifestMonetizationPrice = {
   metadata?: Record<string, unknown>;
 };
 
+export type XappManifestMonetizationPaywall = {
+  slug: string;
+  title?: LocalizedText;
+  description?: LocalizedText;
+  placement?: string;
+  offering_refs: string[];
+  package_refs?: string[];
+  default_package_ref?: string;
+  status?: "draft" | "active" | "archived";
+  targeting_rules?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
+};
+
+export type XappManifestMonetizationUsagePolicy = {
+  tool_name: string;
+  unit?: string;
+  credit_cost: number;
+  status?: "draft" | "active" | "archived";
+  metadata?: Record<string, unknown>;
+};
+
+export type XappManifestMonetizationHooks = {
+  after_payment_completed?: Record<string, unknown>;
+};
+
 export type XappManifest = {
   title?: LocalizedText;
   name: string;
@@ -273,6 +298,9 @@ export type XappManifest = {
     offerings?: XappManifestMonetizationOffering[];
     packages?: XappManifestMonetizationPackage[];
     prices?: XappManifestMonetizationPrice[];
+    paywalls?: XappManifestMonetizationPaywall[];
+    usage_policies?: XappManifestMonetizationUsagePolicy[];
+    hooks?: XappManifestMonetizationHooks;
   };
   payment_guard_definitions?: Array<{
     name: string;
@@ -954,6 +982,84 @@ export const xappManifestJsonSchema = {
               country_rules: { type: "object" },
               status: { type: "string", enum: ["draft", "active", "archived"] },
               metadata: { type: "object" },
+            },
+          },
+        },
+        paywalls: {
+          type: "array",
+          maxItems: 200,
+          items: {
+            type: "object",
+            required: ["slug", "offering_refs"],
+            additionalProperties: false,
+            properties: {
+              slug: { type: "string", minLength: 1, maxLength: 100 },
+              title: localizedTextSchema(200),
+              description: localizedTextSchema(2000),
+              placement: { type: "string", minLength: 1, maxLength: 100 },
+              offering_refs: {
+                type: "array",
+                minItems: 1,
+                maxItems: 50,
+                items: { type: "string", minLength: 1, maxLength: 100 },
+              },
+              package_refs: {
+                type: "array",
+                minItems: 1,
+                maxItems: 200,
+                items: { type: "string", minLength: 1, maxLength: 100 },
+              },
+              default_package_ref: { type: "string", minLength: 1, maxLength: 100 },
+              status: { type: "string", enum: ["draft", "active", "archived"] },
+              targeting_rules: { type: "object" },
+              metadata: { type: "object" },
+            },
+          },
+        },
+        usage_policies: {
+          type: "array",
+          maxItems: 200,
+          items: {
+            type: "object",
+            required: ["tool_name", "credit_cost"],
+            additionalProperties: false,
+            properties: {
+              tool_name: { type: "string", minLength: 1, maxLength: 100 },
+              unit: { type: "string", minLength: 1, maxLength: 100 },
+              credit_cost: { type: "number", minimum: 0 },
+              status: { type: "string", enum: ["draft", "active", "archived"] },
+              metadata: { type: "object" },
+            },
+          },
+        },
+        hooks: {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            after_payment_completed: {
+              type: "object",
+              additionalProperties: true,
+              properties: {
+                enabled: { type: "boolean" },
+                guard_slug: { type: "string", minLength: 1, maxLength: 200 },
+                guardSlug: { type: "string", minLength: 1, maxLength: 200 },
+                invoice_ref: { type: "string", minLength: 1, maxLength: 200 },
+                invoiceRef: { type: "string", minLength: 1, maxLength: 200 },
+                by_payment_guard_ref: {
+                  type: "object",
+                  additionalProperties: {
+                    type: "object",
+                    additionalProperties: true,
+                  },
+                },
+                byPaymentGuardRef: {
+                  type: "object",
+                  additionalProperties: {
+                    type: "object",
+                    additionalProperties: true,
+                  },
+                },
+              },
             },
           },
         },
@@ -1724,6 +1830,10 @@ export function parseXappManifest(
   const monetizationOfferings = readMonetizationEntries(monetization?.offerings);
   const monetizationPackages = readMonetizationEntries(monetization?.packages);
   const monetizationPrices = readMonetizationEntries(monetization?.prices);
+  const monetizationPaywalls = readMonetizationEntries(monetization?.paywalls);
+  const monetizationUsagePolicies = Array.isArray(monetization?.usage_policies)
+    ? monetization.usage_policies
+    : [];
   const paymentDefinitions = Array.isArray(manifest.payment_guard_definitions)
     ? manifest.payment_guard_definitions
     : [];
@@ -1755,6 +1865,7 @@ export function parseXappManifest(
   );
   const monetizationPackageSlugs = requireUniqueSlug(monetizationPackages, "monetization.packages");
   requireUniqueSlug(monetizationPrices, "monetization.prices");
+  requireUniqueSlug(monetizationPaywalls, "monetization.paywalls");
 
   for (const list of [
     [paymentDefinitions, paymentDefinitionNames, "payment_guard_definitions"],
@@ -1802,6 +1913,30 @@ export function parseXappManifest(
   const knownToolNames = new Set(
     (manifest.tools ?? []).map((tool) => String(tool.tool_name || "").trim()),
   );
+  const monetizationUsagePolicyTools = new Set<string>();
+  for (const usagePolicy of monetizationUsagePolicies) {
+    const toolName = String((usagePolicy as any)?.tool_name ?? "").trim();
+    const creditCost = Number((usagePolicy as any)?.credit_cost);
+    if (!knownToolNames.has(toolName)) {
+      throw Object.assign(
+        new Error(`monetization.usage_policies entry references unknown tool_name: ${toolName}`),
+        { status: 400 },
+      );
+    }
+    if (!Number.isFinite(creditCost)) {
+      throw Object.assign(
+        new Error(`monetization.usage_policies entry requires numeric credit_cost: ${toolName}`),
+        { status: 400 },
+      );
+    }
+    if (monetizationUsagePolicyTools.has(toolName)) {
+      throw Object.assign(
+        new Error(`monetization.usage_policies has duplicate tool_name: ${toolName}`),
+        { status: 400 },
+      );
+    }
+    monetizationUsagePolicyTools.add(toolName);
+  }
   const referencedPaymentDefinitionNames = new Set<string>();
   const referencedSubjectProfileDefinitionNames = new Set<string>();
   const notificationDefinitionRegistry = buildNotificationDefinitionRegistry(
@@ -1882,6 +2017,108 @@ export function parseXappManifest(
         ),
         { status: 400 },
       );
+    }
+  }
+  const packageOfferingBySlug = new Map<string, string>();
+  for (const monetizationPackage of monetizationPackages) {
+    const packageSlug = String(monetizationPackage.slug ?? "").trim();
+    const offeringRef = String(monetizationPackage.offering_ref ?? "").trim();
+    if (packageSlug && offeringRef) {
+      packageOfferingBySlug.set(packageSlug, offeringRef);
+    }
+  }
+  for (const monetizationPaywall of monetizationPaywalls) {
+    const paywallSlug = String(monetizationPaywall.slug ?? "unknown").trim() || "unknown";
+    const offeringRefs = Array.isArray(monetizationPaywall.offering_refs)
+      ? monetizationPaywall.offering_refs.map((value) => String(value ?? "").trim()).filter(Boolean)
+      : [];
+    if (!offeringRefs.length) {
+      throw Object.assign(
+        new Error(`monetization.paywalls entry ${paywallSlug} requires at least one offering_ref`),
+        { status: 400 },
+      );
+    }
+    const offeringRefSet = new Set<string>();
+    for (const offeringRef of offeringRefs) {
+      if (!monetizationOfferingSlugs.has(offeringRef)) {
+        throw Object.assign(
+          new Error(
+            `monetization.paywalls entry ${paywallSlug} references unknown offering_ref: ${offeringRef}`,
+          ),
+          { status: 400 },
+        );
+      }
+      if (offeringRefSet.has(offeringRef)) {
+        throw Object.assign(
+          new Error(
+            `monetization.paywalls entry ${paywallSlug} has duplicate offering_ref: ${offeringRef}`,
+          ),
+          { status: 400 },
+        );
+      }
+      offeringRefSet.add(offeringRef);
+    }
+
+    const packageRefs = Array.isArray(monetizationPaywall.package_refs)
+      ? monetizationPaywall.package_refs.map((value) => String(value ?? "").trim()).filter(Boolean)
+      : [];
+    const packageRefSet = new Set<string>();
+    for (const packageRef of packageRefs) {
+      if (!monetizationPackageSlugs.has(packageRef)) {
+        throw Object.assign(
+          new Error(
+            `monetization.paywalls entry ${paywallSlug} references unknown package_ref: ${packageRef}`,
+          ),
+          { status: 400 },
+        );
+      }
+      if (packageRefSet.has(packageRef)) {
+        throw Object.assign(
+          new Error(
+            `monetization.paywalls entry ${paywallSlug} has duplicate package_ref: ${packageRef}`,
+          ),
+          { status: 400 },
+        );
+      }
+      packageRefSet.add(packageRef);
+      const packageOfferingRef = String(packageOfferingBySlug.get(packageRef) ?? "").trim();
+      if (packageOfferingRef && !offeringRefSet.has(packageOfferingRef)) {
+        throw Object.assign(
+          new Error(
+            `monetization.paywalls entry ${paywallSlug} package_ref ${packageRef} is not inside paywall offering_refs`,
+          ),
+          { status: 400 },
+        );
+      }
+    }
+
+    const defaultPackageRef = String(monetizationPaywall.default_package_ref ?? "").trim();
+    if (defaultPackageRef) {
+      if (!monetizationPackageSlugs.has(defaultPackageRef)) {
+        throw Object.assign(
+          new Error(
+            `monetization.paywalls entry ${paywallSlug} references unknown default_package_ref: ${defaultPackageRef}`,
+          ),
+          { status: 400 },
+        );
+      }
+      if (packageRefSet.size > 0 && !packageRefSet.has(defaultPackageRef)) {
+        throw Object.assign(
+          new Error(
+            `monetization.paywalls entry ${paywallSlug} default_package_ref must also exist in package_refs when package_refs are declared`,
+          ),
+          { status: 400 },
+        );
+      }
+      const defaultOfferingRef = String(packageOfferingBySlug.get(defaultPackageRef) ?? "").trim();
+      if (defaultOfferingRef && !offeringRefSet.has(defaultOfferingRef)) {
+        throw Object.assign(
+          new Error(
+            `monetization.paywalls entry ${paywallSlug} default_package_ref ${defaultPackageRef} is not inside paywall offering_refs`,
+          ),
+          { status: 400 },
+        );
+      }
     }
   }
 
