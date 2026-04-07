@@ -323,6 +323,45 @@ describe("@xapps-platform/browser-host xms helpers", () => {
     expect(html).toContain("History and audit");
   });
 
+  it("disables shared plans checkout actions when the surface is not interactive", () => {
+    const html = buildMonetizationPlansSurfaceHtml(
+      {
+        paywall: {
+          slug: "workspace_default",
+          title: { en: "Workspace plans" },
+          placement: "paywall",
+          packages: [
+            {
+              id: "pkg_1",
+              slug: "workspace_pro_monthly",
+              package_kind: "subscription",
+              offering_id: "off_1",
+              product: {
+                id: "prod_1",
+                slug: "workspace_pro",
+                product_family: "subscription_plan",
+              },
+              prices: [
+                {
+                  id: "price_1",
+                  currency: "USD",
+                  amount: "19.00",
+                  billing_period: "monthly",
+                  billing_period_count: 1,
+                },
+              ],
+            },
+          ],
+        },
+      },
+      { interactive: false },
+    );
+
+    expect(html).toContain("workspace_pro_monthly");
+    expect(html).toContain("xapps-xms-plans__action");
+    expect(html).toContain("disabled");
+  });
+
   it("resolves the canonical XMS mode for a package card", () => {
     expect(resolveXmsModeForPackage({ productFamily: "credit_pack" }).key).toBe("credit_wallet");
     expect(resolveXmsModeForPackage({ productFamily: "subscription_plan" }).key).toBe(

@@ -1455,6 +1455,7 @@ export function renderMonetizationPlansSurface(
 
   if (onCheckoutPackage) {
     for (const button of buttons) {
+      if (button.disabled) continue;
       const handler = () => {
         onCheckoutPackage({
           packageId: readString(button.dataset.packageId),
