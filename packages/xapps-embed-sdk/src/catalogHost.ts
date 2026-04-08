@@ -5,7 +5,12 @@ import {
   readGuardBlockedPayload,
 } from "./guardTakeover";
 import {
+  buildXmsSurfaceCopy,
+  buildXmsSurfaceShellModel,
+  buildXmsSurfaceShellTheme,
+  renderMonetizationHistorySurface,
   renderMonetizationPlansSurface,
+  resolveXmsSurfaceView,
   selectXappMonetizationPaywall,
 } from "@xapps-platform/browser-host/xms";
 import {
@@ -241,6 +246,7 @@ type OpenMonetizationPlansInput = {
   xappId?: string;
   installationId?: string;
   paywallSlug?: string;
+  view?: "plans" | "history";
   fallbackPath?: string;
 };
 
@@ -782,9 +788,30 @@ export class XappsHost {
     return url.toString();
   }
 
+  private buildHostedPaymentPageUrl(): string {
+    const rawCurrent =
+      String(this.catalogIframe?.src || "").trim() || `${this.options.baseUrl}/embed/catalog`;
+    const current = new URL(rawCurrent, window.location.origin);
+    return `${current.origin}/v1/gateway-payment.html`;
+  }
+
+  private normalizeHostedCheckoutUrl(urlLike: string): string {
+    const raw = String(urlLike || "").trim();
+    if (!raw) return "";
+    try {
+      return new URL(raw, this.buildHostedPaymentPageUrl()).toString();
+    } catch {
+      return raw;
+    }
+  }
+
   private navigateToHostedCheckout(urlLike: string) {
     const target = String(urlLike || "").trim();
     if (!target) return;
+    try {
+      const opened = window.open(target, "_top");
+      if (opened) return;
+    } catch {}
     try {
       if (window.top && window.top !== window) {
         window.top.location.assign(target);
@@ -798,7 +825,8 @@ export class XappsHost {
     const surface = String(input?.surface || "")
       .trim()
       .toLowerCase();
-    if (!["requests", "payments", "invoices", "notifications"].includes(surface)) return null;
+    if (!["requests", "monetization", "payments", "invoices", "notifications"].includes(surface))
+      return null;
 
     const rawCurrent =
       String(this.catalogIframe?.src || "").trim() || `${this.options.baseUrl}/embed/catalog`;
@@ -1320,7 +1348,14 @@ export class XappsHost {
     const overlay = document.createElement("div");
     overlay.style.position = "fixed";
     overlay.style.inset = "0";
-    overlay.style.background = "rgba(2,6,23,0.56)";
+    const shellCopy = buildXmsSurfaceCopy({
+      locale: String(this.options.locale || "").trim() || "en",
+    });
+    const shellTheme = buildXmsSurfaceShellTheme({
+      themeTokens:
+        this.options.theme && typeof this.options.theme === "object" ? this.options.theme : null,
+    });
+    overlay.style.background = shellTheme.overlayBg;
     overlay.style.display = "flex";
     overlay.style.alignItems = "flex-start";
     overlay.style.justifyContent = "center";
@@ -1333,10 +1368,10 @@ export class XappsHost {
     const panel = document.createElement("div");
     panel.style.width = "min(1100px, 96vw)";
     panel.style.maxWidth = "1100px";
-    panel.style.background = "#ffffff";
-    panel.style.border = "1px solid rgba(148, 163, 184, 0.28)";
-    panel.style.borderRadius = "18px";
-    panel.style.boxShadow = "0 28px 70px rgba(15, 23, 42, 0.28)";
+    panel.style.background = shellTheme.panelBg;
+    panel.style.border = `1px solid ${shellTheme.panelBorder}`;
+    panel.style.borderRadius = shellTheme.panelRadius;
+    panel.style.boxShadow = shellTheme.panelShadow;
     panel.style.overflow = "hidden";
 
     const header = document.createElement("div");
@@ -1345,39 +1380,99 @@ export class XappsHost {
     header.style.justifyContent = "space-between";
     header.style.gap = "12px";
     header.style.padding = "14px 16px";
-    header.style.borderBottom = "1px solid rgba(226, 232, 240, 0.95)";
-    header.style.background =
-      "linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(248,250,252,0.96) 100%)";
+    header.style.borderBottom = shellTheme.headerBorder;
+    header.style.background = shellTheme.headerBg;
 
     const titleWrap = document.createElement("div");
     const title = document.createElement("div");
-    title.textContent = "Plans";
+    title.textContent = shellCopy.plansTitle;
     title.style.font = '700 1rem "IBM Plex Serif", Georgia, serif';
-    title.style.color = "#0f172a";
+    title.style.color = shellTheme.titleColor;
     const subtitle = document.createElement("div");
-    subtitle.textContent = "Current access and published plans for this app";
+    subtitle.textContent = shellCopy.plansSubtitle;
     subtitle.style.marginTop = "4px";
     subtitle.style.font = "500 0.8125rem system-ui,sans-serif";
-    subtitle.style.color = "#64748b";
+    subtitle.style.color = shellTheme.subtitleColor;
     titleWrap.appendChild(title);
     titleWrap.appendChild(subtitle);
 
+    const actions = document.createElement("div");
+    actions.style.marginLeft = "auto";
+    actions.style.display = "flex";
+    actions.style.alignItems = "center";
+    actions.style.gap = "10px";
+
+    const tabs = document.createElement("div");
+    tabs.setAttribute("role", "tablist");
+    tabs.setAttribute("aria-label", shellCopy.tabsAriaLabel);
+    tabs.style.display = "inline-flex";
+    tabs.style.alignItems = "center";
+    tabs.style.gap = "4px";
+    tabs.style.padding = "4px";
+    tabs.style.borderRadius = "999px";
+    tabs.style.background = shellTheme.tabRailBg;
+    tabs.style.border = shellTheme.tabRailBorder;
+
+    const plansTab = document.createElement("button");
+    plansTab.type = "button";
+    plansTab.textContent = shellCopy.plansLabel;
+    const historyTab = document.createElement("button");
+    historyTab.type = "button";
+    historyTab.textContent = shellCopy.historyLabel;
+
+    for (const tab of [plansTab, historyTab]) {
+      tab.style.padding = "8px 12px";
+      tab.style.border = "0";
+      tab.style.borderRadius = "999px";
+      tab.style.background = "transparent";
+      tab.style.color = shellTheme.tabInactiveText;
+      tab.style.cursor = "pointer";
+      tab.style.font = "600 0.75rem system-ui,sans-serif";
+    }
+
+    tabs.appendChild(plansTab);
+    tabs.appendChild(historyTab);
+    actions.appendChild(tabs);
+
     const closeBtn = document.createElement("button");
     closeBtn.type = "button";
-    closeBtn.textContent = "Close";
+    closeBtn.textContent = shellCopy.closeLabel;
     closeBtn.style.padding = "8px 12px";
-    closeBtn.style.border = "1px solid rgba(148,163,184,0.32)";
+    closeBtn.style.border = `1px solid ${shellTheme.closeBorder}`;
     closeBtn.style.borderRadius = "999px";
-    closeBtn.style.background = "#ffffff";
+    closeBtn.style.background = shellTheme.closeBg;
     closeBtn.style.cursor = "pointer";
     closeBtn.style.font = "600 0.875rem system-ui,sans-serif";
-    closeBtn.style.color = "#0f172a";
+    closeBtn.style.color = shellTheme.closeText;
+
+    let currentView: "plans" | "history" = resolveXmsSurfaceView(input.view);
+    const syncHeader = () => {
+      const shell = buildXmsSurfaceShellModel({
+        view: currentView,
+        locale: String(this.options.locale || "").trim() || "en",
+      });
+      title.textContent = shell.title;
+      subtitle.textContent = shell.subtitle;
+      closeBtn.textContent = shell.closeLabel;
+      for (const [tab, item] of [
+        [plansTab, shell.tabs[0]],
+        [historyTab, shell.tabs[1]],
+      ] as const) {
+        const active = item.active;
+        tab.setAttribute("role", "tab");
+        tab.setAttribute("aria-selected", active ? "true" : "false");
+        tab.textContent = item.label;
+        tab.style.background = active ? shellTheme.tabActiveBg : "transparent";
+        tab.style.color = active ? shellTheme.tabActiveText : shellTheme.tabInactiveText;
+        tab.style.boxShadow = active ? "0 1px 2px rgba(15, 23, 42, 0.08)" : "none";
+      }
+    };
 
     const body = document.createElement("div");
     body.style.padding = "16px";
     body.style.maxHeight = "min(860px, calc(100vh - 104px))";
     body.style.overflow = "auto";
-    body.style.background = "linear-gradient(180deg, #f8fafc 0%, #ffffff 22%)";
+    body.style.background = shellTheme.bodyBg;
 
     const root = document.createElement("div");
     body.appendChild(root);
@@ -1405,7 +1500,7 @@ export class XappsHost {
     }) => {
       surfaceCleanup?.();
       root.innerHTML = "";
-      root.textContent = "Loading plans...";
+      root.textContent = shellCopy.loadingLabel;
       try {
         const installationId = String(input.installationId || "").trim() || null;
         const [monetization, monetizationHistory] = await Promise.all([
@@ -1441,7 +1536,7 @@ export class XappsHost {
         let notice =
           String(state?.notice || "").trim() ||
           (!hasSubjectContext
-            ? "Checkout requires a subject-bound catalog session. Start from a signed host session to purchase plans."
+            ? shellCopy.subjectRequiredNotice
             : null);
         let error = String(state?.error || "").trim() || null;
 
@@ -1457,7 +1552,7 @@ export class XappsHost {
             `/monetization/purchase-intents/${encodeURIComponent(returnState.intentId)}/payment-session/finalize`,
             { method: "POST", body: {} },
           );
-          notice = "Payment completed and access was refreshed.";
+          notice = shellCopy.paymentCompletedNotice;
           error = null;
           this.clearMonetizationReturnParams();
           return await renderState({ notice, error, busyPackageSlug: state?.busyPackageSlug });
@@ -1470,140 +1565,151 @@ export class XappsHost {
         ) {
           this.lastHandledMonetizationReturnKey = returnState.key;
           if (returnState.status === "cancelled" || returnState.status === "canceled") {
-            notice = "Checkout was cancelled before completion.";
+            notice = shellCopy.checkoutCancelledNotice;
             error = null;
             this.clearMonetizationReturnParams();
           } else if (returnState.status === "failed") {
-            error = "Payment failed before access could be issued.";
+            error = shellCopy.paymentFailedNotice;
             notice = null;
             this.clearMonetizationReturnParams();
           }
         }
 
-        surfaceCleanup = renderMonetizationPlansSurface(
-          root,
-          {
-            access_projection: monetization.access_projection,
-            current_subscription: monetization.current_subscription,
-            additive_entitlements: monetization.additive_entitlements,
-            history:
-              (monetizationHistory?.history as Record<string, unknown> | null | undefined) ?? null,
-            paywall: selectedPaywall,
-          },
-          {
-            title: "Plans",
-            subtitle: "Current access and published plans for this app",
-            locale: String(this.options.locale || "").trim() || "en",
-            selectedPackageSlug: returnState.xappId === xappId ? returnState.packageSlug : null,
-            busyPackageSlug: state?.busyPackageSlug || null,
-            notice,
-            error,
-            showHeader: false,
-            interactive: hasSubjectContext,
-            onCheckoutPackage: hasSubjectContext
-              ? ({ packageSlug }) => {
-                  void (async () => {
-                    try {
-                      await renderState({
-                        busyPackageSlug: packageSlug,
-                        notice: null,
-                        error: null,
-                      });
-                      const pkg = Array.isArray((selectedPaywall as any)?.packages)
-                        ? (selectedPaywall as any).packages.find(
-                            (item: any) =>
-                              String(item?.slug || "")
-                                .trim()
-                                .toLowerCase() === packageSlug.trim().toLowerCase(),
-                          )
-                        : null;
-                      const price = Array.isArray(pkg?.prices) ? pkg.prices[0] || null : null;
-                      if (!pkg?.offering_id || !pkg?.id || !price?.id) {
-                        throw new Error(
-                          "This package is missing purchase metadata in the published paywall.",
-                        );
-                      }
-                      const prepared = await this.fetchMyXappHostApiJson<Record<string, any>>(
-                        xappId,
-                        "/monetization/purchase-intents/prepare",
-                        {
-                          method: "POST",
-                          body: {
-                            offering_id: String(pkg.offering_id || "").trim(),
-                            package_id: String(pkg.id || "").trim(),
-                            price_id: String(price.id || "").trim(),
-                            ...(installationId ? { installation_id: installationId } : {}),
-                          },
-                        },
-                      );
-                      const intentId = String(
-                        prepared?.prepared_intent?.purchase_intent_id || "",
-                      ).trim();
-                      if (!intentId) {
-                        throw new Error("Purchase intent was created without an identifier.");
-                      }
-                      const returnUrl = this.buildMonetizationCheckoutReturnUrl({
-                        xappId,
-                        intentId,
-                        installationId,
-                        paywallSlug: String((selectedPaywall as any)?.slug || "").trim() || null,
-                        packageSlug,
-                      });
-                      const payment = await this.fetchMyXappHostApiJson<Record<string, any>>(
-                        xappId,
-                        `/monetization/purchase-intents/${encodeURIComponent(intentId)}/payment-session`,
-                        {
-                          method: "POST",
-                          body: {
-                            return_url: returnUrl,
-                            cancel_url: returnUrl,
-                            xapps_resume: returnUrl,
-                            locale: String(this.options.locale || "").trim() || null,
-                          },
-                        },
-                      );
-                      const paymentPageUrl = String(payment?.payment_page_url || "").trim();
-                      const paymentStatus = String(payment?.payment_session?.status || "")
-                        .trim()
-                        .toLowerCase();
-                      if (
-                        !paymentPageUrl &&
-                        (paymentStatus === "paid" || paymentStatus === "completed")
-                      ) {
-                        await this.fetchMyXappHostApiJson(
-                          xappId,
-                          `/monetization/purchase-intents/${encodeURIComponent(intentId)}/payment-session/finalize`,
-                          { method: "POST", body: {} },
-                        );
-                        await renderState({
-                          notice: "Payment completed and access was refreshed.",
-                          error: null,
-                        });
-                        return;
-                      }
-                      if (!paymentPageUrl) {
-                        throw new Error("Payment page is not available for this package.");
-                      }
-                      this.navigateToHostedCheckout(paymentPageUrl);
-                    } catch (error) {
-                      await renderState({
-                        notice: null,
-                        error:
-                          error instanceof Error && error.message
-                            ? error.message
-                            : "Unable to start checkout for this package.",
-                      });
+        const surfaceInput = {
+          access_projection: monetization.access_projection,
+          current_subscription: monetization.current_subscription,
+          additive_entitlements: monetization.additive_entitlements,
+          history:
+            (monetizationHistory?.history as Record<string, unknown> | null | undefined) ?? null,
+          paywall: selectedPaywall,
+        };
+        syncHeader();
+        surfaceCleanup =
+          currentView === "history"
+            ? renderMonetizationHistorySurface(root, surfaceInput, {
+                title: "History",
+                subtitle:
+                  "Recent monetization events, invoices, subscriptions, and wallet activity",
+                locale: String(this.options.locale || "").trim() || "en",
+                notice,
+                error,
+                showHeader: false,
+              }).destroy
+            : renderMonetizationPlansSurface(root, surfaceInput, {
+                title: "Plans",
+                subtitle: "Current access and published plans for this app",
+                locale: String(this.options.locale || "").trim() || "en",
+                selectedPackageSlug: returnState.xappId === xappId ? returnState.packageSlug : null,
+                busyPackageSlug: state?.busyPackageSlug || null,
+                notice,
+                error,
+                showHeader: false,
+                interactive: hasSubjectContext,
+                onCheckoutPackage: hasSubjectContext
+                  ? ({ packageSlug }) => {
+                      void (async () => {
+                        try {
+                          await renderState({
+                            busyPackageSlug: packageSlug,
+                            notice: null,
+                            error: null,
+                          });
+                          const pkg = Array.isArray((selectedPaywall as any)?.packages)
+                            ? (selectedPaywall as any).packages.find(
+                                (item: any) =>
+                                  String(item?.slug || "")
+                                    .trim()
+                                    .toLowerCase() === packageSlug.trim().toLowerCase(),
+                              )
+                            : null;
+                          const price = Array.isArray(pkg?.prices) ? pkg.prices[0] || null : null;
+                          if (!pkg?.offering_id || !pkg?.id || !price?.id) {
+                            throw new Error(shellCopy.missingPackageMetadataMessage);
+                          }
+                          const prepared = await this.fetchMyXappHostApiJson<Record<string, any>>(
+                            xappId,
+                            "/monetization/purchase-intents/prepare",
+                            {
+                              method: "POST",
+                              body: {
+                                offering_id: String(pkg.offering_id || "").trim(),
+                                package_id: String(pkg.id || "").trim(),
+                                price_id: String(price.id || "").trim(),
+                                ...(installationId ? { installation_id: installationId } : {}),
+                              },
+                            },
+                          );
+                          const intentId = String(
+                            prepared?.prepared_intent?.purchase_intent_id || "",
+                          ).trim();
+                          if (!intentId) {
+                            throw new Error(shellCopy.missingIntentMessage);
+                          }
+                          const returnUrl = this.buildMonetizationCheckoutReturnUrl({
+                            xappId,
+                            intentId,
+                            installationId,
+                            paywallSlug:
+                              String((selectedPaywall as any)?.slug || "").trim() || null,
+                            packageSlug,
+                          });
+                          const payment = await this.fetchMyXappHostApiJson<Record<string, any>>(
+                            xappId,
+                            `/monetization/purchase-intents/${encodeURIComponent(intentId)}/payment-session`,
+                            {
+                              method: "POST",
+                              body: {
+                                page_url: this.buildHostedPaymentPageUrl(),
+                                return_url: returnUrl,
+                                cancel_url: returnUrl,
+                                xapps_resume: returnUrl,
+                                locale: String(this.options.locale || "").trim() || null,
+                              },
+                            },
+                          );
+                          const paymentPageUrl = this.normalizeHostedCheckoutUrl(
+                            String(payment?.payment_page_url || "").trim(),
+                          );
+                          const paymentStatus = String(payment?.payment_session?.status || "")
+                            .trim()
+                            .toLowerCase();
+                          if (
+                            !paymentPageUrl &&
+                            (paymentStatus === "paid" || paymentStatus === "completed")
+                          ) {
+                            await this.fetchMyXappHostApiJson(
+                              xappId,
+                              `/monetization/purchase-intents/${encodeURIComponent(intentId)}/payment-session/finalize`,
+                              { method: "POST", body: {} },
+                            );
+                            await renderState({
+                              notice: shellCopy.paymentCompletedNotice,
+                              error: null,
+                            });
+                            return;
+                          }
+                          if (!paymentPageUrl) {
+                            throw new Error(shellCopy.missingPaymentPageMessage);
+                          }
+                          this.navigateToHostedCheckout(paymentPageUrl);
+                        } catch (error) {
+                          await renderState({
+                            notice: null,
+                            error:
+                              error instanceof Error && error.message
+                                ? error.message
+                                : shellCopy.startCheckoutFailedMessage,
+                          });
+                        }
+                      })();
                     }
-                  })();
-                }
-              : null,
-          },
-        ).destroy;
+                  : null,
+              }).destroy;
       } catch (error) {
         surfaceCleanup?.();
         root.innerHTML = "";
         root.textContent =
-          error instanceof Error && error.message ? error.message : "Unable to load plans.";
+          error instanceof Error && error.message ? error.message : shellCopy.loadFailedMessage;
       }
     };
 
@@ -1612,8 +1718,19 @@ export class XappsHost {
       if (event.target === overlay) cleanup();
     });
     panel.addEventListener("click", (event) => event.stopPropagation());
+    plansTab.addEventListener("click", () => {
+      if (currentView === "plans") return;
+      currentView = "plans";
+      void renderState();
+    });
+    historyTab.addEventListener("click", () => {
+      if (currentView === "history") return;
+      currentView = "history";
+      void renderState();
+    });
 
     header.appendChild(titleWrap);
+    header.appendChild(actions);
     header.appendChild(closeBtn);
     panel.appendChild(header);
     panel.appendChild(body);
@@ -1621,6 +1738,7 @@ export class XappsHost {
 
     document.addEventListener("keydown", onKeyDown);
     document.body.appendChild(overlay);
+    syncHeader();
     void renderState();
   }
 

@@ -24,6 +24,7 @@ export type HostUiGlobalApi = {
     xappId?: string;
     installationId?: string;
     paywallSlug?: string;
+    view?: "plans" | "history";
     fallbackPath?: string;
   }) => void;
   openSubjectProfileBilling: (input: {
@@ -59,6 +60,7 @@ export type HostUiBridgeOptions = {
     xappId?: string;
     installationId?: string;
     paywallSlug?: string;
+    view?: "plans" | "history";
     fallbackPath?: string;
   }) => void;
   openSubjectProfileBilling?: (input: {
@@ -426,6 +428,9 @@ export function createHostUiBridge(options?: HostUiBridgeOptions): HostUiBridgeC
           : {}),
         ...(typeof payloadData.paywallSlug === "string" && payloadData.paywallSlug.trim()
           ? { paywallSlug: payloadData.paywallSlug.trim() }
+          : {}),
+        ...(payloadData.view === "plans" || payloadData.view === "history"
+          ? { view: payloadData.view }
           : {}),
         ...(typeof payloadData.fallbackPath === "string" && payloadData.fallbackPath.trim()
           ? { fallbackPath: payloadData.fallbackPath.trim() }

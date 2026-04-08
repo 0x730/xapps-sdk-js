@@ -49,7 +49,12 @@ export type HostUiExpandResult = {
   nativeFullscreen?: boolean;
 };
 
-export type OperationalSurfaceKey = "requests" | "payments" | "invoices" | "notifications";
+export type OperationalSurfaceKey =
+  | "requests"
+  | "monetization"
+  | "payments"
+  | "invoices"
+  | "notifications";
 
 export type OpenOperationalSurfaceInput = {
   surface: OperationalSurfaceKey;

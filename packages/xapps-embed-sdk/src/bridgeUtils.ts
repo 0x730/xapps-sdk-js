@@ -52,6 +52,7 @@ export function isAbortError(value: unknown): boolean {
 function isOperationalSurfaceKey(value: unknown): value is OperationalSurfaceKey {
   return (
     value === "requests" ||
+    value === "monetization" ||
     value === "payments" ||
     value === "invoices" ||
     value === "notifications"
