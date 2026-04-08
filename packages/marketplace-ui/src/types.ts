@@ -130,6 +130,7 @@ export type OperationalSurfaceDescriptor = {
 
 export type OperationalSurfacesDescriptor = {
   requests: OperationalSurfaceDescriptor;
+  monetization: OperationalSurfaceDescriptor;
   payments: OperationalSurfaceDescriptor;
   invoices: OperationalSurfaceDescriptor;
   notifications: OperationalSurfaceDescriptor;
@@ -156,10 +157,30 @@ export type MarketplaceClient = {
     xappId: string,
     options?: { installationId?: string | null },
   ): Promise<CatalogXappDetail>;
+  listMyMonetizedXapps?(options?: {
+    subjectId?: string | null;
+    currentOnly?: boolean | null;
+  }): Promise<{
+    subject_id?: string | null;
+    overview?: {
+      subject_id?: string | null;
+      current_only?: boolean;
+      items?: Array<{
+        xapp_id?: string | null;
+        latest_activity_at?: string | null;
+        source_buckets?: string[] | null;
+        activity_state?: "current" | "past" | string | null;
+      }> | null;
+    } | null;
+  }>;
   getMyXappMonetization?(
     xappId: string,
     options?: { subjectId?: string | null; installationId?: string | null; locale?: string | null },
   ): Promise<MarketplaceXappMonetizationState>;
+  getMyXappMonetizationHistory?(
+    xappId: string,
+    options?: { subjectId?: string | null; installationId?: string | null; limit?: number | null },
+  ): Promise<unknown>;
   prepareMyXappPurchaseIntent?(input: {
     xappId: string;
     offeringId: string;
@@ -381,7 +402,7 @@ export type MarketplaceHostAdapter = {
   }): void;
 
   openOperationalSurface?(input: {
-    surface: "requests" | "payments" | "invoices" | "notifications";
+    surface: "requests" | "monetization" | "payments" | "invoices" | "notifications";
     placement?: OperationalSurfacePlacement;
     xappId?: string;
     installationId?: string;
@@ -399,6 +420,8 @@ export type MarketplaceHostAdapter = {
 export type MarketplaceEnv = {
   locale?: string;
   title?: string;
+  apiBaseUrl?: string;
+  subjectResolved?: boolean;
   installationPolicy?: MarketplaceInstallationPolicy | null;
   installationPolicyResolved?: boolean;
   copy?: {
@@ -457,13 +480,19 @@ export type MarketplaceEnv = {
     portal?: {
       default?: OperationalSurfacePlacement;
       bySurface?: Partial<
-        Record<"requests" | "payments" | "invoices" | "notifications", OperationalSurfacePlacement>
+        Record<
+          "requests" | "monetization" | "payments" | "invoices" | "notifications",
+          OperationalSurfacePlacement
+        >
       >;
     };
     embed?: {
       default?: OperationalSurfacePlacement;
       bySurface?: Partial<
-        Record<"requests" | "payments" | "invoices" | "notifications", OperationalSurfacePlacement>
+        Record<
+          "requests" | "monetization" | "payments" | "invoices" | "notifications",
+          OperationalSurfacePlacement
+        >
       >;
     };
   };

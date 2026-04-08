@@ -1,6 +1,7 @@
 import { Route, Routes } from "react-router-dom";
 import { CatalogPage } from "./pages/CatalogPage";
 import { InvoicesPage } from "./pages/InvoicesPage";
+import { MonetizationPage } from "./pages/MonetizationPage";
 import { NotificationsPage } from "./pages/NotificationsPage";
 import { PaymentsPage } from "./pages/PaymentsPage";
 import { RequestDetailPage } from "./pages/RequestDetailPage";
@@ -23,6 +24,7 @@ export function MarketplaceApp() {
       <Route path="xapps/:xappId" element={<XappDetailPage />} />
       <Route path="xapps/:xappId/plans" element={<XappPlansPage />} />
       <Route path="requests" element={<RequestsPage />} />
+      <Route path="monetization" element={<MonetizationPage />} />
       <Route path="payments" element={<PaymentsPage />} />
       <Route path="invoices" element={<InvoicesPage />} />
       <Route path="notifications" element={<NotificationsPage />} />

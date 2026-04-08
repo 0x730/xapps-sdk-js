@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { resolveMarketplaceText, useMarketplaceI18n } from "../i18n";
 import type { TranslateFunction } from "@xapps-platform/platform-i18n";
 import {
+  buildMonetizationHistorySurfaceHtml,
   buildMonetizationPaywallRenderModel,
   flattenXappMonetizationPaywallPackages,
   listXappMonetizationPaywalls,
@@ -130,9 +131,53 @@ function buildMonetizationCheckoutReturnUrl(input: {
   return url.toString();
 }
 
+function buildHostedPaymentPageUrl(input: {
+  currentHref: string;
+  apiBaseUrl?: string | null;
+}): string {
+  const apiBaseUrl = String(input.apiBaseUrl || "").trim();
+  if (apiBaseUrl) {
+    try {
+      const apiUrl = new URL(apiBaseUrl, window.location.href);
+      return `${apiUrl.origin}/v1/gateway-payment.html`;
+    } catch {
+      // fall through
+    }
+  }
+  const url = new URL(input.currentHref, window.location.href);
+  return `${url.origin}/v1/gateway-payment.html`;
+}
+
+function normalizeHostedCheckoutUrl(input: {
+  paymentPageUrl: string;
+  apiBaseUrl?: string | null;
+}): string {
+  const raw = String(input.paymentPageUrl || "").trim();
+  if (!raw) return "";
+  try {
+    const apiBaseUrl = String(input.apiBaseUrl || "").trim();
+    if (apiBaseUrl) {
+      return new URL(raw, apiBaseUrl).toString();
+    }
+  } catch {
+    // fall through
+  }
+  try {
+    return new URL(raw, window.location.href).toString();
+  } catch {
+    return raw;
+  }
+}
+
 function navigateToHostedCheckout(url: string): void {
   const target = String(url || "").trim();
   if (!target) return;
+  try {
+    const opened = window.open(target, "_top");
+    if (opened) return;
+  } catch {
+    // Fall through to direct location assignment attempts below.
+  }
   try {
     if (typeof window !== "undefined" && window.top && window.top !== window) {
       window.top.location.assign(target);
@@ -361,12 +406,16 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
   const paymentReturnStatus = String(routeQuery.get("xapps_payment_status") || "")
     .trim()
     .toLowerCase();
+  const routeView = String(routeQuery.get("view") || "")
+    .trim()
+    .toLowerCase();
   const paymentReturnSessionId = String(routeQuery.get("xapps_payment_session_id") || "").trim();
   const paymentReturnIntentId = String(routeQuery.get("xapps_monetization_intent_id") || "").trim();
   const tokenSearch = buildTokenSearch(token, loc.search);
   const navigate = useNavigate();
   const autoOpenedWidgetKeyRef = useRef<string>("");
   const plansSectionRef = useRef<HTMLDivElement | null>(null);
+  const visibilityRefreshRef = useRef<number>(0);
 
   const canMutate = host.canMutate ? host.canMutate() : true;
   const renderMode = props?.renderMode === "plans_only" ? "plans_only" : "full";
@@ -386,6 +435,9 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
 
   const [data, setData] = useState<Record<string, unknown> | null>(null);
   const [monetization, setMonetization] = useState<MarketplaceXappMonetizationState | null>(null);
+  const [monetizationHistory, setMonetizationHistory] = useState<Record<string, unknown> | null>(
+    null,
+  );
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(true);
   const [discoveredOperationalSurfaces, setDiscoveredOperationalSurfaces] = useState<
@@ -433,8 +485,9 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
 
   const isEmbedded = window.location.pathname.startsWith("/embed");
   const singleXappMode = env?.singleXappMode;
+  const routeSurfaceView = routeView === "history" ? "history" : "plans";
 
-  async function refresh() {
+  const refresh = useCallback(async () => {
     if (!xappId) return;
     setError(null);
     setBusy(true);
@@ -448,18 +501,58 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
     } finally {
       setBusy(false);
     }
-  }
+  }, [client, installation?.installationId, xappId]);
+
+  const refreshMonetization = useCallback(async () => {
+    const currentXappId = String(xappId ?? "").trim();
+    if (!currentXappId || !host.subjectId || typeof client.getMyXappMonetization !== "function") {
+      setMonetization(null);
+      return;
+    }
+    try {
+      const next = await client.getMyXappMonetization(currentXappId, {
+        installationId: installation?.installationId ?? null,
+        locale,
+      });
+      setMonetization(next);
+    } catch {
+      setMonetization(null);
+    }
+  }, [client, host.subjectId, installation?.installationId, locale, xappId]);
+
+  const refreshMonetizationHistory = useCallback(async () => {
+    const currentXappId = String(xappId ?? "").trim();
+    if (
+      !currentXappId ||
+      !host.subjectId ||
+      typeof client.getMyXappMonetizationHistory !== "function"
+    ) {
+      setMonetizationHistory(null);
+      return;
+    }
+    try {
+      const next = await client.getMyXappMonetizationHistory(currentXappId, {
+        installationId: installation?.installationId ?? null,
+        limit: 12,
+      });
+      setMonetizationHistory(asRecord(next));
+    } catch {
+      setMonetizationHistory(null);
+    }
+  }, [client, host.subjectId, installation?.installationId, xappId]);
 
   useEffect(() => {
     void refresh();
-    host.refreshInstallations();
     host.notifyNavigation?.({
       path: window.location.pathname,
       page: "xapp-detail",
       params: { xappId },
     });
+    // Intentionally avoid depending on the whole host object here.
+    // The host changes when installations refresh, and re-running this effect
+    // would re-trigger the page fetch and make the plans/paywall redraw.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [client, installation?.installationId, xappId]);
+  }, [refresh, xappId]);
 
   useEffect(() => {
     const currentXappId = String(xappId ?? "").trim();
@@ -484,31 +577,28 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
   }, [client, installation?.installationId, xappId]);
 
   useEffect(() => {
-    const currentXappId = String(xappId ?? "").trim();
-    if (!currentXappId || !host.subjectId || typeof client.getMyXappMonetization !== "function") {
-      setMonetization(null);
-      return;
+    void refreshMonetization();
+  }, [refreshMonetization]);
+
+  useEffect(() => {
+    void refreshMonetizationHistory();
+  }, [refreshMonetizationHistory]);
+
+  useEffect(() => {
+    function handleVisibilityRefresh() {
+      if (typeof document === "undefined" || document.visibilityState !== "visible") return;
+      const now = Date.now();
+      if (now - visibilityRefreshRef.current < 1500) return;
+      visibilityRefreshRef.current = now;
+      void refresh();
+      void refreshMonetization();
+      void refreshMonetizationHistory();
     }
-    let cancelled = false;
-    void (async () => {
-      try {
-        const next = await client.getMyXappMonetization!(currentXappId, {
-          installationId: installation?.installationId ?? null,
-          locale,
-        });
-        if (!cancelled) {
-          setMonetization(next);
-        }
-      } catch {
-        if (!cancelled) {
-          setMonetization(null);
-        }
-      }
-    })();
+    document.addEventListener("visibilitychange", handleVisibilityRefresh);
     return () => {
-      cancelled = true;
+      document.removeEventListener("visibilitychange", handleVisibilityRefresh);
     };
-  }, [client, host.subjectId, installation?.installationId, xappId]);
+  }, [refresh, refreshMonetization, refreshMonetizationHistory]);
 
   const manifest = asRecord(data?.manifest);
   const xappRecord = asRecord(data?.xapp);
@@ -543,6 +633,22 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
   const backTo = {
     pathname: isEmbedded ? "/embed/catalog" : "..",
     search: tokenSearch,
+  };
+  const marketplaceRootHref = {
+    pathname: isEmbedded ? "/" : "/marketplace",
+    search: token ? `?token=${encodeURIComponent(token)}` : "",
+  };
+  const detailHref = {
+    pathname: isEmbedded
+      ? `/xapps/${encodeURIComponent(String(xappId ?? ""))}`
+      : `/marketplace/xapps/${encodeURIComponent(String(xappId ?? ""))}`,
+    search: (() => {
+      const qs = new URLSearchParams();
+      if (token) qs.set("token", token);
+      if (installation?.installationId) qs.set("installationId", installation.installationId);
+      const suffix = qs.toString();
+      return suffix ? `?${suffix}` : "";
+    })(),
   };
 
   const terms = asRecord(manifest?.terms);
@@ -718,6 +824,9 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
     new Set([...visibleOperationalSurfaces, ...discoveredOperationalSurfaces]),
   ).filter((surface) => surface !== "requests");
   function getLocalizedOperationalSurfaceLabel(surface: OperationalSurfaceKey): string {
+    if (surface === "monetization") {
+      return t("activity.monetization_title", undefined, "Monetization");
+    }
     if (surface === "payments") {
       return t("activity.payments_title", undefined, "Payments");
     }
@@ -1037,12 +1146,19 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
       const payment = await client.createMyXappPurchasePaymentSession({
         xappId: String(xappId),
         intentId: String(prepared.prepared_intent.purchase_intent_id || ""),
+        pageUrl: buildHostedPaymentPageUrl({
+          currentHref: window.location.href,
+          apiBaseUrl: env?.apiBaseUrl || null,
+        }),
         returnUrl,
         cancelUrl: returnUrl,
         xappsResume: returnUrl,
         locale,
       });
-      const paymentPageUrl = readString(payment.payment_page_url);
+      const paymentPageUrl = normalizeHostedCheckoutUrl({
+        paymentPageUrl: readString(payment.payment_page_url),
+        apiBaseUrl: env?.apiBaseUrl || null,
+      });
       const paymentStatus = readString(payment.payment_session?.status).trim().toLowerCase();
       if (!paymentPageUrl && (paymentStatus === "paid" || paymentStatus === "completed")) {
         await finalizeCurrentUserCheckoutIntent(
@@ -1389,6 +1505,33 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
       {checkoutError ? <div className="mx-payment-lock-error">{checkoutError}</div> : null}
     </div>
   ) : null;
+  const historySurfaceHtml = useMemo(
+    () =>
+      buildMonetizationHistorySurfaceHtml(
+        {
+          history:
+            (asRecord(monetizationHistory)?.history as Record<string, unknown> | null | undefined) ??
+            monetizationHistory,
+        },
+        {
+          title: t("xapp.history_title", undefined, "History"),
+          subtitle: title
+            ? t(
+                "xapp.history_route_subtitle",
+                { title },
+                `Recent purchases, invoices, subscriptions, and credit activity for ${title}.`,
+              )
+            : t(
+                "xapp.history_route_subtitle_default",
+                undefined,
+                "Recent purchases, invoices, subscriptions, and credit activity for this app.",
+              ),
+          locale,
+          showHeader: false,
+        },
+      ),
+    [locale, monetizationHistory, t, title],
+  );
   if (plansOnlyMode) {
     return (
       <div className={`mx-detail-container ${isEmbedded ? "is-embedded" : ""}`}>
@@ -1400,36 +1543,72 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
         ) : (
           <div className={`mx-plans-route ${widgetHostedPlansMode ? "is-widget-hosted" : ""}`}>
             {!widgetHostedPlansMode ? (
+              <div className="mx-breadcrumb">
+                <Link to={marketplaceRootHref as any}>
+                  {t("common.marketplace", undefined, "Marketplace")}
+                </Link>
+                <span className="mx-breadcrumb-sep">/</span>
+                <Link to={detailHref as any}>{title}</Link>
+                <span className="mx-breadcrumb-sep">/</span>
+                <span>
+                  {routeSurfaceView === "history"
+                    ? t("xapp.history_title", undefined, "History")
+                    : t("xapp.plan_options_title", undefined, "Plans")}
+                </span>
+              </div>
+            ) : null}
+            {!widgetHostedPlansMode ? (
               <div className="mx-plans-route-header">
                 <div className="mx-plans-route-title">
-                  {t("xapp.plan_options_title", undefined, "Plans")}
+                  {routeSurfaceView === "history"
+                    ? t("xapp.history_title", undefined, "History")
+                    : t("xapp.plan_options_title", undefined, "Plans")}
                 </div>
                 <div className="mx-plans-route-subtitle">
-                  {title
-                    ? t(
-                        "xapp.plans_route_subtitle",
-                        { title },
-                        `Current access and published plans for ${title}.`,
-                      )
-                    : t(
-                        "xapp.plans_route_subtitle_default",
-                        undefined,
-                        "Current access and published plans for this app.",
-                      )}
+                  {routeSurfaceView === "history"
+                    ? title
+                      ? t(
+                          "xapp.history_route_subtitle",
+                          { title },
+                          `Recent purchases, invoices, subscriptions, and credit activity for ${title}.`,
+                        )
+                      : t(
+                          "xapp.history_route_subtitle_default",
+                          undefined,
+                          "Recent purchases, invoices, subscriptions, and credit activity for this app.",
+                        )
+                    : title
+                      ? t(
+                          "xapp.plans_route_subtitle",
+                          { title },
+                          `Current access and published plans for ${title}.`,
+                        )
+                      : t(
+                          "xapp.plans_route_subtitle_default",
+                          undefined,
+                          "Current access and published plans for this app.",
+                        )}
                 </div>
               </div>
             ) : null}
             <div className="mx-plans-route-grid">
               <div className="mx-plans-route-main">
                 {currentAccessCard}
-                {plansCard || (
-                  <div className="mx-sidebar-card mx-detail-empty">
-                    {t(
-                      "xapp.no_plans_available",
-                      undefined,
-                      "No published plans are currently available.",
-                    )}
-                  </div>
+                {routeSurfaceView === "history" ? (
+                  <div
+                    className="mx-history-route-surface"
+                    dangerouslySetInnerHTML={{ __html: historySurfaceHtml }}
+                  />
+                ) : (
+                  plansCard || (
+                    <div className="mx-sidebar-card mx-detail-empty">
+                      {t(
+                        "xapp.no_plans_available",
+                        undefined,
+                        "No published plans are currently available.",
+                      )}
+                    </div>
+                  )
                 )}
               </div>
             </div>
@@ -2140,11 +2319,13 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
                   )}
                   {secondarySurfaceLinks.map((surface: OperationalSurfaceKey) => {
                     const iconClass =
-                      surface === "payments"
-                        ? "mx-activity-link-icon-payments"
-                        : surface === "invoices"
-                          ? "mx-activity-link-icon-invoices"
-                          : "mx-activity-link-icon-notifications";
+                      surface === "monetization"
+                        ? "mx-activity-link-icon-monetization"
+                        : surface === "payments"
+                          ? "mx-activity-link-icon-payments"
+                          : surface === "invoices"
+                            ? "mx-activity-link-icon-invoices"
+                            : "mx-activity-link-icon-notifications";
                     return (
                       <Link
                         key={surface}
@@ -2157,7 +2338,23 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
                         className="mx-activity-link"
                       >
                         <div className={`mx-activity-link-icon ${iconClass}`}>
-                          {surface === "payments" ? (
+                          {surface === "monetization" ? (
+                            <svg
+                              width="16"
+                              height="16"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <path d="M4 19h16" />
+                              <path d="M6 15V9" />
+                              <path d="M12 15V5" />
+                              <path d="M18 15v-3" />
+                            </svg>
+                          ) : surface === "payments" ? (
                             <svg
                               width="16"
                               height="16"

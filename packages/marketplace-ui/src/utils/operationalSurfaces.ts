@@ -45,6 +45,7 @@ export function surfaceClientAvailable(
   surface: OperationalSurfaceKey,
 ): boolean {
   if (surface === "requests") return typeof client.listMyRequests === "function";
+  if (surface === "monetization") return typeof client.getMyXappMonetization === "function";
   if (surface === "payments") return typeof client.listMyPaymentSessions === "function";
   if (surface === "invoices") return typeof client.listMyInvoices === "function";
   if (surface === "notifications") return typeof client.listMyNotifications === "function";
@@ -92,6 +93,7 @@ export function getVisibleOperationalSurfaces(input: {
   });
   const allSurfaces = [
     "requests",
+    "monetization",
     "payments",
     "invoices",
     "notifications",
@@ -113,6 +115,7 @@ export function getVisibleOperationalSurfaces(input: {
 
 export function getOperationalSurfaceLabel(surface: OperationalSurfaceKey): string {
   if (surface === "requests") return "Requests";
+  if (surface === "monetization") return "Monetization";
   if (surface === "payments") return "Payments";
   if (surface === "invoices") return "Invoices";
   return "Notifications";
@@ -146,6 +149,24 @@ export async function discoverOperationalSurfaceData(input: {
   };
 
   const checks = await Promise.all([
+    (async (): Promise<OperationalSurfaceKey | null> => {
+      if (typeof input.client.getMyXappMonetization !== "function") return null;
+      try {
+        const res = await input.client.getMyXappMonetization(xappId, {
+          installationId: installationId || null,
+        });
+        const paywalls = Array.isArray((res as any)?.paywalls) ? (res as any).paywalls : [];
+        const accessProjection =
+          res && typeof res === "object" ? ((res as any).access_projection ?? null) : null;
+        const currentSubscription =
+          res && typeof res === "object" ? ((res as any).current_subscription ?? null) : null;
+        return paywalls.length > 0 || accessProjection || currentSubscription
+          ? "monetization"
+          : null;
+      } catch {
+        return null;
+      }
+    })(),
     (async (): Promise<OperationalSurfaceKey | null> => {
       if (typeof input.client.listMyPaymentSessions !== "function") return null;
       try {

@@ -4,6 +4,7 @@ export { MarketplaceProvider, useMarketplace } from "./MarketplaceContext";
 export { useMarketplaceI18n, resolveMarketplaceText } from "./i18n";
 export { MarketplaceApp } from "./MarketplaceApp";
 export { RequestsPage } from "./pages/RequestsPage";
+export { MonetizationPage } from "./pages/MonetizationPage";
 export { RequestDetailPage } from "./pages/RequestDetailPage";
 export { PaymentsPage } from "./pages/PaymentsPage";
 export { InvoicesPage } from "./pages/InvoicesPage";

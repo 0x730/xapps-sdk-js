@@ -22,6 +22,13 @@ describe("operational surface utilities", () => {
             filters: { xapp_id: "xapp_1" },
             derived_from: [],
           },
+          monetization: {
+            enabled: false,
+            scope: "xapp",
+            visibility: { portal: false, embed: false },
+            filters: { xapp_id: "xapp_1" },
+            derived_from: [],
+          },
           payments: {
             enabled: false,
             scope: "xapp",
@@ -54,6 +61,7 @@ describe("operational surface utilities", () => {
           tools: [],
           widgets: [],
         }),
+        getMyXappMonetization: async () => ({ xapp_id: "xapp_1", version_id: "v1", paywalls: [] }),
         listMyRequests: async () => ({ items: [] }),
         getMyRequest: async () => ({}),
         listMyPaymentSessions: async () => ({ items: [] }),
@@ -69,10 +77,10 @@ describe("operational surface utilities", () => {
       isEmbedded: false,
     });
 
-    expect(surfaces).toEqual(["requests", "payments", "invoices", "notifications"]);
+    expect(surfaces).toEqual(["requests", "monetization", "payments", "invoices", "notifications"]);
   });
 
-  it("discovers payment, invoice, and notification surfaces from existing xapp data", async () => {
+  it("discovers monetization, payment, invoice, and notification surfaces from existing xapp data", async () => {
     const discovered = await discoverOperationalSurfaceData({
       client: {
         listCatalogXapps: async () => ({ items: [] }),
@@ -82,6 +90,11 @@ describe("operational surface utilities", () => {
           manifest: {},
           tools: [],
           widgets: [],
+        }),
+        getMyXappMonetization: async () => ({
+          xapp_id: "xapp_1",
+          version_id: "v1",
+          paywalls: [{ slug: "default" }],
         }),
         listMyRequests: async () => ({ items: [] }),
         getMyRequest: async () => ({}),
@@ -94,7 +107,7 @@ describe("operational surface utilities", () => {
       installationId: "inst_1",
     });
 
-    expect(discovered).toEqual(["payments", "invoices", "notifications"]);
+    expect(discovered).toEqual(["monetization", "payments", "invoices", "notifications"]);
   });
 
   it("defaults operational surface placement to in_router and supports per-surface overrides", () => {

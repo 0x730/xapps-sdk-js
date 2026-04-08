@@ -710,7 +710,7 @@ export function WidgetView() {
         if (
           env?.embedMode &&
           xappId &&
-          ["requests", "payments", "invoices", "notifications"].includes(surface) &&
+          ["requests", "monetization", "payments", "invoices", "notifications"].includes(surface) &&
           placement === "in_router"
         ) {
           navigate(

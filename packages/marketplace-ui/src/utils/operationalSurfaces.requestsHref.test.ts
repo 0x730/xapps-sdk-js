@@ -22,4 +22,15 @@ describe("buildOperationalSurfaceHref", () => {
       }),
     ).toBe("/marketplace/requests?xappId=01TESTXAPP&token=tok123");
   });
+
+  it("builds the shared monetization route for portal activity links", () => {
+    expect(
+      buildOperationalSurfaceHref({
+        surface: "monetization",
+        xappId: "01TESTXAPP",
+        token: "tok123",
+        isEmbedded: false,
+      }),
+    ).toBe("/marketplace/monetization?xappId=01TESTXAPP&token=tok123");
+  });
 });
