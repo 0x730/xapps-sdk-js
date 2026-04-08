@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildXmsSurfaceShellModel,
+  buildMonetizationHistorySurfaceHtml,
   buildMonetizationPlansSurfaceHtml,
   buildFeaturePaywallCopyModel,
   buildMonetizationPaywallHtml,
@@ -12,6 +14,7 @@ import {
   flattenXappMonetizationCatalog,
   getDefaultXappMonetizationScopeKind,
   listXappMonetizationPaywalls,
+  resolveXmsSurfaceView,
   resolveMonetizationPackagePurchasePolicy,
   resolveXmsModeForPackage,
   selectXappMonetizationPaywall,
@@ -31,6 +34,35 @@ describe("@xapps-platform/browser-host xms helpers", () => {
       }),
     ).toBe("installation");
     expect(getDefaultXappMonetizationScopeKind({ context: {} })).toBe("realm");
+  });
+
+  it("builds a shared XMS shell model for plans and history views", () => {
+    expect(resolveXmsSurfaceView("history")).toBe("history");
+    expect(resolveXmsSurfaceView("other")).toBe("plans");
+
+    const plans = buildXmsSurfaceShellModel({
+      view: "plans",
+      plansTitle: "Certificate access",
+      plansSubtitle: "Current coverage and packages",
+      plansLabel: "Plans",
+      historyLabel: "History",
+    });
+    const history = buildXmsSurfaceShellModel({
+      view: "history",
+      plansTitle: "Certificate access",
+      plansSubtitle: "Current coverage and packages",
+      historyTitle: "Certificate history",
+      historySubtitle: "Recent events and invoices",
+      plansLabel: "Plans",
+      historyLabel: "History",
+    });
+
+    expect(plans.title).toBe("Certificate access");
+    expect(plans.subtitle).toBe("Current coverage and packages");
+    expect(plans.tabs.find((item) => item.key === "plans")?.active).toBe(true);
+    expect(history.title).toBe("Certificate history");
+    expect(history.subtitle).toBe("Recent events and invoices");
+    expect(history.tabs.find((item) => item.key === "history")?.active).toBe(true);
   });
 
   it("flattens xapp monetization catalog offerings into package cards", () => {
@@ -247,7 +279,7 @@ describe("@xapps-platform/browser-host xms helpers", () => {
     expect(html).toContain("--xapps-paywall-accent-start:#2563eb");
   });
 
-  it("renders a recent timeline and history buckets on the shared plans surface", () => {
+  it("keeps the shared plans surface focused on access and packages", () => {
     const html = buildMonetizationPlansSurfaceHtml(
       {
         access_projection: {
@@ -311,6 +343,67 @@ describe("@xapps-platform/browser-host xms helpers", () => {
           title: { en: "Workspace plans" },
           placement: "paywall",
           packages: [],
+        },
+      },
+      {
+        showHeader: false,
+      },
+    );
+
+    expect(html).toContain("Current coverage");
+    expect(html).toContain("Workspace plans");
+    expect(html).not.toContain("Recent timeline");
+    expect(html).not.toContain("History and audit");
+  });
+
+  it("renders a recent timeline and history buckets on the shared history surface", () => {
+    const html = buildMonetizationHistorySurfaceHtml(
+      {
+        history: {
+          timeline: {
+            total: 2,
+            items: [
+              {
+                bucket: "transactions",
+                id: "txn_1",
+                title: "creator_pro_monthly",
+                status: "verified",
+                occurred_at: "2026-04-05T10:00:00.000Z",
+                correlation: "pay_1",
+              },
+              {
+                bucket: "invoices",
+                id: "inv_1",
+                title: "INV-0001",
+                status: "completed",
+                occurred_at: "2026-04-05T10:05:00.000Z",
+              },
+            ],
+          },
+          transactions: {
+            total: 1,
+            items: [
+              {
+                id: "txn_1",
+                package_slug: "creator_pro_monthly",
+                status: "verified",
+                amount: "49.00",
+                currency: "RON",
+                occurred_at: "2026-04-05T10:00:00.000Z",
+              },
+            ],
+          },
+          invoices: {
+            total: 1,
+            items: [
+              {
+                id: "inv_1",
+                invoice_identifier: "INV-0001",
+                status: "completed",
+                created_at: "2026-04-05T10:05:00.000Z",
+              },
+            ],
+          },
         },
       },
       {

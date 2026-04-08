@@ -15,6 +15,228 @@ function readBoolean(value: unknown, fallback = false): boolean {
   return typeof value === "boolean" ? value : fallback;
 }
 
+function isRomanianLocale(value: unknown): boolean {
+  const locale = readLower(value);
+  return locale === "ro" || locale.startsWith("ro-");
+}
+
+type XmsPackageCopy = {
+  consumedLabel: string;
+  currentPlanLabel: string;
+  ownedUnlockLabel: string;
+  addOnWithMembershipLabel: string;
+  selectedLabel: string;
+  defaultLabel: string;
+  ownedUnlockActiveLabel: string;
+  currentPlanActiveLabel: string;
+  startingCheckoutLabel: string;
+  purchaseAddOnUnlockLabel: string;
+  continueToCheckoutLabel: string;
+};
+
+type XmsSurfaceCopy = {
+  plansTitle: string;
+  historyTitle: string;
+  plansSubtitle: string;
+  historySubtitle: string;
+  plansLabel: string;
+  historyLabel: string;
+  closeLabel: string;
+  tabsAriaLabel: string;
+  loadingLabel: string;
+  subjectRequiredNotice: string;
+  paymentCompletedNotice: string;
+  checkoutCancelledNotice: string;
+  paymentFailedNotice: string;
+  missingPackageMetadataMessage: string;
+  missingIntentMessage: string;
+  missingPaymentPageMessage: string;
+  startCheckoutFailedMessage: string;
+  loadFailedMessage: string;
+  currentCoverageTitle: string;
+  currentPlanLabel: string;
+  membershipAccessLabel: string;
+  subscriptionStatusLabel: string;
+  renewsAtLabel: string;
+  expiresAtLabel: string;
+  creditsRemainingLabel: string;
+  addOnUnlocksLabel: string;
+  noPublishedPlansLabel: string;
+  recentTimelineTitle: string;
+  recentTimelineSubtitle: string;
+  historyAuditTitle: string;
+  historyAuditSubtitle: string;
+  noHistoryAvailableLabel: string;
+  historyGenericLabel: string;
+  historyPurchaseIntentsTitle: string;
+  historyPurchaseIntentLabel: string;
+  historyTransactionsTitle: string;
+  historyTransactionLabel: string;
+  historySubscriptionsTitle: string;
+  historySubscriptionContractLabel: string;
+  historyEntitlementsTitle: string;
+  historyEntitlementLabel: string;
+  historyWalletAccountsTitle: string;
+  historyWalletAccountLabel: string;
+  historyWalletLedgerTitle: string;
+  historyWalletLedgerEntryLabel: string;
+  historyAccessSnapshotsTitle: string;
+  historyAccessSnapshotLabel: string;
+  historyInvoicesTitle: string;
+  historyInvoiceLabel: string;
+};
+
+const XMS_COPY_CATALOG = {
+  en: {
+    package: {
+      consumedLabel: "Consumed",
+      currentPlanLabel: "Current plan",
+      ownedUnlockLabel: "Owned unlock",
+      addOnWithMembershipLabel: "Add-on with membership",
+      selectedLabel: "Selected",
+      defaultLabel: "Default",
+      ownedUnlockActiveLabel: "Owned unlock active",
+      currentPlanActiveLabel: "Current plan active",
+      startingCheckoutLabel: "Starting checkout...",
+      purchaseAddOnUnlockLabel: "Purchase add-on unlock",
+      continueToCheckoutLabel: "Continue to checkout",
+    },
+    surface: {
+      plansTitle: "Plans",
+      historyTitle: "History",
+      plansSubtitle: "Current access and published plans for this app",
+      historySubtitle: "Recent monetization events, invoices, subscriptions, and wallet activity",
+      plansLabel: "Plans",
+      historyLabel: "History",
+      closeLabel: "Close",
+      tabsAriaLabel: "XMS view",
+      loadingLabel: "Loading plans...",
+      subjectRequiredNotice:
+        "Checkout requires a subject-bound catalog session. Start from a signed host session to purchase plans.",
+      paymentCompletedNotice: "Payment completed and access was refreshed.",
+      checkoutCancelledNotice: "Checkout was cancelled before completion.",
+      paymentFailedNotice: "Payment failed before access could be issued.",
+      missingPackageMetadataMessage:
+        "This package is missing purchase metadata in the published paywall.",
+      missingIntentMessage: "Purchase intent was created without an identifier.",
+      missingPaymentPageMessage: "Payment page is not available for this package.",
+      startCheckoutFailedMessage: "Unable to start checkout for this package.",
+      loadFailedMessage: "Unable to load plans.",
+      currentCoverageTitle: "Current coverage",
+      currentPlanLabel: "Current plan",
+      membershipAccessLabel: "Membership access",
+      subscriptionStatusLabel: "Subscription status",
+      renewsAtLabel: "Renews at",
+      expiresAtLabel: "Expires at",
+      creditsRemainingLabel: "Credits remaining",
+      addOnUnlocksLabel: "Add-on unlocks",
+      noPublishedPlansLabel: "No published plans are currently available.",
+      recentTimelineTitle: "Recent timeline",
+      recentTimelineSubtitle: "Latest monetization events correlated for this subject and app.",
+      historyAuditTitle: "History and audit",
+      historyAuditSubtitle: "Recent monetization records for this subject and app.",
+      noHistoryAvailableLabel: "No monetization history is available for this app yet.",
+      historyGenericLabel: "History",
+      historyPurchaseIntentsTitle: "Purchase intents",
+      historyPurchaseIntentLabel: "Purchase intent",
+      historyTransactionsTitle: "Transactions",
+      historyTransactionLabel: "Transaction",
+      historySubscriptionsTitle: "Subscriptions",
+      historySubscriptionContractLabel: "Subscription contract",
+      historyEntitlementsTitle: "Entitlements",
+      historyEntitlementLabel: "Entitlement",
+      historyWalletAccountsTitle: "Wallet accounts",
+      historyWalletAccountLabel: "Wallet account",
+      historyWalletLedgerTitle: "Wallet ledger",
+      historyWalletLedgerEntryLabel: "Wallet ledger entry",
+      historyAccessSnapshotsTitle: "Access snapshots",
+      historyAccessSnapshotLabel: "Access snapshot",
+      historyInvoicesTitle: "Invoices",
+      historyInvoiceLabel: "Invoice",
+    },
+  },
+  ro: {
+    package: {
+      consumedLabel: "Consumat",
+      currentPlanLabel: "Plan curent",
+      ownedUnlockLabel: "Unlock deținut",
+      addOnWithMembershipLabel: "Supliment cu abonament",
+      selectedLabel: "Selectat",
+      defaultLabel: "Implicit",
+      ownedUnlockActiveLabel: "Unlock deja activ",
+      currentPlanActiveLabel: "Plan activ",
+      startingCheckoutLabel: "Se pornește checkout-ul...",
+      purchaseAddOnUnlockLabel: "Cumpără suplimentul",
+      continueToCheckoutLabel: "Continuă spre checkout",
+    },
+    surface: {
+      plansTitle: "Planuri",
+      historyTitle: "Istoric",
+      plansSubtitle: "Accesul curent și planurile publicate pentru această aplicație",
+      historySubtitle:
+        "Evenimente recente de monetizare, facturi, abonamente și activitate din portofel",
+      plansLabel: "Planuri",
+      historyLabel: "Istoric",
+      closeLabel: "Închide",
+      tabsAriaLabel: "Vizualizare XMS",
+      loadingLabel: "Se încarcă planurile...",
+      subjectRequiredNotice:
+        "Checkout-ul necesită o sesiune de catalog asociată unui subiect. Pornește dintr-o sesiune gazdă autentificată pentru a cumpăra planuri.",
+      paymentCompletedNotice: "Plata a fost finalizată și accesul a fost actualizat.",
+      checkoutCancelledNotice: "Checkout-ul a fost anulat înainte de finalizare.",
+      paymentFailedNotice: "Plata a eșuat înainte ca accesul să poată fi acordat.",
+      missingPackageMetadataMessage:
+        "Acest pachet nu are metadatele de cumpărare necesare în paywall-ul publicat.",
+      missingIntentMessage: "Intentul de cumpărare a fost creat fără identificator.",
+      missingPaymentPageMessage: "Pagina de plată nu este disponibilă pentru acest pachet.",
+      startCheckoutFailedMessage: "Nu s-a putut porni checkout-ul pentru acest pachet.",
+      loadFailedMessage: "Planurile nu au putut fi încărcate.",
+      currentCoverageTitle: "Acoperire curentă",
+      currentPlanLabel: "Plan curent",
+      membershipAccessLabel: "Acces de membru",
+      subscriptionStatusLabel: "Stare abonament",
+      renewsAtLabel: "Se reînnoiește la",
+      expiresAtLabel: "Expiră la",
+      creditsRemainingLabel: "Credite rămase",
+      addOnUnlocksLabel: "Unlock-uri suplimentare",
+      noPublishedPlansLabel: "Nu există planuri publicate disponibile în acest moment.",
+      recentTimelineTitle: "Cronologie recentă",
+      recentTimelineSubtitle:
+        "Cele mai recente evenimente de monetizare corelate pentru acest subiect și această aplicație.",
+      historyAuditTitle: "Istoric și audit",
+      historyAuditSubtitle:
+        "Înregistrări recente de monetizare pentru acest subiect și această aplicație.",
+      noHistoryAvailableLabel:
+        "Nu există încă istoric de monetizare disponibil pentru această aplicație.",
+      historyGenericLabel: "Istoric",
+      historyPurchaseIntentsTitle: "Intenții de cumpărare",
+      historyPurchaseIntentLabel: "Intenție de cumpărare",
+      historyTransactionsTitle: "Tranzacții",
+      historyTransactionLabel: "Tranzacție",
+      historySubscriptionsTitle: "Abonamente",
+      historySubscriptionContractLabel: "Contract de abonament",
+      historyEntitlementsTitle: "Drepturi de acces",
+      historyEntitlementLabel: "Drept de acces",
+      historyWalletAccountsTitle: "Conturi de portofel",
+      historyWalletAccountLabel: "Cont de portofel",
+      historyWalletLedgerTitle: "Registru portofel",
+      historyWalletLedgerEntryLabel: "Înregistrare în registrul portofelului",
+      historyAccessSnapshotsTitle: "Instantanee acces",
+      historyAccessSnapshotLabel: "Instantaneu acces",
+      historyInvoicesTitle: "Facturi",
+      historyInvoiceLabel: "Factură",
+    },
+  },
+} as const;
+
+function resolveXmsCopyLocale(locale: unknown): keyof typeof XMS_COPY_CATALOG {
+  return isRomanianLocale(locale) ? "ro" : "en";
+}
+
+function buildXmsPackageCopy(locale: unknown): XmsPackageCopy {
+  return XMS_COPY_CATALOG[resolveXmsCopyLocale(locale)].package;
+}
+
 function readLocalizedText(value: unknown, fallback = ""): string {
   if (typeof value === "string") {
     return readString(value) || fallback;
@@ -134,8 +356,11 @@ function hasEffectiveCoverage(input: {
 function formatCoverageLabel(input: {
   accessProjection: Record<string, unknown> | null;
   currentSubscription?: Record<string, unknown> | null;
+  locale?: unknown;
 }): string {
-  if (isExhaustedIncludedCreditAccess(input)) return "Consumed";
+  if (isExhaustedIncludedCreditAccess(input)) {
+    return buildXmsPackageCopy(input.locale).consumedLabel;
+  }
   if (hasEffectiveCoverage(input)) return "Available";
   return formatStateLabel(input.accessProjection?.entitlement_state, "Unavailable");
 }
@@ -573,8 +798,8 @@ export const monetizationPlansSurfaceStyles = `
 .xapps-xms-plans {
   display: grid;
   gap: 16px;
-  color: #0f172a;
-  font-family: Inter, "Segoe UI", sans-serif;
+  color: var(--xapps-text-primary, #0f172a);
+  font-family: var(--xapps-font-family, Inter, "Segoe UI", sans-serif);
 }
 .xapps-xms-plans__header {
   display: grid;
@@ -582,11 +807,13 @@ export const monetizationPlansSurfaceStyles = `
 }
 .xapps-xms-plans__title {
   margin: 0;
-  font: 700 1.05rem/1.15 "IBM Plex Serif", Georgia, serif;
+  font: 700 1.05rem/1.15 var(--xapps-display-font, "IBM Plex Serif", Georgia, serif);
+  letter-spacing: -0.01em;
 }
 .xapps-xms-plans__subtitle {
-  color: #64748b;
+  color: var(--xapps-text-secondary, #64748b);
   font-size: 13px;
+  line-height: 1.45;
 }
 .xapps-xms-plans__grid {
   display: grid;
@@ -597,13 +824,18 @@ export const monetizationPlansSurfaceStyles = `
   gap: 12px;
   padding: 16px;
   border-radius: 18px;
-  border: 1px solid rgba(148, 163, 184, 0.24);
-  background: linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(248,250,252,0.94) 100%);
-  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.08);
+  border: 1px solid color-mix(in srgb, var(--xapps-border-color, rgba(148, 163, 184, 0.24)) 92%, transparent);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--xapps-surface-bg, #ffffff) 98%, var(--xapps-surface-subtle, #f8fafc)) 0%,
+    color-mix(in srgb, var(--xapps-surface-bg, #ffffff) 92%, var(--xapps-surface-subtle, #f8fafc)) 100%
+  );
+  box-shadow: 0 16px 36px color-mix(in srgb, var(--xapps-text-primary, #0f172a) 8%, transparent);
 }
 .xapps-xms-plans__section-title {
   margin: 0;
-  font: 700 0.98rem/1.1 "IBM Plex Serif", Georgia, serif;
+  font: 700 0.98rem/1.1 var(--xapps-display-font, "IBM Plex Serif", Georgia, serif);
+  letter-spacing: -0.01em;
 }
 .xapps-xms-plans__meta {
   display: grid;
@@ -617,11 +849,11 @@ export const monetizationPlansSurfaceStyles = `
   font-size: 13px;
 }
 .xapps-xms-plans__meta-label {
-  color: #64748b;
+  color: var(--xapps-text-secondary, #64748b);
   flex: 0 0 124px;
 }
 .xapps-xms-plans__meta-value {
-  color: #0f172a;
+  color: var(--xapps-text-primary, #0f172a);
   text-align: right;
   font-weight: 600;
 }
@@ -632,15 +864,15 @@ export const monetizationPlansSurfaceStyles = `
 .xapps-xms-plans__notice {
   padding: 10px 12px;
   border-radius: 12px;
-  background: rgba(14, 116, 144, 0.08);
-  color: #0f766e;
+  background: color-mix(in srgb, var(--xapps-accent, #0f766e) 8%, var(--xapps-surface-bg, #ffffff));
+  color: color-mix(in srgb, var(--xapps-accent, #0f766e) 82%, var(--xapps-text-primary, #0f172a));
   font-size: 13px;
 }
 .xapps-xms-plans__error {
   padding: 10px 12px;
   border-radius: 12px;
-  background: rgba(220, 38, 38, 0.08);
-  color: #b91c1c;
+  background: color-mix(in srgb, var(--xapps-danger, #dc2626) 8%, var(--xapps-surface-bg, #ffffff));
+  color: var(--xapps-danger, #b91c1c);
   font-size: 13px;
 }
 .xapps-xms-plans__packages {
@@ -652,16 +884,16 @@ export const monetizationPlansSurfaceStyles = `
   gap: 10px;
   padding: 14px;
   border-radius: 16px;
-  border: 1px solid rgba(148, 163, 184, 0.22);
-  background: rgba(255,255,255,0.92);
+  border: 1px solid color-mix(in srgb, var(--xapps-border-color, rgba(148, 163, 184, 0.22)) 88%, transparent);
+  background: color-mix(in srgb, var(--xapps-surface-bg, #ffffff) 94%, var(--xapps-surface-subtle, #f8fafc));
 }
 .xapps-xms-plans__package.is-selected {
-  border-color: rgba(37, 99, 235, 0.3);
-  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.08);
+  border-color: color-mix(in srgb, var(--xapps-accent, #2563eb) 34%, var(--xapps-border-color, transparent));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--xapps-accent, #2563eb) 12%, transparent);
 }
 .xapps-xms-plans__package.is-default {
-  border-color: rgba(15, 118, 110, 0.28);
-  box-shadow: inset 0 0 0 1px rgba(15, 118, 110, 0.08);
+  border-color: color-mix(in srgb, var(--xapps-accent, #0f766e) 28%, var(--xapps-border-color, transparent));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--xapps-accent, #0f766e) 10%, transparent);
 }
 .xapps-xms-plans__package-head {
   display: flex;
@@ -671,12 +903,14 @@ export const monetizationPlansSurfaceStyles = `
 }
 .xapps-xms-plans__package-title {
   margin: 0;
-  font: 700 0.98rem/1.15 "IBM Plex Serif", Georgia, serif;
+  font: 700 0.98rem/1.15 var(--xapps-display-font, "IBM Plex Serif", Georgia, serif);
+  letter-spacing: -0.01em;
 }
 .xapps-xms-plans__package-description {
   margin-top: 4px;
-  color: #64748b;
+  color: var(--xapps-text-secondary, #64748b);
   font-size: 13px;
+  line-height: 1.45;
 }
 .xapps-xms-plans__money {
   display: inline-flex;
@@ -684,10 +918,11 @@ export const monetizationPlansSurfaceStyles = `
   white-space: nowrap;
   padding: 6px 10px;
   border-radius: 999px;
-  background: rgba(15, 23, 42, 0.06);
-  color: #1e293b;
+  background: color-mix(in srgb, var(--xapps-accent, #0f766e) 7%, var(--xapps-surface-bg, #ffffff));
+  color: color-mix(in srgb, var(--xapps-accent, #0f766e) 28%, var(--xapps-text-primary, #1e293b));
   font-size: 12px;
   font-weight: 700;
+  border: 1px solid color-mix(in srgb, var(--xapps-accent, #0f766e) 14%, var(--xapps-border-color, transparent));
 }
 .xapps-xms-plans__badges,
 .xapps-xms-plans__signals {
@@ -705,30 +940,52 @@ export const monetizationPlansSurfaceStyles = `
   font-size: 12px;
 }
 .xapps-xms-plans__badge {
-  background: rgba(37, 99, 235, 0.08);
-  color: #1d4ed8;
+  background: color-mix(in srgb, var(--xapps-accent, #2563eb) 8%, var(--xapps-surface-bg, #ffffff));
+  color: color-mix(in srgb, var(--xapps-accent, #2563eb) 66%, var(--xapps-text-primary, #1d4ed8));
   font-weight: 700;
 }
 .xapps-xms-plans__signal {
-  background: rgba(15, 23, 42, 0.05);
-  color: #475569;
+  background: color-mix(in srgb, var(--xapps-text-primary, #0f172a) 4%, var(--xapps-surface-bg, #ffffff));
+  color: color-mix(in srgb, var(--xapps-text-primary, #0f172a) 42%, var(--xapps-text-secondary, #64748b));
 }
 .xapps-xms-plans__action {
   justify-self: start;
+  min-height: 40px;
   border: 0;
-  border-radius: 999px;
+  border-radius: 12px;
   padding: 10px 14px;
-  background: linear-gradient(135deg, #0f766e, #155e75);
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--xapps-accent, #0f766e) 94%, white),
+    color-mix(in srgb, var(--xapps-accent-strong, var(--xapps-accent, #155e75)) 94%, black)
+  );
   color: #f8fafc;
   font-weight: 700;
   cursor: pointer;
+  box-shadow: 0 10px 22px color-mix(in srgb, var(--xapps-accent, #0f766e) 18%, transparent);
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    filter 0.18s ease;
+}
+.xapps-xms-plans__action:hover,
+.xapps-xms-plans__action:focus-visible {
+  color: #f8fafc;
+  filter: saturate(1.04) brightness(1.01);
+  box-shadow: 0 14px 28px color-mix(in srgb, var(--xapps-accent, #0f766e) 24%, transparent);
+}
+.xapps-xms-plans__action:active {
+  transform: translateY(1px);
 }
 .xapps-xms-plans__action[disabled] {
   cursor: not-allowed;
   opacity: 0.6;
+  filter: none;
+  transform: none;
+  box-shadow: none;
 }
 .xapps-xms-plans__empty {
-  color: #64748b;
+  color: var(--xapps-text-secondary, #64748b);
   font-size: 14px;
 }
 .xapps-xms-plans__timeline {
@@ -740,8 +997,8 @@ export const monetizationPlansSurfaceStyles = `
   gap: 5px;
   padding: 12px 14px;
   border-radius: 14px;
-  border: 1px solid rgba(148, 163, 184, 0.18);
-  background: rgba(255,255,255,0.94);
+  border: 1px solid color-mix(in srgb, var(--xapps-border-color, rgba(148, 163, 184, 0.18)) 86%, transparent);
+  background: color-mix(in srgb, var(--xapps-surface-bg, #ffffff) 95%, var(--xapps-surface-subtle, #f8fafc));
 }
 .xapps-xms-plans__timeline-top {
   display: flex;
@@ -750,12 +1007,12 @@ export const monetizationPlansSurfaceStyles = `
   gap: 12px;
 }
 .xapps-xms-plans__timeline-title {
-  color: #0f172a;
+  color: var(--xapps-text-primary, #0f172a);
   font-size: 13px;
   font-weight: 700;
 }
 .xapps-xms-plans__timeline-when {
-  color: #64748b;
+  color: var(--xapps-text-secondary, #64748b);
   font-size: 12px;
   white-space: nowrap;
 }
@@ -997,6 +1254,7 @@ function readActiveAdditiveEntitlements(items: unknown): Array<Record<string, un
 }
 
 function buildPlansActionLabel(input: {
+  locale?: unknown;
   policy: {
     canPurchase: boolean;
     status: "available" | "current_recurring_plan" | "owned_additive_unlock";
@@ -1011,11 +1269,12 @@ function buildPlansActionLabel(input: {
   };
   busy: boolean;
 }): string {
-  if (input.policy.status === "owned_additive_unlock") return "Owned unlock active";
-  if (input.policy.status === "current_recurring_plan") return "Current plan active";
-  if (input.busy) return "Starting checkout...";
-  if (input.policy.transitionKind === "buy_additive_unlock") return "Purchase add-on unlock";
-  return "Continue to checkout";
+  const copy = buildXmsPackageCopy(input.locale);
+  if (input.policy.status === "owned_additive_unlock") return copy.ownedUnlockActiveLabel;
+  if (input.policy.status === "current_recurring_plan") return copy.currentPlanActiveLabel;
+  if (input.busy) return copy.startingCheckoutLabel;
+  if (input.policy.transitionKind === "buy_additive_unlock") return copy.purchaseAddOnUnlockLabel;
+  return copy.continueToCheckoutLabel;
 }
 
 function readHistoryBucket(
@@ -1053,16 +1312,17 @@ function readHistoryMeta(item: Record<string, unknown>, keys: string[], locale: 
   return out;
 }
 
-function formatTimelineBucketLabel(value: unknown): string {
+function formatTimelineBucketLabel(value: unknown, locale: string): string {
   const normalized = readLower(value);
-  if (!normalized) return "History";
-  if (normalized === "purchase_intents") return "Purchase intent";
-  if (normalized === "transactions") return "Transaction";
-  if (normalized === "subscriptions") return "Subscription";
-  if (normalized === "entitlements") return "Entitlement";
-  if (normalized === "wallet_ledger") return "Wallet ledger";
-  if (normalized === "access_snapshots") return "Access snapshot";
-  if (normalized === "invoices") return "Invoice";
+  const copy = buildXmsSurfaceCopy({ locale });
+  if (!normalized) return copy.historyGenericLabel;
+  if (normalized === "purchase_intents") return copy.historyPurchaseIntentLabel;
+  if (normalized === "transactions") return copy.historyTransactionLabel;
+  if (normalized === "subscriptions") return copy.historySubscriptionContractLabel;
+  if (normalized === "entitlements") return copy.historyEntitlementLabel;
+  if (normalized === "wallet_ledger") return copy.historyWalletLedgerTitle;
+  if (normalized === "access_snapshots") return copy.historyAccessSnapshotLabel;
+  if (normalized === "invoices") return copy.historyInvoiceLabel;
   return formatStateLabel(normalized, normalized);
 }
 
@@ -1077,10 +1337,12 @@ function buildTimelineHtml(input: {
       ${input.items
         .map((item) => {
           const title =
-            readString(item.title) || readString(item.id) || formatTimelineBucketLabel(item.bucket);
+            readString(item.title) ||
+            readString(item.id) ||
+            formatTimelineBucketLabel(item.bucket, input.locale);
           const when = formatPlansDateTime(item.occurred_at, input.locale);
           const meta = [
-            formatTimelineBucketLabel(item.bucket),
+            formatTimelineBucketLabel(item.bucket, input.locale),
             readString(item.status) ? formatStateLabel(item.status, readString(item.status)) : "",
             readString(item.scope),
             readString(item.correlation),
@@ -1160,6 +1422,203 @@ function buildHistorySectionHtml(input: {
   `;
 }
 
+function buildMonetizationHistorySections(input: {
+  history: Record<string, unknown> | null;
+  locale: string;
+}): string[] {
+  const { history, locale } = input;
+  const copy = buildXmsSurfaceCopy({ locale });
+  return [
+    buildHistorySectionHtml({
+      title: copy.historyPurchaseIntentsTitle,
+      total: readHistoryBucket(history, "purchase_intents").total,
+      items: readHistoryBucket(history, "purchase_intents").items,
+      locale,
+      itemTitleKeys: ["package_slug", "product_slug", "id"],
+      itemFallbackTitle: copy.historyPurchaseIntentLabel,
+      itemStatusKeys: ["status"],
+      itemMetaKeys: ["amount", "currency", "payment_lane", "updated_at"],
+    }),
+    buildHistorySectionHtml({
+      title: copy.historyTransactionsTitle,
+      total: readHistoryBucket(history, "transactions").total,
+      items: readHistoryBucket(history, "transactions").items,
+      locale,
+      itemTitleKeys: ["package_slug", "product_slug", "id"],
+      itemFallbackTitle: copy.historyTransactionLabel,
+      itemStatusKeys: ["status"],
+      itemMetaKeys: ["amount", "currency", "payment_session_id", "occurred_at"],
+    }),
+    buildHistorySectionHtml({
+      title: copy.historySubscriptionsTitle,
+      total: readHistoryBucket(history, "subscriptions").total,
+      items: readHistoryBucket(history, "subscriptions").items,
+      locale,
+      itemTitleKeys: ["tier", "product_slug", "id"],
+      itemFallbackTitle: copy.historySubscriptionContractLabel,
+      itemStatusKeys: ["status"],
+      itemMetaKeys: ["billing_period", "renews_at", "expired_at", "cancelled_at"],
+    }),
+    buildHistorySectionHtml({
+      title: copy.historyEntitlementsTitle,
+      total: readHistoryBucket(history, "entitlements").total,
+      items: readHistoryBucket(history, "entitlements").items,
+      locale,
+      itemTitleKeys: ["tier", "product_slug", "id"],
+      itemFallbackTitle: copy.historyEntitlementLabel,
+      itemStatusKeys: ["status"],
+      itemMetaKeys: ["source_kind", "starts_at", "expires_at"],
+    }),
+    buildHistorySectionHtml({
+      title: copy.historyWalletAccountsTitle,
+      total: readHistoryBucket(history, "wallet_accounts").total,
+      items: readHistoryBucket(history, "wallet_accounts").items,
+      locale,
+      itemTitleKeys: ["product_slug", "id"],
+      itemFallbackTitle: copy.historyWalletAccountLabel,
+      itemStatusKeys: ["status"],
+      itemMetaKeys: ["currency", "balance_remaining", "updated_at"],
+    }),
+    buildHistorySectionHtml({
+      title: copy.historyWalletLedgerTitle,
+      total: readHistoryBucket(history, "wallet_ledger").total,
+      items: readHistoryBucket(history, "wallet_ledger").items,
+      locale,
+      itemTitleKeys: ["event_kind", "wallet_product_slug", "id"],
+      itemFallbackTitle: copy.historyWalletLedgerEntryLabel,
+      itemStatusKeys: [],
+      itemMetaKeys: ["amount", "currency", "source_kind", "occurred_at"],
+    }),
+    buildHistorySectionHtml({
+      title: copy.historyAccessSnapshotsTitle,
+      total: readHistoryBucket(history, "access_snapshots").total,
+      items: readHistoryBucket(history, "access_snapshots").items,
+      locale,
+      itemTitleKeys: ["tier", "id"],
+      itemFallbackTitle: copy.historyAccessSnapshotLabel,
+      itemStatusKeys: ["entitlement_state"],
+      itemMetaKeys: ["balance_state", "credits_remaining", "updated_at"],
+    }),
+    buildHistorySectionHtml({
+      title: copy.historyInvoicesTitle,
+      total: readHistoryBucket(history, "invoices").total,
+      items: readHistoryBucket(history, "invoices").items,
+      locale,
+      itemTitleKeys: ["invoice_identifier", "id"],
+      itemFallbackTitle: copy.historyInvoiceLabel,
+      itemStatusKeys: ["status"],
+      itemMetaKeys: ["provider_key", "owner_scope", "created_at"],
+    }),
+  ].filter(Boolean);
+}
+
+export type XmsSurfaceView = "plans" | "history";
+
+export function buildXmsSurfaceCopy(input?: {
+  locale?: unknown;
+}): XmsSurfaceCopy {
+  return XMS_COPY_CATALOG[resolveXmsCopyLocale(input?.locale)].surface;
+}
+
+export function buildXmsSurfaceShellTheme(input?: {
+  themeTokens?: unknown;
+}): {
+  overlayBg: string;
+  panelBg: string;
+  panelBorder: string;
+  panelRadius: string;
+  panelShadow: string;
+  headerBg: string;
+  headerBorder: string;
+  titleColor: string;
+  subtitleColor: string;
+  tabRailBg: string;
+  tabRailBorder: string;
+  tabActiveBg: string;
+  tabActiveText: string;
+  tabInactiveText: string;
+  closeBg: string;
+  closeBorder: string;
+  closeText: string;
+  bodyBg: string;
+} {
+  const theme = readRecord(input?.themeTokens) ?? {};
+  const primary = readString(theme.primary) || "#2563eb";
+  const card = readString(theme.card) || "#ffffff";
+  const bg = readString(theme.bg) || "#f8fafc";
+  const border = readString(theme.border) || "rgba(148, 163, 184, 0.28)";
+  const text = readString(theme.text) || "#0f172a";
+  const muted = readString(theme.muted) || "#64748b";
+  const shadow = readString(theme.shadow) || "0 28px 70px rgba(15, 23, 42, 0.28)";
+  const radius = readString(theme.radiusLg) || readString(theme.radius) || "18px";
+  return {
+    overlayBg: "rgba(2,6,23,0.56)",
+    panelBg: card,
+    panelBorder: border,
+    panelRadius: radius,
+    panelShadow: shadow,
+    headerBg: `linear-gradient(180deg, ${card} 0%, ${bg} 100%)`,
+    headerBorder: "1px solid rgba(226, 232, 240, 0.95)",
+    titleColor: text,
+    subtitleColor: muted,
+    tabRailBg: "rgba(226, 232, 240, 0.72)",
+    tabRailBorder: "1px solid rgba(203, 213, 225, 0.92)",
+    tabActiveBg: card,
+    tabActiveText: text,
+    tabInactiveText: muted,
+    closeBg: card,
+    closeBorder: border,
+    closeText: text,
+    bodyBg: `linear-gradient(180deg, ${bg} 0%, ${card} 22%)`,
+  };
+}
+
+export function resolveXmsSurfaceView(
+  value: unknown,
+  fallback: XmsSurfaceView = "plans",
+): XmsSurfaceView {
+  const normalized = readLower(value);
+  return normalized === "history" ? "history" : fallback;
+}
+
+export function buildXmsSurfaceShellModel(input: {
+  view?: unknown;
+  locale?: unknown;
+  plansTitle?: unknown;
+  plansSubtitle?: unknown;
+  historyTitle?: unknown;
+  historySubtitle?: unknown;
+  plansLabel?: unknown;
+  historyLabel?: unknown;
+  closeLabel?: unknown;
+}): {
+  view: XmsSurfaceView;
+  title: string;
+  subtitle: string;
+  closeLabel: string;
+  tabs: Array<{ key: XmsSurfaceView; label: string; active: boolean }>;
+} {
+  const view = resolveXmsSurfaceView(input.view);
+  const copy = buildXmsSurfaceCopy({ locale: input.locale });
+  const plansTitle = readString(input.plansTitle) || copy.plansTitle;
+  const historyTitle = readString(input.historyTitle) || copy.historyTitle;
+  const plansSubtitle = readString(input.plansSubtitle) || copy.plansSubtitle;
+  const historySubtitle = readString(input.historySubtitle) || copy.historySubtitle;
+  const plansLabel = readString(input.plansLabel) || copy.plansLabel;
+  const historyLabel = readString(input.historyLabel) || copy.historyLabel;
+  const closeLabel = readString(input.closeLabel) || copy.closeLabel;
+  return {
+    view,
+    title: view === "history" ? historyTitle : plansTitle,
+    subtitle: view === "history" ? historySubtitle : plansSubtitle,
+    closeLabel,
+    tabs: [
+      { key: "plans", label: plansLabel, active: view === "plans" },
+      { key: "history", label: historyLabel, active: view === "history" },
+    ],
+  };
+}
+
 export function buildMonetizationPlansSurfaceHtml(
   input: unknown,
   options: {
@@ -1193,8 +1652,10 @@ export function buildMonetizationPlansSurfaceHtml(
   const busyPackageSlug = readLower(options.busyPackageSlug);
   const includeStyles = options.includeStyles !== false;
   const showHeader = options.showHeader !== false;
+  const packageCopy = buildXmsPackageCopy(locale);
+  const surfaceCopy = buildXmsSurfaceCopy({ locale });
   const currentTier = readString(currentSubscription?.tier) || readString(accessProjection?.tier);
-  const accessState = formatCoverageLabel({ accessProjection, currentSubscription });
+  const accessState = formatCoverageLabel({ accessProjection, currentSubscription, locale });
   const subscriptionStatus = formatStateLabel(currentSubscription?.status, "");
   const renewsAt = formatPlansDateTime(currentSubscription?.renews_at, locale);
   const expiresAt =
@@ -1205,96 +1666,13 @@ export function buildMonetizationPlansSurfaceHtml(
     .map((item) => readString(item.tier) || readString(item.product_slug))
     .filter(Boolean);
   const accessRows = [
-    currentTier ? ["Current plan", currentTier] : null,
-    accessState ? ["Membership access", accessState] : null,
-    subscriptionStatus ? ["Subscription status", subscriptionStatus] : null,
-    renewsAt ? ["Renews at", renewsAt] : null,
-    expiresAt ? ["Expires at", expiresAt] : null,
-    creditsRemaining ? ["Credits remaining", creditsRemaining] : null,
+    currentTier ? [surfaceCopy.currentPlanLabel, currentTier] : null,
+    accessState ? [surfaceCopy.membershipAccessLabel, accessState] : null,
+    subscriptionStatus ? [surfaceCopy.subscriptionStatusLabel, subscriptionStatus] : null,
+    renewsAt ? [surfaceCopy.renewsAtLabel, renewsAt] : null,
+    expiresAt ? [surfaceCopy.expiresAtLabel, expiresAt] : null,
+    creditsRemaining ? [surfaceCopy.creditsRemainingLabel, creditsRemaining] : null,
   ].filter((item): item is [string, string] => Boolean(item));
-  const historySections = [
-    buildHistorySectionHtml({
-      title: "Purchase intents",
-      total: readHistoryBucket(history, "purchase_intents").total,
-      items: readHistoryBucket(history, "purchase_intents").items,
-      locale,
-      itemTitleKeys: ["package_slug", "product_slug", "id"],
-      itemFallbackTitle: "Purchase intent",
-      itemStatusKeys: ["status"],
-      itemMetaKeys: ["amount", "currency", "payment_lane", "updated_at"],
-    }),
-    buildHistorySectionHtml({
-      title: "Transactions",
-      total: readHistoryBucket(history, "transactions").total,
-      items: readHistoryBucket(history, "transactions").items,
-      locale,
-      itemTitleKeys: ["package_slug", "product_slug", "id"],
-      itemFallbackTitle: "Transaction",
-      itemStatusKeys: ["status"],
-      itemMetaKeys: ["amount", "currency", "payment_session_id", "occurred_at"],
-    }),
-    buildHistorySectionHtml({
-      title: "Subscriptions",
-      total: readHistoryBucket(history, "subscriptions").total,
-      items: readHistoryBucket(history, "subscriptions").items,
-      locale,
-      itemTitleKeys: ["tier", "product_slug", "id"],
-      itemFallbackTitle: "Subscription contract",
-      itemStatusKeys: ["status"],
-      itemMetaKeys: ["billing_period", "renews_at", "expired_at", "cancelled_at"],
-    }),
-    buildHistorySectionHtml({
-      title: "Entitlements",
-      total: readHistoryBucket(history, "entitlements").total,
-      items: readHistoryBucket(history, "entitlements").items,
-      locale,
-      itemTitleKeys: ["tier", "product_slug", "id"],
-      itemFallbackTitle: "Entitlement",
-      itemStatusKeys: ["status"],
-      itemMetaKeys: ["source_kind", "starts_at", "expires_at"],
-    }),
-    buildHistorySectionHtml({
-      title: "Wallet accounts",
-      total: readHistoryBucket(history, "wallet_accounts").total,
-      items: readHistoryBucket(history, "wallet_accounts").items,
-      locale,
-      itemTitleKeys: ["product_slug", "id"],
-      itemFallbackTitle: "Wallet account",
-      itemStatusKeys: ["status"],
-      itemMetaKeys: ["currency", "balance_remaining", "updated_at"],
-    }),
-    buildHistorySectionHtml({
-      title: "Wallet ledger",
-      total: readHistoryBucket(history, "wallet_ledger").total,
-      items: readHistoryBucket(history, "wallet_ledger").items,
-      locale,
-      itemTitleKeys: ["event_kind", "wallet_product_slug", "id"],
-      itemFallbackTitle: "Wallet ledger entry",
-      itemStatusKeys: [],
-      itemMetaKeys: ["amount", "currency", "source_kind", "occurred_at"],
-    }),
-    buildHistorySectionHtml({
-      title: "Access snapshots",
-      total: readHistoryBucket(history, "access_snapshots").total,
-      items: readHistoryBucket(history, "access_snapshots").items,
-      locale,
-      itemTitleKeys: ["tier", "id"],
-      itemFallbackTitle: "Access snapshot",
-      itemStatusKeys: ["entitlement_state"],
-      itemMetaKeys: ["balance_state", "credits_remaining", "updated_at"],
-    }),
-    buildHistorySectionHtml({
-      title: "Invoices",
-      total: readHistoryBucket(history, "invoices").total,
-      items: readHistoryBucket(history, "invoices").items,
-      locale,
-      itemTitleKeys: ["invoice_identifier", "id"],
-      itemFallbackTitle: "Invoice",
-      itemStatusKeys: ["status"],
-      itemMetaKeys: ["provider_key", "owner_scope", "created_at"],
-    }),
-  ].filter(Boolean);
-  const timeline = readHistoryBucket(history, "timeline");
 
   const packagesHtml = renderModel.packages.length
     ? renderModel.packages
@@ -1315,16 +1693,16 @@ export function buildMonetizationPlansSurfaceHtml(
           );
           const badges = [item.fitLabel];
           if (selectedPackageSlug && readLower(item.packageSlug) === selectedPackageSlug) {
-            badges.push("Selected");
+            badges.push(packageCopy.selectedLabel);
           }
           if (purchasePolicy.status === "owned_additive_unlock") {
-            badges.push("Owned unlock");
+            badges.push(packageCopy.ownedUnlockLabel);
           } else if (purchasePolicy.status === "current_recurring_plan") {
-            badges.push("Current plan");
+            badges.push(packageCopy.currentPlanLabel);
           } else if (purchasePolicy.transitionKind === "buy_additive_unlock") {
-            badges.push("Add-on with membership");
+            badges.push(packageCopy.addOnWithMembershipLabel);
           }
-          if (item.isDefault) badges.push("Default");
+          if (item.isDefault) badges.push(packageCopy.defaultLabel);
           const interactive = options.interactive !== false;
           const disabled =
             !interactive ||
@@ -1370,6 +1748,7 @@ export function buildMonetizationPlansSurfaceHtml(
                 ${disabled ? "disabled" : ""}
               >${escapeHtml(
                 buildPlansActionLabel({
+                  locale,
                   policy: purchasePolicy,
                   busy: busyPackageSlug === readLower(item.packageSlug),
                 }),
@@ -1378,7 +1757,7 @@ export function buildMonetizationPlansSurfaceHtml(
           `;
         })
         .join("")
-    : `<div class="xapps-xms-plans__empty">No published plans are currently available.</div>`;
+    : `<div class="xapps-xms-plans__empty">${escapeHtml(surfaceCopy.noPublishedPlansLabel)}</div>`;
 
   return `
     ${includeStyles ? `<style>${monetizationPlansSurfaceStyles}</style>` : ""}
@@ -1404,7 +1783,7 @@ export function buildMonetizationPlansSurfaceHtml(
       ${
         accessRows.length || additiveUnlocks.length
           ? `<section class="xapps-xms-plans__card">
-              <h4 class="xapps-xms-plans__section-title">Current coverage</h4>
+              <h4 class="xapps-xms-plans__section-title">${escapeHtml(surfaceCopy.currentCoverageTitle)}</h4>
               <div class="xapps-xms-plans__meta">
                 ${accessRows
                   .map(
@@ -1418,7 +1797,7 @@ export function buildMonetizationPlansSurfaceHtml(
                 ${
                   additiveUnlocks.length
                     ? `<div class="xapps-xms-plans__meta-row">
-                        <span class="xapps-xms-plans__meta-label">Add-on unlocks</span>
+                        <span class="xapps-xms-plans__meta-label">${escapeHtml(surfaceCopy.addOnUnlocksLabel)}</span>
                         <span class="xapps-xms-plans__meta-value">
                           <span class="xapps-xms-plans__stack">${additiveUnlocks
                             .map((label) => `<span>${escapeHtml(label)}</span>`)
@@ -1433,7 +1812,7 @@ export function buildMonetizationPlansSurfaceHtml(
       }
       <section class="xapps-xms-plans__card">
         <h4 class="xapps-xms-plans__section-title">${escapeHtml(
-          renderModel.paywallLabel || "Plans",
+          renderModel.paywallLabel || surfaceCopy.plansTitle,
         )}</h4>
         ${
           renderModel.summary
@@ -1442,28 +1821,6 @@ export function buildMonetizationPlansSurfaceHtml(
         }
         <div class="xapps-xms-plans__packages">${packagesHtml}</div>
       </section>
-      ${
-        timeline.total
-          ? `<section class="xapps-xms-plans__card">
-              <h4 class="xapps-xms-plans__section-title">Recent timeline</h4>
-              <div class="xapps-xms-plans__subtitle">Latest monetization events correlated for this subject and app.</div>
-              ${buildTimelineHtml({
-                total: timeline.total,
-                items: timeline.items,
-                locale,
-              })}
-            </section>`
-          : ""
-      }
-      ${
-        historySections.length
-          ? `<section class="xapps-xms-plans__card">
-              <h4 class="xapps-xms-plans__section-title">History and audit</h4>
-              <div class="xapps-xms-plans__subtitle">Recent monetization records for this subject and app.</div>
-              <div class="xapps-xms-plans__history-grid">${historySections.join("")}</div>
-            </section>`
-          : ""
-      }
     </section>
   `;
 }
@@ -1508,6 +1865,103 @@ export function renderMonetizationPlansSurface(
   return {
     destroy() {
       for (const cleanup of listeners) cleanup();
+      root.innerHTML = "";
+    },
+  };
+}
+
+export function buildMonetizationHistorySurfaceHtml(
+  input: unknown,
+  options: {
+    title?: unknown;
+    subtitle?: unknown;
+    locale?: unknown;
+    notice?: unknown;
+    error?: unknown;
+    showHeader?: boolean;
+    includeStyles?: boolean;
+  } = {},
+): string {
+  const record = readRecord(input) ?? {};
+  const history = readRecord(record.history) ?? record;
+  const locale = readString(options.locale) || "en";
+  const includeStyles = options.includeStyles !== false;
+  const showHeader = options.showHeader !== false;
+  const surfaceCopy = buildXmsSurfaceCopy({ locale });
+  const historySections = buildMonetizationHistorySections({ history, locale });
+  const timeline = readHistoryBucket(history, "timeline");
+  const hasHistory = timeline.total || historySections.length;
+
+  return `
+    ${includeStyles ? `<style>${monetizationPlansSurfaceStyles}</style>` : ""}
+    <section class="xapps-xms-plans">
+      ${
+        showHeader
+          ? `<div class="xapps-xms-plans__header">
+              <h3 class="xapps-xms-plans__title">${escapeHtml(
+                readString(options.title) || surfaceCopy.historyTitle,
+              )}</h3>
+              ${
+                readString(options.subtitle)
+                  ? `<div class="xapps-xms-plans__subtitle">${escapeHtml(
+                      readString(options.subtitle),
+                    )}</div>`
+                  : ""
+              }
+            </div>`
+          : ""
+      }
+      ${readString(options.notice) ? `<div class="xapps-xms-plans__notice">${escapeHtml(readString(options.notice))}</div>` : ""}
+      ${readString(options.error) ? `<div class="xapps-xms-plans__error">${escapeHtml(readString(options.error))}</div>` : ""}
+      ${
+        timeline.total
+          ? `<section class="xapps-xms-plans__card">
+              <h4 class="xapps-xms-plans__section-title">${escapeHtml(surfaceCopy.recentTimelineTitle)}</h4>
+              <div class="xapps-xms-plans__subtitle">${escapeHtml(surfaceCopy.recentTimelineSubtitle)}</div>
+              ${buildTimelineHtml({
+                total: timeline.total,
+                items: timeline.items,
+                locale,
+              })}
+            </section>`
+          : ""
+      }
+      ${
+        historySections.length
+          ? `<section class="xapps-xms-plans__card">
+              <h4 class="xapps-xms-plans__section-title">${escapeHtml(surfaceCopy.historyAuditTitle)}</h4>
+              <div class="xapps-xms-plans__subtitle">${escapeHtml(surfaceCopy.historyAuditSubtitle)}</div>
+              <div class="xapps-xms-plans__history-grid">${historySections.join("")}</div>
+            </section>`
+          : ""
+      }
+      ${
+        !hasHistory
+          ? `<section class="xapps-xms-plans__card">
+              <div class="xapps-xms-plans__empty">${escapeHtml(surfaceCopy.noHistoryAvailableLabel)}</div>
+            </section>`
+          : ""
+      }
+    </section>
+  `;
+}
+
+export function renderMonetizationHistorySurface(
+  root: Element,
+  input: unknown,
+  options: {
+    title?: unknown;
+    subtitle?: unknown;
+    locale?: unknown;
+    notice?: unknown;
+    error?: unknown;
+    showHeader?: boolean;
+    includeStyles?: boolean;
+  } = {},
+): { destroy: () => void } {
+  root.innerHTML = buildMonetizationHistorySurfaceHtml(input, options);
+  return {
+    destroy() {
       root.innerHTML = "";
     },
   };
