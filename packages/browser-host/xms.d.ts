@@ -52,9 +52,7 @@ export type MonetizationPaywallRenderModel = {
 
 export type XmsSurfaceView = "plans" | "history";
 
-export function buildXmsSurfaceCopy(input?: {
-  locale?: unknown;
-}): {
+export function buildXmsSurfaceCopy(input?: { locale?: unknown }): {
   plansTitle: string;
   historyTitle: string;
   plansSubtitle: string;
@@ -68,6 +66,14 @@ export function buildXmsSurfaceCopy(input?: {
   paymentCompletedNotice: string;
   checkoutCancelledNotice: string;
   paymentFailedNotice: string;
+  subscriptionRefreshCompletedNotice: string;
+  subscriptionRefreshFailedNotice: string;
+  subscriptionCancelCompletedNotice: string;
+  subscriptionCancelFailedNotice: string;
+  subscriptionCancelConfirmTitle: string;
+  subscriptionCancelConfirmMessage: string;
+  subscriptionCancelConfirmLabel: string;
+  subscriptionCancelDismissLabel: string;
   missingPackageMetadataMessage: string;
   missingIntentMessage: string;
   missingPaymentPageMessage: string;
@@ -77,10 +83,41 @@ export function buildXmsSurfaceCopy(input?: {
   currentPlanLabel: string;
   membershipAccessLabel: string;
   subscriptionStatusLabel: string;
+  subscriptionCoverageLabel: string;
+  subscriptionReasonLabel: string;
+  currentPeriodEndsLabel: string;
   renewsAtLabel: string;
   expiresAtLabel: string;
+  overdueSinceLabel: string;
+  expiryBoundaryLabel: string;
+  cancelledAtLabel: string;
+  managementDestinationLabel: string;
   creditsRemainingLabel: string;
   addOnUnlocksLabel: string;
+  coverageActiveLabel: string;
+  coverageInactiveLabel: string;
+  noOverdueRestrictionLabel: string;
+  reasonGraceCoveredPastDueLabel: string;
+  reasonPastDueAfterPeriodEndLabel: string;
+  reasonExpiredAfterBoundaryLabel: string;
+  refreshStatusActionLabel: string;
+  refreshingStatusActionLabel: string;
+  cancelSubscriptionActionLabel: string;
+  cancellingSubscriptionActionLabel: string;
+  operatorAuthorityLabel: string;
+  operatorAuthorityGatewayLabel: string;
+  operatorAuthorityTenantLabel: string;
+  operatorAuthorityPublisherLabel: string;
+  operatorAuthorityOwnerLabel: string;
+  managementDestinationGatewayLabel: string;
+  managementDestinationTenantLabel: string;
+  managementDestinationPublisherLabel: string;
+  managementDestinationOwnerLabel: string;
+  managementDestinationHintGatewayLabel: string;
+  managementDestinationHintTenantLabel: string;
+  managementDestinationHintPublisherLabel: string;
+  managementDestinationHintOwnerLabel: string;
+  openManagementDestinationActionLabel: string;
   noPublishedPlansLabel: string;
   recentTimelineTitle: string;
   recentTimelineSubtitle: string;
@@ -105,9 +142,7 @@ export function buildXmsSurfaceCopy(input?: {
   historyInvoicesTitle: string;
   historyInvoiceLabel: string;
 };
-export function buildXmsSurfaceShellTheme(input?: {
-  themeTokens?: unknown;
-}): {
+export function buildXmsSurfaceShellTheme(input?: { themeTokens?: unknown }): {
   overlayBg: string;
   panelBg: string;
   panelBorder: string;
@@ -175,11 +210,15 @@ export function buildMonetizationPlansSurfaceHtml(
     locale?: unknown;
     selectedPackageSlug?: unknown;
     busyPackageSlug?: unknown;
+    busyAction?: unknown;
     notice?: unknown;
     error?: unknown;
     showHeader?: boolean;
     includeStyles?: boolean;
     interactive?: boolean;
+    showOperatorManagement?: boolean;
+    onRefreshSubscription?: (() => void) | null;
+    onCancelSubscription?: (() => void) | null;
   },
 ): string;
 export function renderMonetizationPlansSurface(
@@ -191,12 +230,16 @@ export function renderMonetizationPlansSurface(
     locale?: unknown;
     selectedPackageSlug?: unknown;
     busyPackageSlug?: unknown;
+    busyAction?: unknown;
     notice?: unknown;
     error?: unknown;
     showHeader?: boolean;
     includeStyles?: boolean;
     interactive?: boolean;
+    showOperatorManagement?: boolean;
     onCheckoutPackage?: ((input: { packageId: string; packageSlug: string }) => void) | null;
+    onRefreshSubscription?: (() => void) | null;
+    onCancelSubscription?: (() => void) | null;
   },
 ): { destroy: () => void };
 export function buildMonetizationHistorySurfaceHtml(
@@ -224,6 +267,26 @@ export function renderMonetizationHistorySurface(
     includeStyles?: boolean;
   },
 ): { destroy: () => void };
+export function buildXmsSubscriptionLifecycleSummary(input: {
+  currentSubscription?: unknown;
+  current_subscription?: unknown;
+  locale?: unknown;
+}): {
+  present: boolean;
+  status: string;
+  statusLabel: string;
+  coverageLabel: string;
+  reasonCode: string | null;
+  reasonLabel: string;
+  renewsAt: string | null;
+  currentPeriodEndsAt: string | null;
+  expiresAt: string | null;
+  cancelledAt: string | null;
+  overdueSince: string | null;
+  expiryBoundaryAt: string | null;
+  canCancel: boolean;
+  canRefresh: boolean;
+};
 export function summarizeXappMonetizationSnapshot(input: unknown): {
   accessCoverage: {
     available: boolean;

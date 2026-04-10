@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildXmsSubscriptionLifecycleSummary,
   buildXmsSurfaceShellModel,
   buildMonetizationHistorySurfaceHtml,
   buildMonetizationPlansSurfaceHtml,
@@ -291,6 +292,18 @@ describe("@xapps-platform/browser-host xms helpers", () => {
           status: "active",
           tier: "pro",
           renews_at: "2026-04-05T12:00:00.000Z",
+          current_period_ends_at: "2026-04-05T12:00:00.000Z",
+          subscription_management: {
+            operator_owner_scope: "gateway",
+            management_destination: {
+              kind: "gateway_admin",
+              href: "/apps/superadmin/xapps/xapp_1",
+            },
+            subject_actions: {
+              refresh_status: { available: true },
+              cancel_subscription: { available: true },
+            },
+          },
         },
         history: {
           timeline: {
@@ -347,11 +360,21 @@ describe("@xapps-platform/browser-host xms helpers", () => {
       },
       {
         showHeader: false,
+        onRefreshSubscription: () => {},
+        onCancelSubscription: () => {},
       },
     );
 
     expect(html).toContain("Current coverage");
     expect(html).toContain("Workspace plans");
+    expect(html).toContain("Current period ends");
+    expect(html).not.toContain("Operator authority");
+    expect(html).not.toContain("Manage in");
+    expect(html).not.toContain("Advanced subscription management is handled in Gateway admin.");
+    expect(html).not.toContain("Open management");
+    expect(html).not.toContain('href="/apps/superadmin/xapps/xapp_1"');
+    expect(html).toContain("Refresh status");
+    expect(html).toContain("Cancel subscription");
     expect(html).not.toContain("Recent timeline");
     expect(html).not.toContain("History and audit");
   });
@@ -361,21 +384,41 @@ describe("@xapps-platform/browser-host xms helpers", () => {
       {
         history: {
           timeline: {
-            total: 2,
+            total: 4,
             items: [
               {
                 bucket: "transactions",
                 id: "txn_1",
                 title: "creator_pro_monthly",
-                status: "verified",
+                status: "refunded",
+                settlement_effect: "transaction_refunded",
                 occurred_at: "2026-04-05T10:00:00.000Z",
                 correlation: "pay_1",
+              },
+              {
+                bucket: "transactions",
+                id: "txn_2",
+                title: "creator_pro_monthly",
+                status: "chargeback",
+                settlement_effect: "transaction_chargeback",
+                settlement_effect_detail: "warning_needs_response",
+                occurred_at: "2026-04-05T10:02:00.000Z",
+                correlation: "pay_1",
+              },
+              {
+                bucket: "wallet_ledger",
+                id: "wl_1",
+                title: "refund",
+                settlement_effect: "wallet_refund",
+                occurred_at: "2026-04-05T10:03:00.000Z",
               },
               {
                 bucket: "invoices",
                 id: "inv_1",
                 title: "INV-0001",
-                status: "completed",
+                status: "voided",
+                settlement_effect: "invoice_voided",
+                settlement_effect_detail: "customer requested reversal",
                 occurred_at: "2026-04-05T10:05:00.000Z",
               },
             ],
@@ -386,10 +429,24 @@ describe("@xapps-platform/browser-host xms helpers", () => {
               {
                 id: "txn_1",
                 package_slug: "creator_pro_monthly",
-                status: "verified",
+                status: "refunded",
+                settlement_effect: "transaction_refunded",
                 amount: "49.00",
                 currency: "RON",
                 occurred_at: "2026-04-05T10:00:00.000Z",
+              },
+            ],
+          },
+          wallet_ledger: {
+            total: 1,
+            items: [
+              {
+                id: "wl_1",
+                event_kind: "refund",
+                settlement_effect: "wallet_refund",
+                amount: "12.00",
+                currency: "RON",
+                occurred_at: "2026-04-05T10:03:00.000Z",
               },
             ],
           },
@@ -400,6 +457,9 @@ describe("@xapps-platform/browser-host xms helpers", () => {
                 id: "inv_1",
                 invoice_identifier: "INV-0001",
                 status: "completed",
+                lifecycle_status: "voided",
+                settlement_effect: "invoice_voided",
+                settlement_effect_detail: "customer requested reversal",
                 created_at: "2026-04-05T10:05:00.000Z",
               },
             ],
@@ -414,6 +474,95 @@ describe("@xapps-platform/browser-host xms helpers", () => {
     expect(html).toContain("Recent timeline");
     expect(html).toContain("INV-0001");
     expect(html).toContain("History and audit");
+    expect(html).toContain("transaction refunded");
+    expect(html).toContain("transaction chargeback");
+    expect(html).toContain("Dispute warning: response needed");
+    expect(html).toContain("wallet refund");
+    expect(html).toContain("invoice voided");
+    expect(html).toContain("customer requested reversal");
+  });
+
+  it("hides operator management guidance on subject plans surfaces", () => {
+    const html = buildMonetizationPlansSurfaceHtml(
+      {
+        access_projection: {
+          entitlement_state: "active",
+          has_current_access: true,
+          tier: "pro",
+        },
+        current_subscription: {
+          status: "active",
+          tier: "pro",
+          renews_at: "2026-04-05T12:00:00.000Z",
+          current_period_ends_at: "2026-04-05T12:00:00.000Z",
+          subscription_management: {
+            operator_owner_scope: "publisher",
+            management_destination: {
+              kind: "publisher_app",
+              href: "/apps/publisher/xapps/xapp_1/monetization",
+            },
+            subject_actions: {
+              refresh_status: { available: true },
+              cancel_subscription: { available: false },
+            },
+          },
+        },
+        paywall: {
+          slug: "workspace_default",
+          title: { en: "Workspace plans" },
+          placement: "paywall",
+          packages: [],
+        },
+      },
+      {
+        showHeader: false,
+        onRefreshSubscription: () => {},
+        onCancelSubscription: () => {},
+      },
+    );
+
+    expect(html).not.toContain("Publisher app");
+    expect(html).not.toContain("Open management");
+    expect(html).toContain("Refresh status");
+    expect(html).not.toContain("Cancel subscription");
+  });
+
+  it("can render operator management guidance when explicitly requested", () => {
+    const html = buildMonetizationPlansSurfaceHtml(
+      {
+        access_projection: {
+          entitlement_state: "active",
+          has_current_access: true,
+          tier: "pro",
+        },
+        current_subscription: {
+          status: "active",
+          tier: "pro",
+          subscription_management: {
+            operator_owner_scope: "gateway",
+            management_destination: {
+              kind: "gateway_admin",
+              href: "/apps/superadmin/xapps/xapp_1",
+            },
+          },
+        },
+        paywall: {
+          slug: "workspace_default",
+          title: { en: "Workspace plans" },
+          placement: "paywall",
+          packages: [],
+        },
+      },
+      {
+        showHeader: false,
+        showOperatorManagement: true,
+      },
+    );
+
+    expect(html).toContain("Operator authority");
+    expect(html).toContain("Gateway admin");
+    expect(html).toContain("Open management");
+    expect(html).toContain('href="/apps/superadmin/xapps/xapp_1"');
   });
 
   it("disables shared plans checkout actions when the surface is not interactive", () => {
@@ -479,6 +628,29 @@ describe("@xapps-platform/browser-host xms helpers", () => {
       canPurchase: true,
       status: "available",
       transitionKind: "replace_recurring",
+    });
+
+    expect(
+      resolveMonetizationPackagePurchasePolicy({
+        item: {
+          productId: "prod_cert_hybrid_next",
+          productSlug: "cert_hybrid_access",
+          productFamily: "hybrid_plan",
+          packageSlug: "cert_hybrid_monthly",
+          productMetadata: {
+            access_tier: "cert_hybrid",
+          },
+        },
+        currentSubscription: {
+          status: "active",
+          product_id: "prod_cert_hybrid_previous",
+          tier: "cert_hybrid",
+        },
+      }),
+    ).toMatchObject({
+      canPurchase: false,
+      status: "current_recurring_plan",
+      reason: "current_recurring_plan",
     });
 
     expect(
@@ -661,9 +833,36 @@ describe("@xapps-platform/browser-host xms helpers", () => {
     expect(summary.accessCoverage.coverageLabel).toBe("Available");
     expect(summary.accessCoverage.tierLabel).toBe("creator team hybrid access");
     expect(summary.currentSubscription.present).toBe(true);
-    expect(summary.currentSubscription.coverageLabel).toBe("Still active");
+    expect(summary.currentSubscription.coverageLabel).toBe("Still covered");
     expect(summary.wallet.creditsRemaining).toBe("500");
     expect(summary.wallet.currentAccessLabel).toBe("Yes");
+  });
+
+  it("builds provider-agnostic lifecycle state from overdue policy and period boundaries", () => {
+    const lifecycle = buildXmsSubscriptionLifecycleSummary({
+      locale: "en",
+      current_subscription: {
+        id: "sub_1",
+        status: "past_due",
+        current_period_ends_at: "2026-05-02T19:45:00.000Z",
+        renews_at: null,
+        overdue_policy: {
+          has_current_access: false,
+          effective_status_reason: "past_due_after_period_end",
+          overdue_since: "2026-05-03T10:00:00.000Z",
+          expiry_boundary_at: "2026-05-10T10:00:00.000Z",
+        },
+      },
+    });
+
+    expect(lifecycle.present).toBe(true);
+    expect(lifecycle.status).toBe("past_due");
+    expect(lifecycle.coverageLabel).toBe("Not covered");
+    expect(lifecycle.reasonCode).toBe("past_due_after_period_end");
+    expect(lifecycle.reasonLabel).toBe("Current period ended without successful renewal");
+    expect(lifecycle.currentPeriodEndsAt).toBe("2026-05-02T19:45:00.000Z");
+    expect(lifecycle.canRefresh).toBe(true);
+    expect(lifecycle.canCancel).toBe(true);
   });
 
   it("marks exhausted included-credit unlock coverage as consumed", () => {

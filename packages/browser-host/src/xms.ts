@@ -1,3 +1,6 @@
+import { buildXmsPackageCopy, buildXmsSurfaceCopy } from "./xmsCopy.js";
+export { buildXmsSurfaceCopy } from "./xmsCopy.js";
+
 function readString(value: unknown): string {
   return String(value ?? "").trim();
 }
@@ -13,228 +16,6 @@ function readLower(value: unknown): string {
 
 function readBoolean(value: unknown, fallback = false): boolean {
   return typeof value === "boolean" ? value : fallback;
-}
-
-function isRomanianLocale(value: unknown): boolean {
-  const locale = readLower(value);
-  return locale === "ro" || locale.startsWith("ro-");
-}
-
-type XmsPackageCopy = {
-  consumedLabel: string;
-  currentPlanLabel: string;
-  ownedUnlockLabel: string;
-  addOnWithMembershipLabel: string;
-  selectedLabel: string;
-  defaultLabel: string;
-  ownedUnlockActiveLabel: string;
-  currentPlanActiveLabel: string;
-  startingCheckoutLabel: string;
-  purchaseAddOnUnlockLabel: string;
-  continueToCheckoutLabel: string;
-};
-
-type XmsSurfaceCopy = {
-  plansTitle: string;
-  historyTitle: string;
-  plansSubtitle: string;
-  historySubtitle: string;
-  plansLabel: string;
-  historyLabel: string;
-  closeLabel: string;
-  tabsAriaLabel: string;
-  loadingLabel: string;
-  subjectRequiredNotice: string;
-  paymentCompletedNotice: string;
-  checkoutCancelledNotice: string;
-  paymentFailedNotice: string;
-  missingPackageMetadataMessage: string;
-  missingIntentMessage: string;
-  missingPaymentPageMessage: string;
-  startCheckoutFailedMessage: string;
-  loadFailedMessage: string;
-  currentCoverageTitle: string;
-  currentPlanLabel: string;
-  membershipAccessLabel: string;
-  subscriptionStatusLabel: string;
-  renewsAtLabel: string;
-  expiresAtLabel: string;
-  creditsRemainingLabel: string;
-  addOnUnlocksLabel: string;
-  noPublishedPlansLabel: string;
-  recentTimelineTitle: string;
-  recentTimelineSubtitle: string;
-  historyAuditTitle: string;
-  historyAuditSubtitle: string;
-  noHistoryAvailableLabel: string;
-  historyGenericLabel: string;
-  historyPurchaseIntentsTitle: string;
-  historyPurchaseIntentLabel: string;
-  historyTransactionsTitle: string;
-  historyTransactionLabel: string;
-  historySubscriptionsTitle: string;
-  historySubscriptionContractLabel: string;
-  historyEntitlementsTitle: string;
-  historyEntitlementLabel: string;
-  historyWalletAccountsTitle: string;
-  historyWalletAccountLabel: string;
-  historyWalletLedgerTitle: string;
-  historyWalletLedgerEntryLabel: string;
-  historyAccessSnapshotsTitle: string;
-  historyAccessSnapshotLabel: string;
-  historyInvoicesTitle: string;
-  historyInvoiceLabel: string;
-};
-
-const XMS_COPY_CATALOG = {
-  en: {
-    package: {
-      consumedLabel: "Consumed",
-      currentPlanLabel: "Current plan",
-      ownedUnlockLabel: "Owned unlock",
-      addOnWithMembershipLabel: "Add-on with membership",
-      selectedLabel: "Selected",
-      defaultLabel: "Default",
-      ownedUnlockActiveLabel: "Owned unlock active",
-      currentPlanActiveLabel: "Current plan active",
-      startingCheckoutLabel: "Starting checkout...",
-      purchaseAddOnUnlockLabel: "Purchase add-on unlock",
-      continueToCheckoutLabel: "Continue to checkout",
-    },
-    surface: {
-      plansTitle: "Plans",
-      historyTitle: "History",
-      plansSubtitle: "Current access and published plans for this app",
-      historySubtitle: "Recent monetization events, invoices, subscriptions, and wallet activity",
-      plansLabel: "Plans",
-      historyLabel: "History",
-      closeLabel: "Close",
-      tabsAriaLabel: "XMS view",
-      loadingLabel: "Loading plans...",
-      subjectRequiredNotice:
-        "Checkout requires a subject-bound catalog session. Start from a signed host session to purchase plans.",
-      paymentCompletedNotice: "Payment completed and access was refreshed.",
-      checkoutCancelledNotice: "Checkout was cancelled before completion.",
-      paymentFailedNotice: "Payment failed before access could be issued.",
-      missingPackageMetadataMessage:
-        "This package is missing purchase metadata in the published paywall.",
-      missingIntentMessage: "Purchase intent was created without an identifier.",
-      missingPaymentPageMessage: "Payment page is not available for this package.",
-      startCheckoutFailedMessage: "Unable to start checkout for this package.",
-      loadFailedMessage: "Unable to load plans.",
-      currentCoverageTitle: "Current coverage",
-      currentPlanLabel: "Current plan",
-      membershipAccessLabel: "Membership access",
-      subscriptionStatusLabel: "Subscription status",
-      renewsAtLabel: "Renews at",
-      expiresAtLabel: "Expires at",
-      creditsRemainingLabel: "Credits remaining",
-      addOnUnlocksLabel: "Add-on unlocks",
-      noPublishedPlansLabel: "No published plans are currently available.",
-      recentTimelineTitle: "Recent timeline",
-      recentTimelineSubtitle: "Latest monetization events correlated for this subject and app.",
-      historyAuditTitle: "History and audit",
-      historyAuditSubtitle: "Recent monetization records for this subject and app.",
-      noHistoryAvailableLabel: "No monetization history is available for this app yet.",
-      historyGenericLabel: "History",
-      historyPurchaseIntentsTitle: "Purchase intents",
-      historyPurchaseIntentLabel: "Purchase intent",
-      historyTransactionsTitle: "Transactions",
-      historyTransactionLabel: "Transaction",
-      historySubscriptionsTitle: "Subscriptions",
-      historySubscriptionContractLabel: "Subscription contract",
-      historyEntitlementsTitle: "Entitlements",
-      historyEntitlementLabel: "Entitlement",
-      historyWalletAccountsTitle: "Wallet accounts",
-      historyWalletAccountLabel: "Wallet account",
-      historyWalletLedgerTitle: "Wallet ledger",
-      historyWalletLedgerEntryLabel: "Wallet ledger entry",
-      historyAccessSnapshotsTitle: "Access snapshots",
-      historyAccessSnapshotLabel: "Access snapshot",
-      historyInvoicesTitle: "Invoices",
-      historyInvoiceLabel: "Invoice",
-    },
-  },
-  ro: {
-    package: {
-      consumedLabel: "Consumat",
-      currentPlanLabel: "Plan curent",
-      ownedUnlockLabel: "Unlock deținut",
-      addOnWithMembershipLabel: "Supliment cu abonament",
-      selectedLabel: "Selectat",
-      defaultLabel: "Implicit",
-      ownedUnlockActiveLabel: "Unlock deja activ",
-      currentPlanActiveLabel: "Plan activ",
-      startingCheckoutLabel: "Se pornește checkout-ul...",
-      purchaseAddOnUnlockLabel: "Cumpără suplimentul",
-      continueToCheckoutLabel: "Continuă spre checkout",
-    },
-    surface: {
-      plansTitle: "Planuri",
-      historyTitle: "Istoric",
-      plansSubtitle: "Accesul curent și planurile publicate pentru această aplicație",
-      historySubtitle:
-        "Evenimente recente de monetizare, facturi, abonamente și activitate din portofel",
-      plansLabel: "Planuri",
-      historyLabel: "Istoric",
-      closeLabel: "Închide",
-      tabsAriaLabel: "Vizualizare XMS",
-      loadingLabel: "Se încarcă planurile...",
-      subjectRequiredNotice:
-        "Checkout-ul necesită o sesiune de catalog asociată unui subiect. Pornește dintr-o sesiune gazdă autentificată pentru a cumpăra planuri.",
-      paymentCompletedNotice: "Plata a fost finalizată și accesul a fost actualizat.",
-      checkoutCancelledNotice: "Checkout-ul a fost anulat înainte de finalizare.",
-      paymentFailedNotice: "Plata a eșuat înainte ca accesul să poată fi acordat.",
-      missingPackageMetadataMessage:
-        "Acest pachet nu are metadatele de cumpărare necesare în paywall-ul publicat.",
-      missingIntentMessage: "Intentul de cumpărare a fost creat fără identificator.",
-      missingPaymentPageMessage: "Pagina de plată nu este disponibilă pentru acest pachet.",
-      startCheckoutFailedMessage: "Nu s-a putut porni checkout-ul pentru acest pachet.",
-      loadFailedMessage: "Planurile nu au putut fi încărcate.",
-      currentCoverageTitle: "Acoperire curentă",
-      currentPlanLabel: "Plan curent",
-      membershipAccessLabel: "Acces de membru",
-      subscriptionStatusLabel: "Stare abonament",
-      renewsAtLabel: "Se reînnoiește la",
-      expiresAtLabel: "Expiră la",
-      creditsRemainingLabel: "Credite rămase",
-      addOnUnlocksLabel: "Unlock-uri suplimentare",
-      noPublishedPlansLabel: "Nu există planuri publicate disponibile în acest moment.",
-      recentTimelineTitle: "Cronologie recentă",
-      recentTimelineSubtitle:
-        "Cele mai recente evenimente de monetizare corelate pentru acest subiect și această aplicație.",
-      historyAuditTitle: "Istoric și audit",
-      historyAuditSubtitle:
-        "Înregistrări recente de monetizare pentru acest subiect și această aplicație.",
-      noHistoryAvailableLabel:
-        "Nu există încă istoric de monetizare disponibil pentru această aplicație.",
-      historyGenericLabel: "Istoric",
-      historyPurchaseIntentsTitle: "Intenții de cumpărare",
-      historyPurchaseIntentLabel: "Intenție de cumpărare",
-      historyTransactionsTitle: "Tranzacții",
-      historyTransactionLabel: "Tranzacție",
-      historySubscriptionsTitle: "Abonamente",
-      historySubscriptionContractLabel: "Contract de abonament",
-      historyEntitlementsTitle: "Drepturi de acces",
-      historyEntitlementLabel: "Drept de acces",
-      historyWalletAccountsTitle: "Conturi de portofel",
-      historyWalletAccountLabel: "Cont de portofel",
-      historyWalletLedgerTitle: "Registru portofel",
-      historyWalletLedgerEntryLabel: "Înregistrare în registrul portofelului",
-      historyAccessSnapshotsTitle: "Instantanee acces",
-      historyAccessSnapshotLabel: "Instantaneu acces",
-      historyInvoicesTitle: "Facturi",
-      historyInvoiceLabel: "Factură",
-    },
-  },
-} as const;
-
-function resolveXmsCopyLocale(locale: unknown): keyof typeof XMS_COPY_CATALOG {
-  return isRomanianLocale(locale) ? "ro" : "en";
-}
-
-function buildXmsPackageCopy(locale: unknown): XmsPackageCopy {
-  return XMS_COPY_CATALOG[resolveXmsCopyLocale(locale)].package;
 }
 
 function readLocalizedText(value: unknown, fallback = ""): string {
@@ -365,6 +146,170 @@ function formatCoverageLabel(input: {
   return formatStateLabel(input.accessProjection?.entitlement_state, "Unavailable");
 }
 
+function resolveSubscriptionCoverageLabel(input: {
+  currentSubscription: Record<string, unknown> | null;
+  overduePolicy: Record<string, unknown> | null;
+  locale?: unknown;
+}): string {
+  const copy = buildXmsSurfaceCopy({ locale: input.locale });
+  if (typeof input.overduePolicy?.has_current_access === "boolean") {
+    return input.overduePolicy.has_current_access
+      ? copy.coverageActiveLabel
+      : copy.coverageInactiveLabel;
+  }
+  const status = readLower(input.currentSubscription?.status);
+  if (
+    status === "active" ||
+    status === "trialing" ||
+    status === "grace" ||
+    status === "cancelled"
+  ) {
+    return copy.coverageActiveLabel;
+  }
+  if (status === "past_due" || status === "expired" || status === "suspended") {
+    return copy.coverageInactiveLabel;
+  }
+  return "";
+}
+
+function resolveSubscriptionReasonLabel(input: {
+  overduePolicy: Record<string, unknown> | null;
+  locale?: unknown;
+}): string {
+  const copy = buildXmsSurfaceCopy({ locale: input.locale });
+  const reason = readLower(input.overduePolicy?.effective_status_reason);
+  if (!reason) return "";
+  if (reason === "grace_covered_past_due") return copy.reasonGraceCoveredPastDueLabel;
+  if (reason === "past_due_after_period_end") return copy.reasonPastDueAfterPeriodEndLabel;
+  if (reason === "expired_after_boundary") return copy.reasonExpiredAfterBoundaryLabel;
+  return formatStateLabel(reason, "");
+}
+
+function resolveSubscriptionOperatorAuthorityLabel(input: {
+  currentSubscription: Record<string, unknown> | null;
+  locale?: unknown;
+}): string {
+  const copy = buildXmsSurfaceCopy({ locale: input.locale });
+  const management = readRecord(input.currentSubscription?.subscription_management);
+  const ownerScope = readLower(management?.operator_owner_scope);
+  if (ownerScope === "gateway") return copy.operatorAuthorityGatewayLabel;
+  if (ownerScope === "tenant") return copy.operatorAuthorityTenantLabel;
+  if (ownerScope === "publisher") return copy.operatorAuthorityPublisherLabel;
+  if (ownerScope === "owner") return copy.operatorAuthorityOwnerLabel;
+  return "";
+}
+
+function resolveSubscriptionManagementDestinationLabel(input: {
+  currentSubscription: Record<string, unknown> | null;
+  locale?: unknown;
+}): string {
+  const copy = buildXmsSurfaceCopy({ locale: input.locale });
+  const management = readRecord(input.currentSubscription?.subscription_management);
+  const destination = readRecord(management?.management_destination);
+  const kind = readLower(destination?.kind);
+  if (kind === "gateway_admin") return copy.managementDestinationGatewayLabel;
+  if (kind === "tenant_app") return copy.managementDestinationTenantLabel;
+  if (kind === "publisher_app") return copy.managementDestinationPublisherLabel;
+  if (kind === "app_owner") return copy.managementDestinationOwnerLabel;
+  return "";
+}
+
+function resolveSubscriptionManagementDestinationHint(input: {
+  currentSubscription: Record<string, unknown> | null;
+  locale?: unknown;
+}): string {
+  const copy = buildXmsSurfaceCopy({ locale: input.locale });
+  const management = readRecord(input.currentSubscription?.subscription_management);
+  const destination = readRecord(management?.management_destination);
+  const kind = readLower(destination?.kind);
+  if (kind === "gateway_admin") return copy.managementDestinationHintGatewayLabel;
+  if (kind === "tenant_app") return copy.managementDestinationHintTenantLabel;
+  if (kind === "publisher_app") return copy.managementDestinationHintPublisherLabel;
+  if (kind === "app_owner") return copy.managementDestinationHintOwnerLabel;
+  return "";
+}
+
+function resolveSubscriptionManagementDestinationHref(input: {
+  currentSubscription: Record<string, unknown> | null;
+}): string {
+  const management = readRecord(input.currentSubscription?.subscription_management);
+  const destination = readRecord(management?.management_destination);
+  return readString(destination?.href);
+}
+
+function readSubscriptionActionAvailability(input: {
+  currentSubscription: Record<string, unknown> | null;
+  actionKey: "refresh_status" | "cancel_subscription";
+  fallback: boolean;
+}): boolean {
+  const management = readRecord(input.currentSubscription?.subscription_management);
+  const subjectActions = readRecord(management?.subject_actions);
+  const action = readRecord(subjectActions?.[input.actionKey]);
+  return readBoolean(action?.available, input.fallback);
+}
+
+export function buildXmsSubscriptionLifecycleSummary(input: {
+  currentSubscription?: unknown;
+  current_subscription?: unknown;
+  locale?: unknown;
+}): {
+  present: boolean;
+  status: string;
+  statusLabel: string;
+  coverageLabel: string;
+  reasonCode: string | null;
+  reasonLabel: string;
+  renewsAt: string | null;
+  currentPeriodEndsAt: string | null;
+  expiresAt: string | null;
+  cancelledAt: string | null;
+  overdueSince: string | null;
+  expiryBoundaryAt: string | null;
+  canCancel: boolean;
+  canRefresh: boolean;
+} {
+  const currentSubscription = readRecord(input.currentSubscription ?? input.current_subscription);
+  const overduePolicy =
+    currentSubscription?.overdue_policy &&
+    typeof currentSubscription.overdue_policy === "object" &&
+    !Array.isArray(currentSubscription.overdue_policy)
+      ? (currentSubscription.overdue_policy as Record<string, unknown>)
+      : null;
+  const status = readLower(currentSubscription?.status);
+  const renewsAt = readString(currentSubscription?.renews_at) || null;
+  const currentPeriodEndsAt = readString(currentSubscription?.current_period_ends_at) || null;
+  const expiresAt = readString(currentSubscription?.expired_at) || null;
+  const cancelledAt = readString(currentSubscription?.cancelled_at) || null;
+  const overdueSince = readString(overduePolicy?.overdue_since) || null;
+  const expiryBoundaryAt = readString(overduePolicy?.expiry_boundary_at) || null;
+
+  return {
+    present: Boolean(currentSubscription),
+    status,
+    statusLabel: formatStateLabel(currentSubscription?.status, ""),
+    coverageLabel: resolveSubscriptionCoverageLabel({
+      currentSubscription,
+      overduePolicy,
+      locale: input.locale,
+    }),
+    reasonCode: readString(overduePolicy?.effective_status_reason) || null,
+    reasonLabel: resolveSubscriptionReasonLabel({
+      overduePolicy,
+      locale: input.locale,
+    }),
+    renewsAt,
+    currentPeriodEndsAt,
+    expiresAt,
+    cancelledAt,
+    overdueSince,
+    expiryBoundaryAt,
+    canCancel:
+      Boolean(currentSubscription) &&
+      (status === "active" || status === "trialing" || status === "grace" || status === "past_due"),
+    canRefresh: Boolean(currentSubscription),
+  };
+}
+
 export function hasSubjectMonetizationContext(session: unknown): boolean {
   const record = session && typeof session === "object" ? (session as Record<string, unknown>) : {};
   const context =
@@ -415,6 +360,10 @@ export function flattenXappMonetizationCatalog(items: unknown): Array<Record<str
         productId: readString((pkg as any)?.product?.id),
         productSlug: readString((pkg as any)?.product?.slug),
         productFamily: readString((pkg as any)?.product?.product_family),
+        productMetadata:
+          (pkg as any)?.product?.metadata && typeof (pkg as any).product.metadata === "object"
+            ? (pkg as any).product.metadata
+            : {},
         priceId: readString((price as any)?.id),
         amount: readString((price as any)?.amount),
         currency: readString((price as any)?.currency),
@@ -511,6 +460,11 @@ export function flattenXappMonetizationPaywallPackages(
       productFamily: readString(
         (packageRecord.product as Record<string, unknown> | undefined)?.product_family,
       ),
+      productMetadata:
+        (packageRecord.product as Record<string, unknown> | undefined)?.metadata &&
+        typeof (packageRecord.product as Record<string, unknown>).metadata === "object"
+          ? ((packageRecord.product as Record<string, unknown>).metadata as Record<string, unknown>)
+          : {},
       priceId: readString((price as Record<string, unknown> | null)?.id),
       amount: readString((price as Record<string, unknown> | null)?.amount),
       currency: readString((price as Record<string, unknown> | null)?.currency),
@@ -623,6 +577,7 @@ export function buildMonetizationPaywallRenderModel(input: unknown): {
     productId: string;
     productSlug: string;
     productFamily: string;
+    productMetadata: Record<string, unknown>;
     metadata: Record<string, unknown>;
     description: string;
     fitLabel: string;
@@ -648,6 +603,12 @@ export function buildMonetizationPaywallRenderModel(input: unknown): {
       productId: readString(item.productId),
       productSlug: readString(item.productSlug),
       productFamily: readString(item.productFamily),
+      productMetadata:
+        item.productMetadata &&
+        typeof item.productMetadata === "object" &&
+        !Array.isArray(item.productMetadata)
+          ? (item.productMetadata as Record<string, unknown>)
+          : {},
       metadata:
         item.metadata && typeof item.metadata === "object" && !Array.isArray(item.metadata)
           ? (item.metadata as Record<string, unknown>)
@@ -841,6 +802,11 @@ export const monetizationPlansSurfaceStyles = `
   display: grid;
   gap: 10px;
 }
+.xapps-xms-plans__surface-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
 .xapps-xms-plans__meta-row {
   display: flex;
   justify-content: space-between;
@@ -982,6 +948,42 @@ export const monetizationPlansSurfaceStyles = `
   opacity: 0.6;
   filter: none;
   transform: none;
+  box-shadow: none;
+}
+.xapps-xms-plans__surface-action {
+  min-height: 38px;
+  border-radius: 12px;
+  padding: 9px 13px;
+  border: 1px solid color-mix(in srgb, var(--xapps-border-color, rgba(148, 163, 184, 0.24)) 92%, transparent);
+  background: color-mix(in srgb, var(--xapps-surface-bg, #ffffff) 96%, var(--xapps-surface-subtle, #f8fafc));
+  color: var(--xapps-text-primary, #0f172a);
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    border-color 0.18s ease,
+    background-color 0.18s ease,
+    color 0.18s ease,
+    box-shadow 0.18s ease;
+}
+.xapps-xms-plans__surface-action:hover,
+.xapps-xms-plans__surface-action:focus-visible {
+  border-color: color-mix(in srgb, var(--xapps-accent, #0f766e) 28%, var(--xapps-border-color, transparent));
+  background: color-mix(in srgb, var(--xapps-accent, #0f766e) 7%, var(--xapps-surface-bg, #ffffff));
+  color: color-mix(in srgb, var(--xapps-accent, #0f766e) 24%, var(--xapps-text-primary, #0f172a));
+}
+.xapps-xms-plans__surface-action[data-variant="danger"] {
+  border-color: color-mix(in srgb, var(--xapps-danger, #dc2626) 22%, var(--xapps-border-color, transparent));
+  color: var(--xapps-danger, #b91c1c);
+}
+.xapps-xms-plans__surface-action[data-variant="danger"]:hover,
+.xapps-xms-plans__surface-action[data-variant="danger"]:focus-visible {
+  border-color: color-mix(in srgb, var(--xapps-danger, #dc2626) 34%, var(--xapps-border-color, transparent));
+  background: color-mix(in srgb, var(--xapps-danger, #dc2626) 8%, var(--xapps-surface-bg, #ffffff));
+  color: var(--xapps-danger, #991b1b);
+}
+.xapps-xms-plans__surface-action[disabled] {
+  cursor: not-allowed;
+  opacity: 0.6;
   box-shadow: none;
 }
 .xapps-xms-plans__empty {
@@ -1253,6 +1255,18 @@ function readActiveAdditiveEntitlements(items: unknown): Array<Record<string, un
     .filter((item) => hasCurrentOwnedEntitlement(item));
 }
 
+function formatAdditiveEntitlementLabels(items: Array<Record<string, unknown>>): string[] {
+  const counts = new Map<string, number>();
+  for (const item of items) {
+    const label = readString(item.tier) || readString(item.product_slug);
+    if (!label) continue;
+    counts.set(label, (counts.get(label) ?? 0) + 1);
+  }
+  return Array.from(counts.entries()).map(([label, count]) =>
+    count > 1 ? `${label} x${count}` : label,
+  );
+}
+
 function buildPlansActionLabel(input: {
   locale?: unknown;
   policy: {
@@ -1304,9 +1318,12 @@ function readHistoryTitle(item: Record<string, unknown>, keys: string[], fallbac
 function readHistoryMeta(item: Record<string, unknown>, keys: string[], locale: string): string[] {
   const out: string[] = [];
   for (const key of keys) {
-    const value = key.endsWith("_at")
-      ? formatPlansDateTime(item[key], locale)
-      : readString(item[key]);
+    const value =
+      key === "settlement_effect_detail"
+        ? formatSettlementEffectDetailLabel(item.settlement_effect, item[key], locale)
+        : key.endsWith("_at")
+          ? formatPlansDateTime(item[key], locale)
+          : readString(item[key]);
     if (value) out.push(formatStateLabel(value, value));
   }
   return out;
@@ -1324,6 +1341,43 @@ function formatTimelineBucketLabel(value: unknown, locale: string): string {
   if (normalized === "access_snapshots") return copy.historyAccessSnapshotLabel;
   if (normalized === "invoices") return copy.historyInvoiceLabel;
   return formatStateLabel(normalized, normalized);
+}
+
+function formatSettlementEffectDetailLabel(
+  effect: unknown,
+  detail: unknown,
+  locale: string,
+): string | null {
+  const rawDetail = readString(detail);
+  if (!rawDetail) return null;
+  const normalizedEffect = readLower(effect);
+  const normalizedDetail = readLower(detail);
+  const copy = buildXmsSurfaceCopy({ locale });
+  if (normalizedEffect === "transaction_chargeback") {
+    if (normalizedDetail === "warning_needs_response") {
+      return copy.historySettlementDetailDisputeWarningNeedsResponse;
+    }
+    if (normalizedDetail === "warning_under_review") {
+      return copy.historySettlementDetailDisputeWarningUnderReview;
+    }
+    if (normalizedDetail === "warning_closed") {
+      return copy.historySettlementDetailDisputeWarningClosed;
+    }
+    if (normalizedDetail === "needs_response") {
+      return copy.historySettlementDetailDisputeNeedsResponse;
+    }
+    if (normalizedDetail === "under_review") {
+      return copy.historySettlementDetailDisputeUnderReview;
+    }
+    if (normalizedDetail === "won") {
+      return copy.historySettlementDetailDisputeWon;
+    }
+    if (normalizedDetail === "lost") {
+      return copy.historySettlementDetailDisputeLost;
+    }
+    return normalizedDetail.replace(/_/g, " ");
+  }
+  return rawDetail;
 }
 
 function buildTimelineHtml(input: {
@@ -1344,6 +1398,14 @@ function buildTimelineHtml(input: {
           const meta = [
             formatTimelineBucketLabel(item.bucket, input.locale),
             readString(item.status) ? formatStateLabel(item.status, readString(item.status)) : "",
+            readString(item.settlement_effect)
+              ? formatStateLabel(item.settlement_effect, readString(item.settlement_effect))
+              : "",
+            formatSettlementEffectDetailLabel(
+              item.settlement_effect,
+              item.settlement_effect_detail,
+              input.locale,
+            ),
             readString(item.scope),
             readString(item.correlation),
             readString(item.amount) && readString(item.currency)
@@ -1447,7 +1509,13 @@ function buildMonetizationHistorySections(input: {
       itemTitleKeys: ["package_slug", "product_slug", "id"],
       itemFallbackTitle: copy.historyTransactionLabel,
       itemStatusKeys: ["status"],
-      itemMetaKeys: ["amount", "currency", "payment_session_id", "occurred_at"],
+      itemMetaKeys: [
+        "amount",
+        "currency",
+        "settlement_effect",
+        "payment_session_id",
+        "occurred_at",
+      ],
     }),
     buildHistorySectionHtml({
       title: copy.historySubscriptionsTitle,
@@ -1487,7 +1555,7 @@ function buildMonetizationHistorySections(input: {
       itemTitleKeys: ["event_kind", "wallet_product_slug", "id"],
       itemFallbackTitle: copy.historyWalletLedgerEntryLabel,
       itemStatusKeys: [],
-      itemMetaKeys: ["amount", "currency", "source_kind", "occurred_at"],
+      itemMetaKeys: ["amount", "currency", "settlement_effect", "source_kind", "occurred_at"],
     }),
     buildHistorySectionHtml({
       title: copy.historyAccessSnapshotsTitle,
@@ -1507,22 +1575,20 @@ function buildMonetizationHistorySections(input: {
       itemTitleKeys: ["invoice_identifier", "id"],
       itemFallbackTitle: copy.historyInvoiceLabel,
       itemStatusKeys: ["status"],
-      itemMetaKeys: ["provider_key", "owner_scope", "created_at"],
+      itemMetaKeys: [
+        "settlement_effect",
+        "settlement_effect_detail",
+        "provider_key",
+        "owner_scope",
+        "created_at",
+      ],
     }),
   ].filter(Boolean);
 }
 
 export type XmsSurfaceView = "plans" | "history";
 
-export function buildXmsSurfaceCopy(input?: {
-  locale?: unknown;
-}): XmsSurfaceCopy {
-  return XMS_COPY_CATALOG[resolveXmsCopyLocale(input?.locale)].surface;
-}
-
-export function buildXmsSurfaceShellTheme(input?: {
-  themeTokens?: unknown;
-}): {
+export function buildXmsSurfaceShellTheme(input?: { themeTokens?: unknown }): {
   overlayBg: string;
   panelBg: string;
   panelBorder: string;
@@ -1543,7 +1609,6 @@ export function buildXmsSurfaceShellTheme(input?: {
   bodyBg: string;
 } {
   const theme = readRecord(input?.themeTokens) ?? {};
-  const primary = readString(theme.primary) || "#2563eb";
   const card = readString(theme.card) || "#ffffff";
   const bg = readString(theme.bg) || "#f8fafc";
   const border = readString(theme.border) || "rgba(148, 163, 184, 0.28)";
@@ -1627,11 +1692,15 @@ export function buildMonetizationPlansSurfaceHtml(
     locale?: unknown;
     selectedPackageSlug?: unknown;
     busyPackageSlug?: unknown;
+    busyAction?: unknown;
     notice?: unknown;
     error?: unknown;
     showHeader?: boolean;
     includeStyles?: boolean;
     interactive?: boolean;
+    showOperatorManagement?: boolean;
+    onRefreshSubscription?: (() => void) | null;
+    onCancelSubscription?: (() => void) | null;
   } = {},
 ): string {
   const record = readRecord(input) ?? {};
@@ -1640,7 +1709,6 @@ export function buildMonetizationPlansSurfaceHtml(
   const additiveEntitlements = readActiveAdditiveEntitlements(
     record.additiveEntitlements ?? record.additive_entitlements,
   );
-  const history = readRecord(record.history);
   const paywall = readRecord(record.paywall) ?? record;
   const locale = readString(options.locale) || "en";
   const renderModel = buildMonetizationPaywallRenderModel(paywall);
@@ -1650,29 +1718,147 @@ export function buildMonetizationPlansSurfaceHtml(
   );
   const selectedPackageSlug = readLower(options.selectedPackageSlug);
   const busyPackageSlug = readLower(options.busyPackageSlug);
+  const busyAction = readLower(options.busyAction);
   const includeStyles = options.includeStyles !== false;
   const showHeader = options.showHeader !== false;
   const packageCopy = buildXmsPackageCopy(locale);
   const surfaceCopy = buildXmsSurfaceCopy({ locale });
+  const lifecycle = buildXmsSubscriptionLifecycleSummary({
+    currentSubscription,
+    locale,
+  });
+  const lifecycleInteractive = options.interactive !== false;
+  const showOperatorManagement = options.showOperatorManagement === true;
+  const operatorAuthority = showOperatorManagement
+    ? resolveSubscriptionOperatorAuthorityLabel({
+        currentSubscription,
+        locale,
+      })
+    : "";
+  const managementDestination = showOperatorManagement
+    ? resolveSubscriptionManagementDestinationLabel({
+        currentSubscription,
+        locale,
+      })
+    : "";
+  const managementDestinationHref = showOperatorManagement
+    ? resolveSubscriptionManagementDestinationHref({
+        currentSubscription,
+      })
+    : "";
+  const managementDestinationHint = showOperatorManagement
+    ? resolveSubscriptionManagementDestinationHint({
+        currentSubscription,
+        locale,
+      })
+    : "";
+  const hasRefreshSubscriptionAction =
+    lifecycleInteractive &&
+    typeof options.onRefreshSubscription === "function" &&
+    readSubscriptionActionAvailability({
+      currentSubscription,
+      actionKey: "refresh_status",
+      fallback: true,
+    });
+  const hasCancelSubscriptionAction =
+    lifecycleInteractive &&
+    lifecycle.canCancel &&
+    typeof options.onCancelSubscription === "function" &&
+    readSubscriptionActionAvailability({
+      currentSubscription,
+      actionKey: "cancel_subscription",
+      fallback: true,
+    });
   const currentTier = readString(currentSubscription?.tier) || readString(accessProjection?.tier);
   const accessState = formatCoverageLabel({ accessProjection, currentSubscription, locale });
-  const subscriptionStatus = formatStateLabel(currentSubscription?.status, "");
-  const renewsAt = formatPlansDateTime(currentSubscription?.renews_at, locale);
-  const expiresAt =
-    formatPlansDateTime(currentSubscription?.expired_at, locale) ||
-    formatPlansDateTime(currentSubscription?.current_period_ends_at, locale);
   const creditsRemaining = readString(accessProjection?.credits_remaining);
-  const additiveUnlocks = additiveEntitlements
-    .map((item) => readString(item.tier) || readString(item.product_slug))
-    .filter(Boolean);
+  const additiveUnlocks = formatAdditiveEntitlementLabels(additiveEntitlements);
   const accessRows = [
     currentTier ? [surfaceCopy.currentPlanLabel, currentTier] : null,
     accessState ? [surfaceCopy.membershipAccessLabel, accessState] : null,
-    subscriptionStatus ? [surfaceCopy.subscriptionStatusLabel, subscriptionStatus] : null,
-    renewsAt ? [surfaceCopy.renewsAtLabel, renewsAt] : null,
-    expiresAt ? [surfaceCopy.expiresAtLabel, expiresAt] : null,
+    lifecycle.statusLabel ? [surfaceCopy.subscriptionStatusLabel, lifecycle.statusLabel] : null,
+    lifecycle.coverageLabel
+      ? [surfaceCopy.subscriptionCoverageLabel, lifecycle.coverageLabel]
+      : null,
+    lifecycle.reasonLabel ? [surfaceCopy.subscriptionReasonLabel, lifecycle.reasonLabel] : null,
+    lifecycle.overdueSince
+      ? [surfaceCopy.overdueSinceLabel, formatPlansDateTime(lifecycle.overdueSince, locale)]
+      : null,
+    lifecycle.expiryBoundaryAt
+      ? [surfaceCopy.expiryBoundaryLabel, formatPlansDateTime(lifecycle.expiryBoundaryAt, locale)]
+      : null,
+    lifecycle.renewsAt
+      ? [surfaceCopy.renewsAtLabel, formatPlansDateTime(lifecycle.renewsAt, locale)]
+      : null,
+    lifecycle.currentPeriodEndsAt
+      ? [
+          surfaceCopy.currentPeriodEndsLabel,
+          formatPlansDateTime(lifecycle.currentPeriodEndsAt, locale),
+        ]
+      : null,
+    lifecycle.cancelledAt
+      ? [surfaceCopy.cancelledAtLabel, formatPlansDateTime(lifecycle.cancelledAt, locale)]
+      : null,
+    lifecycle.expiresAt
+      ? [surfaceCopy.expiresAtLabel, formatPlansDateTime(lifecycle.expiresAt, locale)]
+      : null,
+    operatorAuthority ? [surfaceCopy.operatorAuthorityLabel, operatorAuthority] : null,
+    managementDestination ? [surfaceCopy.managementDestinationLabel, managementDestination] : null,
     creditsRemaining ? [surfaceCopy.creditsRemainingLabel, creditsRemaining] : null,
   ].filter((item): item is [string, string] => Boolean(item));
+  const lifecycleActionsHtml =
+    lifecycle.present && (hasRefreshSubscriptionAction || hasCancelSubscriptionAction)
+      ? `<div class="xapps-xms-plans__surface-actions">
+          ${
+            hasRefreshSubscriptionAction
+              ? `<button
+                  type="button"
+                  class="xapps-xms-plans__surface-action"
+                  data-subscription-action="refresh"
+                  ${busyAction ? "disabled" : ""}
+                >${escapeHtml(
+                  busyAction === "refresh"
+                    ? surfaceCopy.refreshingStatusActionLabel
+                    : surfaceCopy.refreshStatusActionLabel,
+                )}</button>`
+              : ""
+          }
+          ${
+            hasCancelSubscriptionAction
+              ? `<button
+                  type="button"
+                  class="xapps-xms-plans__surface-action"
+                  data-subscription-action="cancel"
+                  data-variant="danger"
+                  ${busyAction ? "disabled" : ""}
+                >${escapeHtml(
+                  busyAction === "cancel"
+                    ? surfaceCopy.cancellingSubscriptionActionLabel
+                    : surfaceCopy.cancelSubscriptionActionLabel,
+                )}</button>`
+              : ""
+          }
+          ${
+            managementDestinationHref
+              ? `<a
+                  class="xapps-xms-plans__surface-action"
+                  href="${escapeHtml(managementDestinationHref)}"
+                  target="_top"
+                  rel="noopener noreferrer"
+                >${escapeHtml(surfaceCopy.openManagementDestinationActionLabel)}</a>`
+              : ""
+          }
+        </div>`
+      : managementDestinationHref
+        ? `<div class="xapps-xms-plans__surface-actions">
+            <a
+              class="xapps-xms-plans__surface-action"
+              href="${escapeHtml(managementDestinationHref)}"
+              target="_top"
+              rel="noopener noreferrer"
+            >${escapeHtml(surfaceCopy.openManagementDestinationActionLabel)}</a>
+          </div>`
+        : "";
 
   const packagesHtml = renderModel.packages.length
     ? renderModel.packages
@@ -1807,6 +1993,12 @@ export function buildMonetizationPlansSurfaceHtml(
                     : ""
                 }
               </div>
+              ${
+                managementDestinationHint
+                  ? `<div class="xapps-xms-plans__notice">${escapeHtml(managementDestinationHint)}</div>`
+                  : ""
+              }
+              ${lifecycleActionsHtml}
             </section>`
           : ""
       }
@@ -1834,19 +2026,31 @@ export function renderMonetizationPlansSurface(
     locale?: unknown;
     selectedPackageSlug?: unknown;
     busyPackageSlug?: unknown;
+    busyAction?: unknown;
     notice?: unknown;
     error?: unknown;
     showHeader?: boolean;
     includeStyles?: boolean;
     interactive?: boolean;
+    showOperatorManagement?: boolean;
     onCheckoutPackage?: ((input: { packageId: string; packageSlug: string }) => void) | null;
+    onRefreshSubscription?: (() => void) | null;
+    onCancelSubscription?: (() => void) | null;
   } = {},
 ): { destroy: () => void } {
   root.innerHTML = buildMonetizationPlansSurfaceHtml(input, options);
   const buttons = Array.from(root.querySelectorAll<HTMLButtonElement>(".xapps-xms-plans__action"));
+  const refreshButton = root.querySelector<HTMLButtonElement>(
+    '[data-subscription-action="refresh"]',
+  );
+  const cancelButton = root.querySelector<HTMLButtonElement>('[data-subscription-action="cancel"]');
   const listeners: Array<() => void> = [];
   const onCheckoutPackage =
     typeof options.onCheckoutPackage === "function" ? options.onCheckoutPackage : null;
+  const onRefreshSubscription =
+    typeof options.onRefreshSubscription === "function" ? options.onRefreshSubscription : null;
+  const onCancelSubscription =
+    typeof options.onCancelSubscription === "function" ? options.onCancelSubscription : null;
 
   if (onCheckoutPackage) {
     for (const button of buttons) {
@@ -1860,6 +2064,22 @@ export function renderMonetizationPlansSurface(
       button.addEventListener("click", handler);
       listeners.push(() => button.removeEventListener("click", handler));
     }
+  }
+
+  if (onRefreshSubscription && refreshButton && !refreshButton.disabled) {
+    const handler = () => {
+      onRefreshSubscription();
+    };
+    refreshButton.addEventListener("click", handler);
+    listeners.push(() => refreshButton.removeEventListener("click", handler));
+  }
+
+  if (onCancelSubscription && cancelButton && !cancelButton.disabled) {
+    const handler = () => {
+      onCancelSubscription();
+    };
+    cancelButton.addEventListener("click", handler);
+    listeners.push(() => cancelButton.removeEventListener("click", handler));
   }
 
   return {
@@ -2090,9 +2310,35 @@ function collectPackageOwnershipCandidates(item: Record<string, unknown>): strin
     item.metadata && typeof item.metadata === "object" && !Array.isArray(item.metadata)
       ? (item.metadata as Record<string, unknown>)
       : {};
+  const productMetadata =
+    item.productMetadata &&
+    typeof item.productMetadata === "object" &&
+    !Array.isArray(item.productMetadata)
+      ? (item.productMetadata as Record<string, unknown>)
+      : {};
   return [
     readLower(item.productSlug),
     readLower(item.packageSlug),
+    readLower(metadata.tier),
+    readLower(metadata.access_tier),
+    readLower(productMetadata.tier),
+    readLower(productMetadata.access_tier),
+  ].filter(Boolean);
+}
+
+function collectCurrentSubscriptionCandidates(
+  currentSubscription: Record<string, unknown>,
+): string[] {
+  const metadata =
+    currentSubscription.metadata && typeof currentSubscription.metadata === "object"
+      ? (currentSubscription.metadata as Record<string, unknown>)
+      : currentSubscription.metadata_jsonb && typeof currentSubscription.metadata_jsonb === "object"
+        ? (currentSubscription.metadata_jsonb as Record<string, unknown>)
+        : {};
+  return [
+    readLower(currentSubscription.product_slug),
+    readLower(currentSubscription.tier),
+    readLower(metadata.product_slug),
     readLower(metadata.tier),
     readLower(metadata.access_tier),
   ].filter(Boolean);
@@ -2196,6 +2442,9 @@ export function resolveMonetizationPackagePurchasePolicy(input: {
   const currentSubscriptionProductId = readLower(currentSubscription.product_id);
   const includedCredits = readPackageCredits(item);
   const ownershipCandidates = new Set(collectPackageOwnershipCandidates(item));
+  const currentSubscriptionCandidates = new Set(
+    collectCurrentSubscriptionCandidates(currentSubscription),
+  );
   const ownedAdditiveUnlock = additiveEntitlements.some((entry) => {
     const entitlement =
       entry && typeof entry === "object" && !Array.isArray(entry)
@@ -2216,6 +2465,18 @@ export function resolveMonetizationPackagePurchasePolicy(input: {
     productId &&
     currentSubscriptionProductId &&
     productId === currentSubscriptionProductId
+  ) {
+    return {
+      canPurchase: false,
+      status: "current_recurring_plan",
+      transitionKind: "none",
+      reason: "current_recurring_plan",
+    };
+  }
+
+  if (
+    hasActiveRecurringSubscription(currentSubscription) &&
+    Array.from(ownershipCandidates).some((value) => currentSubscriptionCandidates.has(value))
   ) {
     return {
       canPurchase: false,
@@ -2629,12 +2890,7 @@ export function summarizeXappMonetizationSnapshot(input: unknown): {
     !Array.isArray(record.current_subscription)
       ? (record.current_subscription as Record<string, unknown>)
       : null;
-  const overduePolicy =
-    currentSubscription?.overdue_policy &&
-    typeof currentSubscription.overdue_policy === "object" &&
-    !Array.isArray(currentSubscription.overdue_policy)
-      ? (currentSubscription.overdue_policy as Record<string, unknown>)
-      : null;
+  const lifecycle = buildXmsSubscriptionLifecycleSummary({ currentSubscription });
 
   return {
     accessCoverage: {
@@ -2645,15 +2901,13 @@ export function summarizeXappMonetizationSnapshot(input: unknown): {
       sourceRefLabel: formatStateLabel(accessProjection?.source_ref),
     },
     currentSubscription: {
-      present: Boolean(currentSubscription),
-      statusLabel: formatStateLabel(currentSubscription?.status),
+      present: lifecycle.present,
+      statusLabel: lifecycle.statusLabel || formatStateLabel(currentSubscription?.status),
       tierLabel: formatStateLabel(currentSubscription?.tier),
-      coverageLabel: overduePolicy?.has_current_access ? "Still active" : "Expired or blocked",
-      coverageReasonLabel: overduePolicy?.effective_status_reason
-        ? formatStateLabel(overduePolicy.effective_status_reason)
-        : "No active overdue restriction.",
-      renewsAt: readString(currentSubscription?.renews_at) || null,
-      expiresAt: readString(currentSubscription?.current_period_ends_at) || null,
+      coverageLabel: lifecycle.coverageLabel || "Unknown",
+      coverageReasonLabel: lifecycle.reasonLabel || buildXmsSurfaceCopy().noOverdueRestrictionLabel,
+      renewsAt: lifecycle.renewsAt,
+      expiresAt: lifecycle.expiresAt || lifecycle.currentPeriodEndsAt,
       paymentSessionIdLabel: formatStateLabel(currentSubscription?.payment_session_id),
     },
     wallet: {

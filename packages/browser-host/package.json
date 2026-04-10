@@ -1,6 +1,6 @@
 {
   "name": "@xapps-platform/browser-host",
-  "version": "0.1.12",
+  "version": "0.1.13",
   "license": "MIT",
   "author": "Daniel Vladescu <daniel.vladescu@gmail.com>",
   "type": "module",
@@ -25,13 +25,18 @@
     "./xms": {
       "types": "./xms.d.ts",
       "default": "./dist/xms.js"
+    },
+    "./xms-copy": {
+      "types": "./xms-copy.d.ts",
+      "default": "./dist/xmsCopy.js"
     }
   },
   "files": [
     "dist",
     "README.md",
     "subject-profile.d.ts",
-    "xms.d.ts"
+    "xms.d.ts",
+    "xms-copy.d.ts"
   ],
   "publishConfig": {
     "access": "public"
