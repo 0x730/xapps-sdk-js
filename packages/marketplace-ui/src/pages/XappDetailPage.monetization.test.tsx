@@ -73,7 +73,9 @@ describe("XappDetailPage monetization", () => {
 
     const hostAdapter: any = {
       subjectId: "self",
-      getInstallationsByXappId: () => ({}),
+      getInstallationsByXappId: () => ({
+        xapp_lifecycle: { installationId: "inst_lifecycle", xappId: "xapp_lifecycle" },
+      }),
       refreshInstallations: () => {},
       openWidget: () => {},
     };
@@ -116,6 +118,343 @@ describe("XappDetailPage monetization", () => {
     expect(text).toContain("25");
     expect(text).toContain("Add-on unlocks");
     expect(text).toContain("starter");
+  });
+
+  it("shows provider-agnostic lifecycle details and subject-side subscription actions", async () => {
+    const refreshState = vi.fn(async () => ({
+      xapp_id: "xapp_lifecycle",
+      version_id: "ver_lifecycle",
+      current_subscription: { id: "sub_lifecycle", status: "active" },
+      access_projection: { entitlement_state: "active" },
+    }));
+    const cancelSubscription = vi.fn(async () => ({
+      xapp_id: "xapp_lifecycle",
+      version_id: "ver_lifecycle",
+      current_subscription: { id: "sub_lifecycle", status: "cancelled" },
+      access_projection: { entitlement_state: "active" },
+    }));
+    const client: any = {
+      listCatalogXapps: async () => ({ items: [] }),
+      getCatalogXapp: async () => ({
+        xapp: {
+          id: "xapp_lifecycle",
+          publisher: { slug: "demo-publisher", name: "Demo Publisher" },
+          publisher_id: "pub_1",
+          name: "Demo App",
+        },
+        version: {
+          id: "ver_lifecycle",
+          version: "1.0.0",
+        },
+        manifest: {
+          title: { en: "Demo App" },
+          description: { en: "Demo description" },
+        },
+        tools: [],
+        widgets: [],
+      }),
+      getMyRequest: async () => ({}),
+      listMyRequests: async () => ({ items: [] }),
+      getWidgetToken: async () => ({ token: "widget-token" }),
+      getMyXappMonetizationHistory: async () => ({
+        history: { timeline: { total: 0, items: [] } },
+      }),
+      getMyXappMonetization: async () => ({
+        xapp_id: "xapp_lifecycle",
+        version_id: "ver_lifecycle",
+        subject_id: "subject_lifecycle",
+        access_projection: {
+          entitlement_state: "active",
+          tier: "pro",
+          credits_remaining: "19",
+        },
+        current_subscription: {
+          id: "sub_lifecycle",
+          status: "active",
+          tier: "pro",
+          renews_at: "2026-06-07T21:27:00.000Z",
+          current_period_ends_at: "2026-06-07T21:27:00.000Z",
+          subscription_management: {
+            authority_lane: "gateway_managed",
+            operator_owner_scope: "gateway",
+            management_destination: {
+              kind: "gateway_admin",
+              href: "/apps/superadmin/xapps/xapp_lifecycle#monetization-subscriptions",
+            },
+            subject_actions: {
+              refresh_status: { available: true },
+              cancel_subscription: { available: true },
+            },
+          },
+        },
+      }),
+      refreshMyXappSubscriptionContractState: refreshState,
+      cancelMyXappSubscriptionContract: cancelSubscription,
+    };
+
+    const hostAdapter: any = {
+      subjectId: "self",
+      getInstallationsByXappId: () => ({}),
+      refreshInstallations: () => {},
+      openWidget: () => {},
+    };
+
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+    const root = createRoot(host);
+
+    await act(async () => {
+      root.render(
+        <MemoryRouter
+          initialEntries={["/marketplace/xapps/xapp_lifecycle?installationId=inst_lifecycle"]}
+        >
+          <MarketplaceProvider client={client} host={hostAdapter}>
+            <Routes>
+              <Route path="/marketplace/xapps/:xappId" element={<XappDetailPage />} />
+            </Routes>
+          </MarketplaceProvider>
+        </MemoryRouter>,
+      );
+    });
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    cleanupFns.push(() => {
+      act(() => root.unmount());
+      host.remove();
+    });
+
+    const text = host.textContent || "";
+    expect(text).toContain("Renews at");
+    expect(text).toContain("Current period ends");
+    expect(text).toContain("Refresh status");
+    expect(text).toContain("Cancel subscription");
+
+    const refreshButton = Array.from(host.querySelectorAll("button")).find(
+      (item) => item.textContent === "Refresh status",
+    );
+    expect(refreshButton).toBeTruthy();
+    await act(async () => {
+      refreshButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(refreshState).toHaveBeenCalledWith({
+      xappId: "xapp_lifecycle",
+      contractId: "sub_lifecycle",
+    });
+  });
+
+  it("shows direct cancel for delegated lifecycle lanes and keeps management guidance", async () => {
+    const client: any = {
+      listCatalogXapps: async () => ({ items: [] }),
+      getCatalogXapp: async () => ({
+        xapp: {
+          id: "xapp_delegated",
+          publisher: { slug: "demo-publisher", name: "Demo Publisher" },
+          publisher_id: "pub_1",
+          name: "Demo App",
+        },
+        version: {
+          id: "ver_delegated",
+          version: "1.0.0",
+        },
+        manifest: {
+          title: { en: "Demo App" },
+          description: { en: "Demo description" },
+        },
+        tools: [],
+        widgets: [],
+      }),
+      getMyRequest: async () => ({}),
+      listMyRequests: async () => ({ items: [] }),
+      getWidgetToken: async () => ({ token: "widget-token" }),
+      getMyXappMonetizationHistory: async () => ({
+        history: { timeline: { total: 0, items: [] } },
+      }),
+      getMyXappMonetization: async () => ({
+        xapp_id: "xapp_delegated",
+        version_id: "ver_delegated",
+        subject_id: "subject_delegated",
+        access_projection: {
+          entitlement_state: "active",
+          tier: "pro",
+        },
+        current_subscription: {
+          id: "sub_delegated",
+          status: "active",
+          tier: "pro",
+          renews_at: "2026-06-07T21:27:00.000Z",
+          current_period_ends_at: "2026-06-07T21:27:00.000Z",
+          subscription_management: {
+            authority_lane: "publisher_delegated",
+            operator_owner_scope: "publisher",
+            management_destination: {
+              kind: "publisher_app",
+              href: "/apps/publisher/xapps/xapp_delegated/monetization",
+            },
+            subject_actions: {
+              refresh_status: { available: true },
+              cancel_subscription: { available: true },
+            },
+          },
+        },
+      }),
+      refreshMyXappSubscriptionContractState: vi.fn(async () => ({
+        xapp_id: "xapp_delegated",
+        version_id: "ver_delegated",
+        current_subscription: { id: "sub_delegated", status: "active" },
+        access_projection: { entitlement_state: "active" },
+      })),
+      cancelMyXappSubscriptionContract: vi.fn(async () => ({
+        xapp_id: "xapp_delegated",
+        version_id: "ver_delegated",
+        current_subscription: { id: "sub_delegated", status: "cancelled" },
+        access_projection: { entitlement_state: "active" },
+      })),
+    };
+
+    const hostAdapter: any = {
+      subjectId: "self",
+      getInstallationsByXappId: () => ({}),
+      refreshInstallations: () => {},
+      openWidget: () => {},
+    };
+
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+    const root = createRoot(host);
+
+    await act(async () => {
+      root.render(
+        <MemoryRouter initialEntries={["/marketplace/xapps/xapp_delegated"]}>
+          <MarketplaceProvider client={client} host={hostAdapter}>
+            <Routes>
+              <Route path="/marketplace/xapps/:xappId" element={<XappDetailPage />} />
+            </Routes>
+          </MarketplaceProvider>
+        </MemoryRouter>,
+      );
+    });
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    cleanupFns.push(() => {
+      act(() => root.unmount());
+      host.remove();
+    });
+
+    const text = host.textContent || "";
+    expect(text).toContain("Refresh status");
+    expect(text).toContain("Cancel subscription");
+  });
+
+  it("forwards lifecycle preview query and shows preview state in current access", async () => {
+    const getMyXappMonetization = vi.fn(async () => ({
+      xapp_id: "xapp_preview",
+      version_id: "ver_preview",
+      subject_id: "subject_preview",
+      access_projection: {
+        entitlement_state: "suspended",
+        tier: "pro",
+        credits_remaining: "11",
+      },
+      current_subscription: {
+        id: "sub_preview",
+        status: "past_due",
+        tier: "pro",
+        renews_at: null,
+        current_period_ends_at: "2026-07-01T12:00:00.000Z",
+        overdue_policy: {
+          has_current_access: false,
+          effective_status_reason: "past_due_after_period_end",
+          overdue_since: "2026-07-01T12:00:00.000Z",
+        },
+      },
+    }));
+    const client: any = {
+      listCatalogXapps: async () => ({ items: [] }),
+      getCatalogXapp: async () => ({
+        xapp: {
+          id: "xapp_preview",
+          publisher: { slug: "demo-publisher", name: "Demo Publisher" },
+          publisher_id: "pub_1",
+          name: "Demo App",
+        },
+        version: {
+          id: "ver_preview",
+          version: "1.0.0",
+        },
+        manifest: {
+          title: { en: "Demo App" },
+          description: { en: "Demo description" },
+        },
+        tools: [],
+        widgets: [],
+      }),
+      getMyRequest: async () => ({}),
+      listMyRequests: async () => ({ items: [] }),
+      getWidgetToken: async () => ({ token: "widget-token" }),
+      getMyXappMonetization,
+      getMyXappMonetizationHistory: async () => ({
+        history: { timeline: { total: 0, items: [] } },
+      }),
+    };
+
+    const hostAdapter: any = {
+      subjectId: "self",
+      getInstallationsByXappId: () => ({}),
+      refreshInstallations: () => {},
+      openWidget: () => {},
+    };
+
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+    const root = createRoot(host);
+
+    await act(async () => {
+      root.render(
+        <MemoryRouter
+          initialEntries={["/marketplace/xapps/xapp_preview?previewAt=2026-07-02T12:00:00.000Z"]}
+        >
+          <MarketplaceProvider client={client} host={hostAdapter} env={{ devMode: true }}>
+            <Routes>
+              <Route path="/marketplace/xapps/:xappId" element={<XappDetailPage />} />
+            </Routes>
+          </MarketplaceProvider>
+        </MemoryRouter>,
+      );
+    });
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    cleanupFns.push(() => {
+      act(() => root.unmount());
+      host.remove();
+    });
+
+    expect(getMyXappMonetization).toHaveBeenCalledWith("xapp_preview", {
+      installationId: null,
+      locale: "en",
+      previewAt: "2026-07-02T12:00:00.000Z",
+    });
+
+    const text = host.textContent || "";
+    expect(text).toContain("Preview as of");
+    expect(text).toContain("Subscription lifecycle is being previewed for the selected time.");
+    expect(text).toContain("Current Access");
   });
 
   it("preserves marketplace breadcrumbs on the plans route", async () => {
@@ -291,7 +630,7 @@ describe("XappDetailPage monetization", () => {
 
     const text = host.textContent || "";
     expect(text).toContain("Subscription status");
-    expect(text).toContain("past_due");
+    expect(text).toContain("past due");
     expect(text).toContain("Coverage");
     expect(text).toContain("Not covered");
     expect(text).toContain("Status reason");

@@ -224,7 +224,9 @@ export function MonetizationPage() {
             accessLabel:
               summary.accessCoverage.coverageLabel ||
               t("activity.monetization_unknown", undefined, "Unknown"),
-            tierLabel: summary.accessCoverage.tierLabel || t("activity.monetization_none", undefined, "None"),
+            tierLabel:
+              summary.accessCoverage.tierLabel ||
+              t("activity.monetization_none", undefined, "None"),
             sourceLabel:
               summary.accessCoverage.sourceRefLabel ||
               t("activity.monetization_no_source", undefined, "No source"),
@@ -490,38 +492,43 @@ export function MonetizationPage() {
                     {t("activity.monetization", undefined, "Monetization")}
                   </div>
                   <div className="mx-record-panel-id">{item.title}</div>
-                  <div className="mx-subtle-note mx-subtle-note-compact">{item.subtitle}</div>
+                  <div className="mx-record-panel-subtitle">{item.subtitle}</div>
                 </div>
-                <div className="mx-record-actions">
-                  {!xappIdFilter ? (
-                    <Link
-                      to={
-                        {
-                          pathname: isEmbedded ? "/monetization" : "/marketplace/monetization",
-                          search: (() => {
-                            const qs = new URLSearchParams();
-                            if (token) qs.set("token", token);
-                            qs.set("xappId", item.xappId);
-                            if (item.installationId) qs.set("installationId", item.installationId);
-                            const suffix = qs.toString();
-                            return suffix ? `?${suffix}` : "";
-                          })(),
-                        } as any
-                      }
-                      className="mx-btn mx-btn-ghost"
-                    >
-                      {t("activity.monetization_focus_xapp", undefined, "Focus this app")}
+                <div className="mx-record-actions mx-record-actions-monetization">
+                  <div className="mx-action-group">
+                    <Link to={item.plansHref as any} className="mx-btn mx-btn-primary">
+                      {t("activity.monetization_open_plans", undefined, "Open plans")}
                     </Link>
-                  ) : null}
-                  <Link to={item.plansHref as any} className="mx-btn mx-btn-primary">
-                    {t("activity.monetization_open_plans", undefined, "Open plans")}
-                  </Link>
-                  <Link to={item.historyHref as any} className="mx-btn mx-btn-secondary">
-                    {t("activity.monetization_open_history", undefined, "Open history")}
-                  </Link>
-                  <Link to={item.detailHref as any} className="mx-btn mx-btn-ghost">
-                    {t("common.view_app_details", undefined, "View app details")}
-                  </Link>
+                    <Link to={item.historyHref as any} className="mx-btn mx-btn-secondary">
+                      {t("activity.monetization_open_history", undefined, "Open history")}
+                    </Link>
+                  </div>
+                  <div className="mx-action-group">
+                    <Link to={item.detailHref as any} className="mx-btn mx-btn-ghost">
+                      {t("common.view_app_details", undefined, "View app details")}
+                    </Link>
+                    {!xappIdFilter ? (
+                      <Link
+                        to={
+                          {
+                            pathname: isEmbedded ? "/monetization" : "/marketplace/monetization",
+                            search: (() => {
+                              const qs = new URLSearchParams();
+                              if (token) qs.set("token", token);
+                              qs.set("xappId", item.xappId);
+                              if (item.installationId)
+                                qs.set("installationId", item.installationId);
+                              const suffix = qs.toString();
+                              return suffix ? `?${suffix}` : "";
+                            })(),
+                          } as any
+                        }
+                        className="mx-btn mx-btn-ghost"
+                      >
+                        {t("activity.monetization_focus_xapp", undefined, "Focus this app")}
+                      </Link>
+                    ) : null}
+                  </div>
                 </div>
               </div>
 

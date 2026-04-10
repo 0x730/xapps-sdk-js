@@ -88,6 +88,19 @@ export type MarketplaceCurrentSubscription = {
     overdue_since?: string | null;
     [k: string]: unknown;
   } | null;
+  subscription_management?: {
+    authority_lane?: string | null;
+    operator_owner_scope?: string | null;
+    management_destination?: {
+      kind?: string | null;
+      href?: string | null;
+    } | null;
+    subject_actions?: {
+      refresh_status?: { available?: boolean } | null;
+      cancel_subscription?: { available?: boolean } | null;
+    } | null;
+    [k: string]: unknown;
+  } | null;
   source_ref?: string | null;
   [k: string]: unknown;
 };
@@ -112,6 +125,17 @@ export type MarketplaceXappMonetizationState = {
   }> | null;
   access_projection?: MarketplaceMonetizationAccessProjection | null;
   current_subscription?: MarketplaceCurrentSubscription | null;
+};
+
+export type MarketplaceSubscriptionLifecycleResult = {
+  xapp_id: string;
+  version_id: string;
+  payment_session?: Record<string, unknown> | null;
+  subscription_contract?: Record<string, unknown> | null;
+  current_subscription?: MarketplaceCurrentSubscription | null;
+  access_projection?: MarketplaceMonetizationAccessProjection | null;
+  snapshot_id?: string | null;
+  transaction?: Record<string, unknown> | null;
 };
 
 export type OperationalSurfaceDescriptor = {
@@ -175,8 +199,25 @@ export type MarketplaceClient = {
   }>;
   getMyXappMonetization?(
     xappId: string,
-    options?: { subjectId?: string | null; installationId?: string | null; locale?: string | null },
+    options?: {
+      subjectId?: string | null;
+      installationId?: string | null;
+      locale?: string | null;
+      previewAt?: string | null;
+    },
   ): Promise<MarketplaceXappMonetizationState>;
+  cancelMyXappSubscriptionContract?(input: {
+    xappId: string;
+    contractId: string;
+    subjectId?: string | null;
+    installationId?: string | null;
+  }): Promise<MarketplaceSubscriptionLifecycleResult>;
+  refreshMyXappSubscriptionContractState?(input: {
+    xappId: string;
+    contractId: string;
+    subjectId?: string | null;
+    installationId?: string | null;
+  }): Promise<MarketplaceSubscriptionLifecycleResult>;
   getMyXappMonetizationHistory?(
     xappId: string,
     options?: { subjectId?: string | null; installationId?: string | null; limit?: number | null },
@@ -421,6 +462,7 @@ export type MarketplaceEnv = {
   locale?: string;
   title?: string;
   apiBaseUrl?: string;
+  devMode?: boolean;
   subjectResolved?: boolean;
   installationPolicy?: MarketplaceInstallationPolicy | null;
   installationPolicyResolved?: boolean;

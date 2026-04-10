@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { resolveMarketplaceText, useMarketplaceI18n } from "../i18n";
 import type { TranslateFunction } from "@xapps-platform/platform-i18n";
 import {
+  buildXmsSubscriptionLifecycleSummary,
   buildMonetizationHistorySurfaceHtml,
   buildMonetizationPaywallRenderModel,
   flattenXappMonetizationPaywallPackages,
@@ -454,10 +455,18 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
   const [checkoutBusyPackageSlug, setCheckoutBusyPackageSlug] = useState("");
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [checkoutNotice, setCheckoutNotice] = useState<string | null>(null);
+  const [subscriptionActionBusy, setSubscriptionActionBusy] = useState<"" | "cancel" | "refresh">(
+    "",
+  );
+  const [subscriptionActionError, setSubscriptionActionError] = useState<string | null>(null);
+  const [cancelSubscriptionConfirmOpen, setCancelSubscriptionConfirmOpen] = useState(false);
   const checkoutFinalizeKeyRef = useRef<string>("");
 
   const installationsByXappId = hasSubject ? host.getInstallationsByXappId() : {};
   const routeInstallationId = String(routeQuery.get("installationId") || "").trim();
+  const routePreviewAt = String(
+    routeQuery.get("previewAt") || routeQuery.get("preview_at") || "",
+  ).trim();
   const installation =
     xappId && installationsByXappId[String(xappId)]
       ? installationsByXappId[String(xappId)]
@@ -485,6 +494,7 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
 
   const isEmbedded = window.location.pathname.startsWith("/embed");
   const singleXappMode = env?.singleXappMode;
+  const lifecyclePreviewEnabled = env?.devMode === true;
   const routeSurfaceView = routeView === "history" ? "history" : "plans";
 
   const refresh = useCallback(async () => {
@@ -513,12 +523,21 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
       const next = await client.getMyXappMonetization(currentXappId, {
         installationId: installation?.installationId ?? null,
         locale,
+        previewAt: lifecyclePreviewEnabled ? routePreviewAt || null : null,
       });
       setMonetization(next);
     } catch {
       setMonetization(null);
     }
-  }, [client, host.subjectId, installation?.installationId, locale, xappId]);
+  }, [
+    client,
+    host.subjectId,
+    installation?.installationId,
+    lifecyclePreviewEnabled,
+    locale,
+    routePreviewAt,
+    xappId,
+  ]);
 
   const refreshMonetizationHistory = useCallback(async () => {
     const currentXappId = String(xappId ?? "").trim();
@@ -998,6 +1017,7 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
           const next = await client.getMyXappMonetization(currentXappId, {
             installationId: installation?.installationId ?? null,
             locale,
+            previewAt: lifecyclePreviewEnabled ? routePreviewAt || null : null,
           });
           if (!cancelled) setMonetization(next);
         }
@@ -1035,9 +1055,72 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
     paymentReturnIntentId,
     paymentReturnSessionId,
     paymentReturnStatus,
+    lifecyclePreviewEnabled,
+    routePreviewAt,
     t,
     xappId,
   ]);
+
+  async function refreshSubscriptionLifecycle() {
+    const currentXappId = String(xappId ?? "").trim();
+    const contractId = readString(monetizationSubscription?.id);
+    if (
+      !currentXappId ||
+      !contractId ||
+      typeof client.refreshMyXappSubscriptionContractState !== "function"
+    ) {
+      return;
+    }
+    setSubscriptionActionBusy("refresh");
+    setSubscriptionActionError(null);
+    try {
+      await client.refreshMyXappSubscriptionContractState({
+        xappId: currentXappId,
+        contractId,
+      });
+      await refreshMonetization();
+      await refreshMonetizationHistory();
+    } catch (error) {
+      const message =
+        readString(asRecord(error)?.message) ||
+        (error instanceof Error ? error.message : "") ||
+        t("xapp.subscription_refresh_failed", undefined, "Unable to refresh subscription state.");
+      setSubscriptionActionError(message);
+    } finally {
+      setSubscriptionActionBusy("");
+    }
+  }
+
+  async function cancelSubscriptionLifecycle() {
+    const currentXappId = String(xappId ?? "").trim();
+    const contractId = readString(monetizationSubscription?.id);
+    if (
+      !currentXappId ||
+      !contractId ||
+      typeof client.cancelMyXappSubscriptionContract !== "function"
+    ) {
+      return;
+    }
+    setSubscriptionActionBusy("cancel");
+    setSubscriptionActionError(null);
+    try {
+      await client.cancelMyXappSubscriptionContract({
+        xappId: currentXappId,
+        contractId,
+      });
+      await refreshMonetization();
+      await refreshMonetizationHistory();
+      setCancelSubscriptionConfirmOpen(false);
+    } catch (error) {
+      const message =
+        readString(asRecord(error)?.message) ||
+        (error instanceof Error ? error.message : "") ||
+        t("xapp.subscription_cancel_failed", undefined, "Unable to cancel this subscription.");
+      setSubscriptionActionError(message);
+    } finally {
+      setSubscriptionActionBusy("");
+    }
+  }
 
   async function finalizeCurrentUserCheckoutIntent(currentXappId: string, intentId: string) {
     if (typeof client.finalizeMyXappPurchasePaymentSession !== "function") {
@@ -1061,6 +1144,7 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
       const next = await client.getMyXappMonetization(currentXappId, {
         installationId: installation?.installationId ?? null,
         locale,
+        previewAt: lifecyclePreviewEnabled ? routePreviewAt || null : null,
       });
       setMonetization(next);
     }
@@ -1204,45 +1288,38 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
   });
   const additiveUnlockLabels = activeAdditiveEntitlements
     .map((item) => readString(item.tier) || readString(item.product_slug))
-    .filter(Boolean);
-  const overduePolicy = asRecord(monetizationSubscription?.overdue_policy);
+    .filter(Boolean)
+    .reduce<string[]>((labels, label) => {
+      if (!labels.includes(label)) labels.push(label);
+      return labels;
+    }, []);
+  const subscriptionLifecycle = buildXmsSubscriptionLifecycleSummary({
+    currentSubscription: monetizationSubscription,
+    locale,
+  });
+  const subscriptionManagement = asRecord(monetizationSubscription?.subscription_management);
+  const subscriptionSubjectActions = asRecord(subscriptionManagement?.subject_actions);
+  const canRefreshSubscriptionAction = readBoolean(
+    asRecord(subscriptionSubjectActions?.refresh_status)?.available,
+    true,
+  );
+  const canCancelSubscriptionAction = readBoolean(
+    asRecord(subscriptionSubjectActions?.cancel_subscription)?.available,
+    true,
+  );
   const currentTier =
     readString(monetizationSubscription?.tier) || readString(monetizationAccess?.tier);
   const balanceState = readString(monetizationAccess?.balance_state);
-  const subscriptionStatus = readString(monetizationSubscription?.status);
-  const subscriptionCoverage =
-    typeof overduePolicy?.has_current_access === "boolean"
-      ? overduePolicy.has_current_access
-        ? t("xapp.subscription_coverage_active", undefined, "Still covered")
-        : t("xapp.subscription_coverage_inactive", undefined, "Not covered")
-      : null;
-  const subscriptionReasonKey = readString(overduePolicy?.effective_status_reason);
-  const subscriptionReason =
-    subscriptionReasonKey === "grace_covered_past_due"
-      ? t(
-          "xapp.subscription_reason_grace_covered_past_due",
-          undefined,
-          "Coverage remains during grace period",
-        )
-      : subscriptionReasonKey === "past_due_after_period_end"
-        ? t(
-            "xapp.subscription_reason_past_due_after_period_end",
-            undefined,
-            "Current period ended without successful renewal",
-          )
-        : subscriptionReasonKey === "expired_after_boundary"
-          ? t(
-              "xapp.subscription_reason_expired_after_boundary",
-              undefined,
-              "Expiry boundary reached",
-            )
-          : null;
-  const overdueSince = formatDateTime(overduePolicy?.overdue_since, locale);
-  const expiryBoundaryAt = formatDateTime(overduePolicy?.expiry_boundary_at, locale);
-  const renewsAt = formatDateTime(monetizationSubscription?.renews_at, locale);
-  const expiresAt =
-    formatDateTime(monetizationSubscription?.expired_at, locale) ||
-    formatDateTime(monetizationSubscription?.current_period_ends_at, locale);
+  const subscriptionStatus = subscriptionLifecycle.statusLabel;
+  const subscriptionCoverage = subscriptionLifecycle.coverageLabel;
+  const subscriptionReason = subscriptionLifecycle.reasonLabel;
+  const overdueSince = formatDateTime(subscriptionLifecycle.overdueSince, locale);
+  const expiryBoundaryAt = formatDateTime(subscriptionLifecycle.expiryBoundaryAt, locale);
+  const renewsAt = formatDateTime(subscriptionLifecycle.renewsAt, locale);
+  const currentPeriodEndsAt = formatDateTime(subscriptionLifecycle.currentPeriodEndsAt, locale);
+  const cancelledAt = formatDateTime(subscriptionLifecycle.cancelledAt, locale);
+  const expiresAt = formatDateTime(subscriptionLifecycle.expiresAt, locale);
+  const lifecyclePreviewAt = lifecyclePreviewEnabled ? formatDateTime(routePreviewAt, locale) : "";
   const creditsRemaining = readString(monetizationAccess?.credits_remaining);
   const accessState = resolveMarketplaceDefaultAccessState({
     projection: monetizationAccessProjection,
@@ -1258,7 +1335,10 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
     overdueSince ||
     expiryBoundaryAt ||
     renewsAt ||
+    currentPeriodEndsAt ||
+    cancelledAt ||
     expiresAt ||
+    lifecyclePreviewAt ||
     creditsRemaining ||
     additiveUnlockLabels.length > 0,
   );
@@ -1344,12 +1424,36 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
           <span className="mx-meta-value">{renewsAt}</span>
         </div>
       ) : null}
+      {currentPeriodEndsAt ? (
+        <div className="mx-meta-item">
+          <span className="mx-meta-label">
+            {t("xapp.current_period_ends_label", undefined, "Current period ends")}
+          </span>
+          <span className="mx-meta-value">{currentPeriodEndsAt}</span>
+        </div>
+      ) : null}
+      {cancelledAt ? (
+        <div className="mx-meta-item">
+          <span className="mx-meta-label">
+            {t("xapp.cancelled_at_label", undefined, "Cancelled at")}
+          </span>
+          <span className="mx-meta-value">{cancelledAt}</span>
+        </div>
+      ) : null}
       {expiresAt ? (
         <div className="mx-meta-item">
           <span className="mx-meta-label">
             {t("xapp.expires_at_label", undefined, "Expires at")}
           </span>
           <span className="mx-meta-value">{expiresAt}</span>
+        </div>
+      ) : null}
+      {lifecyclePreviewAt ? (
+        <div className="mx-meta-item">
+          <span className="mx-meta-label">
+            {t("xapp.lifecycle_preview_at_label", undefined, "Preview as of")}
+          </span>
+          <span className="mx-meta-value">{lifecyclePreviewAt}</span>
         </div>
       ) : null}
       {creditsRemaining ? (
@@ -1366,10 +1470,59 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
             {t("xapp.add_on_unlocks_label", undefined, "Add-on unlocks")}
           </span>
           <div className="mx-meta-value mx-meta-stack-sm">
-            {additiveUnlockLabels.map((label) => (
-              <div key={label}>{label}</div>
+            {additiveUnlockLabels.map((label, index) => (
+              <div key={`${label}:${index}`}>{label}</div>
             ))}
           </div>
+        </div>
+      ) : null}
+      {lifecyclePreviewAt ? (
+        <div className="mx-subtle-note">
+          {t(
+            "xapp.lifecycle_preview_hint",
+            undefined,
+            "Subscription lifecycle is being previewed for the selected time.",
+          )}
+        </div>
+      ) : null}
+      {subscriptionActionError ? (
+        <div className="mx-subtle-note">{subscriptionActionError}</div>
+      ) : null}
+      {monetizationSubscription?.id &&
+      ((canRefreshSubscriptionAction &&
+        typeof client.refreshMyXappSubscriptionContractState === "function") ||
+        (canCancelSubscriptionAction &&
+          subscriptionLifecycle.canCancel &&
+          typeof client.cancelMyXappSubscriptionContract === "function")) ? (
+        <div className="mx-detail-actions">
+          {canRefreshSubscriptionAction &&
+          typeof client.refreshMyXappSubscriptionContractState === "function" ? (
+            <button
+              className="mx-btn mx-btn-secondary"
+              disabled={subscriptionActionBusy !== ""}
+              onClick={() => {
+                void refreshSubscriptionLifecycle();
+              }}
+            >
+              {subscriptionActionBusy === "refresh"
+                ? t("xapp.subscription_refreshing", undefined, "Refreshing...")
+                : t("xapp.subscription_refresh_action", undefined, "Refresh status")}
+            </button>
+          ) : null}
+          {canCancelSubscriptionAction &&
+          subscriptionLifecycle.canCancel &&
+          typeof client.cancelMyXappSubscriptionContract === "function" ? (
+            <button
+              className="mx-btn mx-btn-outline"
+              data-variant="danger"
+              disabled={subscriptionActionBusy !== ""}
+              onClick={() => setCancelSubscriptionConfirmOpen(true)}
+            >
+              {subscriptionActionBusy === "cancel"
+                ? t("xapp.subscription_cancelling", undefined, "Cancelling...")
+                : t("xapp.subscription_cancel_action", undefined, "Cancel subscription")}
+            </button>
+          ) : null}
         </div>
       ) : null}
     </div>
@@ -1395,111 +1548,114 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
         </div>
       ) : null}
       <div className="mx-paywall-card-packages">
-        {selectedPaywallRenderModel.packages.map((item: MonetizationPaywallRenderPackage) => {
-          const normalizedPackageSlug = item.packageSlug.trim().toLowerCase();
-          const purchasePolicy = getPackagePurchasePolicy(item);
-          const packageSignals = item.signals.filter(
-            (signal: string) =>
-              !(
-                purchasePolicy.transitionKind === "replace_recurring" &&
-                signal.toLowerCase().includes("trial")
-              ),
-          );
-          const isCurrentPackage = purchasePolicy.status === "current_recurring_plan";
-          const isOwnedAdditive = purchasePolicy.status === "owned_additive_unlock";
-          const isAdditiveCompanion =
-            purchasePolicy.transitionKind === "buy_additive_unlock" &&
-            subscriptionStatus === "active";
-          return (
-            <div
-              key={item.packageId || item.packageSlug}
-              className={`mx-paywall-card-package ${item.isDefault ? "is-default" : ""} ${
-                selectedPaywallPackageSlug && normalizedPackageSlug === selectedPaywallPackageSlug
-                  ? "is-selected"
-                  : ""
-              }`}
-            >
-              <div className="mx-paywall-card-package-head">
-                <div>
-                  <div className="mx-paywall-card-package-title">{item.packageTitle}</div>
-                  {item.description ? (
-                    <div className="mx-paywall-card-package-description">{item.description}</div>
+        {selectedPaywallRenderModel.packages.map(
+          (item: MonetizationPaywallRenderPackage, index) => {
+            const normalizedPackageSlug = item.packageSlug.trim().toLowerCase();
+            const purchasePolicy = getPackagePurchasePolicy(item);
+            const packageSignals = item.signals.filter(
+              (signal: string) =>
+                !(
+                  purchasePolicy.transitionKind === "replace_recurring" &&
+                  signal.toLowerCase().includes("trial")
+                ),
+            );
+            const isCurrentPackage = purchasePolicy.status === "current_recurring_plan";
+            const isOwnedAdditive = purchasePolicy.status === "owned_additive_unlock";
+            const isAdditiveCompanion =
+              purchasePolicy.transitionKind === "buy_additive_unlock" &&
+              subscriptionStatus === "active";
+            return (
+              <div
+                key={`${item.packageId || item.packageSlug || normalizedPackageSlug}:${index}`}
+                className={`mx-paywall-card-package ${item.isDefault ? "is-default" : ""} ${
+                  selectedPaywallPackageSlug && normalizedPackageSlug === selectedPaywallPackageSlug
+                    ? "is-selected"
+                    : ""
+                }`}
+              >
+                <div className="mx-paywall-card-package-head">
+                  <div>
+                    <div className="mx-paywall-card-package-title">{item.packageTitle}</div>
+                    {item.description ? (
+                      <div className="mx-paywall-card-package-description">{item.description}</div>
+                    ) : null}
+                  </div>
+                  <div className="mx-paywall-card-money">{item.moneyLabel}</div>
+                </div>
+                <div className="mx-paywall-card-package-meta">
+                  <span className="mx-paywall-card-package-fit">{item.fitLabel}</span>
+                  {selectedPaywallPackageSlug &&
+                  normalizedPackageSlug === selectedPaywallPackageSlug ? (
+                    <span className="mx-paywall-card-package-default">
+                      {t("xapp.selected_label", undefined, "Selected")}
+                    </span>
+                  ) : null}
+                  {isOwnedAdditive ? (
+                    <span className="mx-paywall-card-package-default">
+                      {t("xapp.owned_unlock_label", undefined, "Owned unlock")}
+                    </span>
+                  ) : null}
+                  {isCurrentPackage && !isOwnedAdditive ? (
+                    <span className="mx-paywall-card-package-default">
+                      {t("xapp.current_plan_label", undefined, "Current plan")}
+                    </span>
+                  ) : null}
+                  {isAdditiveCompanion ? (
+                    <span className="mx-paywall-card-package-default">
+                      {t("xapp.additive_unlock_label", undefined, "Add-on with membership")}
+                    </span>
+                  ) : null}
+                  {item.isDefault ? (
+                    <span className="mx-paywall-card-package-default">
+                      {t("xapp.default_label", undefined, "Default")}
+                    </span>
                   ) : null}
                 </div>
-                <div className="mx-paywall-card-money">{item.moneyLabel}</div>
-              </div>
-              <div className="mx-paywall-card-package-meta">
-                <span className="mx-paywall-card-package-fit">{item.fitLabel}</span>
-                {selectedPaywallPackageSlug &&
-                normalizedPackageSlug === selectedPaywallPackageSlug ? (
-                  <span className="mx-paywall-card-package-default">
-                    {t("xapp.selected_label", undefined, "Selected")}
-                  </span>
-                ) : null}
-                {isOwnedAdditive ? (
-                  <span className="mx-paywall-card-package-default">
-                    {t("xapp.owned_unlock_label", undefined, "Owned unlock")}
-                  </span>
-                ) : null}
-                {isCurrentPackage && !isOwnedAdditive ? (
-                  <span className="mx-paywall-card-package-default">
-                    {t("xapp.current_plan_label", undefined, "Current plan")}
-                  </span>
+                {packageSignals.length > 0 ? (
+                  <div className="mx-paywall-card-signals">
+                    {packageSignals.map((signal: string) => (
+                      <span key={signal} className="mx-paywall-card-signal">
+                        {signal}
+                      </span>
+                    ))}
+                  </div>
                 ) : null}
                 {isAdditiveCompanion ? (
-                  <span className="mx-paywall-card-package-default">
-                    {t("xapp.additive_unlock_label", undefined, "Add-on with membership")}
-                  </span>
+                  <div className="mx-paywall-card-summary">
+                    {t(
+                      "xapp.additive_unlock_message",
+                      undefined,
+                      "This one-time unlock is additive. It adds access on top of the active recurring membership instead of replacing it.",
+                    )}
+                  </div>
                 ) : null}
-                {item.isDefault ? (
-                  <span className="mx-paywall-card-package-default">
-                    {t("xapp.default_label", undefined, "Default")}
-                  </span>
+                {typeof client.prepareMyXappPurchaseIntent === "function" &&
+                typeof client.createMyXappPurchasePaymentSession === "function" &&
+                hasSubject &&
+                canMutate ? (
+                  <button
+                    className="mx-btn mx-btn-secondary"
+                    disabled={
+                      !purchasePolicy.canPurchase ||
+                      checkoutBusyPackageSlug === normalizedPackageSlug
+                    }
+                    onClick={() => void startPackageCheckout(item.packageSlug)}
+                  >
+                    {isOwnedAdditive
+                      ? t("xapp.owned_unlock_active", undefined, "Owned unlock active")
+                      : isCurrentPackage
+                        ? t("xapp.current_plan_active", undefined, "Current plan active")
+                        : checkoutBusyPackageSlug === normalizedPackageSlug
+                          ? t("xapp.checkout_starting", undefined, "Starting checkout...")
+                          : isAdditiveCompanion
+                            ? t("xapp.additive_unlock_action", undefined, "Purchase add-on unlock")
+                            : t("xapp.checkout_action", undefined, "Continue to checkout")}
+                  </button>
                 ) : null}
               </div>
-              {packageSignals.length > 0 ? (
-                <div className="mx-paywall-card-signals">
-                  {packageSignals.map((signal: string) => (
-                    <span key={signal} className="mx-paywall-card-signal">
-                      {signal}
-                    </span>
-                  ))}
-                </div>
-              ) : null}
-              {isAdditiveCompanion ? (
-                <div className="mx-paywall-card-summary">
-                  {t(
-                    "xapp.additive_unlock_message",
-                    undefined,
-                    "This one-time unlock is additive. It adds access on top of the active recurring membership instead of replacing it.",
-                  )}
-                </div>
-              ) : null}
-              {typeof client.prepareMyXappPurchaseIntent === "function" &&
-              typeof client.createMyXappPurchasePaymentSession === "function" &&
-              hasSubject &&
-              canMutate ? (
-                <button
-                  className="mx-btn mx-btn-secondary"
-                  disabled={
-                    !purchasePolicy.canPurchase || checkoutBusyPackageSlug === normalizedPackageSlug
-                  }
-                  onClick={() => void startPackageCheckout(item.packageSlug)}
-                >
-                  {isOwnedAdditive
-                    ? t("xapp.owned_unlock_active", undefined, "Owned unlock active")
-                    : isCurrentPackage
-                      ? t("xapp.current_plan_active", undefined, "Current plan active")
-                      : checkoutBusyPackageSlug === normalizedPackageSlug
-                        ? t("xapp.checkout_starting", undefined, "Starting checkout...")
-                        : isAdditiveCompanion
-                          ? t("xapp.additive_unlock_action", undefined, "Purchase add-on unlock")
-                          : t("xapp.checkout_action", undefined, "Continue to checkout")}
-                </button>
-              ) : null}
-            </div>
-          );
-        })}
+            );
+          },
+        )}
       </div>
       {checkoutNotice ? <div className="mx-paywall-card-summary">{checkoutNotice}</div> : null}
       {checkoutError ? <div className="mx-payment-lock-error">{checkoutError}</div> : null}
@@ -1510,8 +1666,10 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
       buildMonetizationHistorySurfaceHtml(
         {
           history:
-            (asRecord(monetizationHistory)?.history as Record<string, unknown> | null | undefined) ??
-            monetizationHistory,
+            (asRecord(monetizationHistory)?.history as
+              | Record<string, unknown>
+              | null
+              | undefined) ?? monetizationHistory,
         },
         {
           title: t("xapp.history_title", undefined, "History"),
@@ -2574,6 +2732,21 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
               </div>
             </div>
           )}
+
+          <ConfirmActionModal
+            open={cancelSubscriptionConfirmOpen}
+            title={t("xapp.subscription_cancel_title", undefined, "Cancel subscription?")}
+            description={t(
+              "xapp.subscription_cancel_description",
+              undefined,
+              "The subscription will stop renewing. Current access remains available until the current period ends.",
+            )}
+            confirmLabel={t("xapp.subscription_cancel_action", undefined, "Cancel subscription")}
+            onCancel={() => setCancelSubscriptionConfirmOpen(false)}
+            onConfirm={() => {
+              void cancelSubscriptionLifecycle();
+            }}
+          />
 
           <ConfirmActionModal
             open={removeConfirmOpen}
