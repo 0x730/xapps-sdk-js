@@ -1497,6 +1497,7 @@ export class XappsHost {
       notice?: string | null;
       error?: string | null;
       busyPackageSlug?: string | null;
+      busyAction?: "refresh" | "cancel" | null;
     }) => {
       surfaceCleanup?.();
       root.innerHTML = "";
@@ -1535,9 +1536,7 @@ export class XappsHost {
         const returnState = this.readMonetizationReturnState();
         let notice =
           String(state?.notice || "").trim() ||
-          (!hasSubjectContext
-            ? shellCopy.subjectRequiredNotice
-            : null);
+          (!hasSubjectContext ? shellCopy.subjectRequiredNotice : null);
         let error = String(state?.error || "").trim() || null;
 
         if (
@@ -1601,6 +1600,7 @@ export class XappsHost {
                 locale: String(this.options.locale || "").trim() || "en",
                 selectedPackageSlug: returnState.xappId === xappId ? returnState.packageSlug : null,
                 busyPackageSlug: state?.busyPackageSlug || null,
+                busyAction: state?.busyAction || null,
                 notice,
                 error,
                 showHeader: false,
@@ -1699,6 +1699,96 @@ export class XappsHost {
                               error instanceof Error && error.message
                                 ? error.message
                                 : shellCopy.startCheckoutFailedMessage,
+                          });
+                        }
+                      })();
+                    }
+                  : null,
+                onRefreshSubscription: hasSubjectContext
+                  ? () => {
+                      void (async () => {
+                        const contractId = String(
+                          (monetization.current_subscription as Record<string, unknown> | null)
+                            ?.id || "",
+                        ).trim();
+                        if (!contractId) return;
+                        try {
+                          await renderState({
+                            busyAction: "refresh",
+                            busyPackageSlug: state?.busyPackageSlug || null,
+                            notice: null,
+                            error: null,
+                          });
+                          await this.fetchMyXappHostApiJson(
+                            xappId,
+                            `/monetization/subscription-contracts/${encodeURIComponent(contractId)}/refresh-state`,
+                            { method: "POST", body: {} },
+                          );
+                          await renderState({
+                            notice: shellCopy.subscriptionRefreshCompletedNotice,
+                            error: null,
+                          });
+                        } catch (error) {
+                          await renderState({
+                            notice: null,
+                            error: messageFromUnknownError(
+                              error,
+                              shellCopy.subscriptionRefreshFailedNotice,
+                            ),
+                          });
+                        }
+                      })();
+                    }
+                  : null,
+                onCancelSubscription: hasSubjectContext
+                  ? () => {
+                      void (async () => {
+                        const contractId = String(
+                          (monetization.current_subscription as Record<string, unknown> | null)
+                            ?.id || "",
+                        ).trim();
+                        if (!contractId) return;
+                        const confirmed =
+                          typeof this.options.confirmDialog === "function"
+                            ? Boolean(
+                                await this.options.confirmDialog({
+                                  source: "catalog",
+                                  title: shellCopy.subscriptionCancelConfirmTitle,
+                                  message: shellCopy.subscriptionCancelConfirmMessage,
+                                  confirmLabel: shellCopy.subscriptionCancelConfirmLabel,
+                                  cancelLabel: shellCopy.subscriptionCancelDismissLabel,
+                                }),
+                              )
+                            : await this.showDefaultConfirmDialog({
+                                title: shellCopy.subscriptionCancelConfirmTitle,
+                                message: shellCopy.subscriptionCancelConfirmMessage,
+                                confirmLabel: shellCopy.subscriptionCancelConfirmLabel,
+                                cancelLabel: shellCopy.subscriptionCancelDismissLabel,
+                              });
+                        if (!confirmed) return;
+                        try {
+                          await renderState({
+                            busyAction: "cancel",
+                            busyPackageSlug: state?.busyPackageSlug || null,
+                            notice: null,
+                            error: null,
+                          });
+                          await this.fetchMyXappHostApiJson(
+                            xappId,
+                            `/monetization/subscription-contracts/${encodeURIComponent(contractId)}/cancel`,
+                            { method: "POST", body: {} },
+                          );
+                          await renderState({
+                            notice: shellCopy.subscriptionCancelCompletedNotice,
+                            error: null,
+                          });
+                        } catch (error) {
+                          await renderState({
+                            notice: null,
+                            error: messageFromUnknownError(
+                              error,
+                              shellCopy.subscriptionCancelFailedNotice,
+                            ),
                           });
                         }
                       })();
