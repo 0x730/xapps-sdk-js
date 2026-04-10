@@ -18,6 +18,12 @@ type WindowXappsHost = {
     invoiceId?: string;
     notificationId?: string;
   }) => void;
+  openMonetizationPlans?: (input: {
+    xappId?: string;
+    installationId?: string;
+    paywallSlug?: string;
+    fallbackPath?: string;
+  }) => void;
   updateState?: (patch: Record<string, unknown>) => void;
   getContext?: () => Promise<WidgetContext>;
   requestGuard?: (input: {
@@ -40,6 +46,7 @@ export function createWindowXappsHostAdapter(): WidgetHostAdapter {
   }
   const host = hostOrNull;
   const openOperationalSurface = host.openOperationalSurface;
+  const openMonetizationPlans = host.openMonetizationPlans;
   const updateState = host.updateState;
   const getContext = host.getContext;
   const requestGuard = host.requestGuard;
@@ -62,6 +69,10 @@ export function createWindowXappsHostAdapter(): WidgetHostAdapter {
     openOperationalSurface:
       typeof openOperationalSurface === "function"
         ? (input) => openOperationalSurface(input)
+        : undefined,
+    openMonetizationPlans:
+      typeof openMonetizationPlans === "function"
+        ? (input) => openMonetizationPlans(input)
         : undefined,
     updateState: typeof updateState === "function" ? (patch) => updateState(patch) : undefined,
     getContext: typeof getContext === "function" ? () => getContext() : undefined,

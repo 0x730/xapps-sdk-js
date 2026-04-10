@@ -376,6 +376,32 @@ export function useWidgetUiBridge(host: WidgetHostAdapter) {
         return;
       }
 
+      if (type === "XAPPS_UI_OPEN_PLANS") {
+        const payloadData = asRecord(data ?? payload);
+        if (typeof host.openMonetizationPlans === "function") {
+          host.openMonetizationPlans({
+            ...(readTrimmedString(payloadData.xappId)
+              ? { xappId: readTrimmedString(payloadData.xappId) }
+              : {}),
+            ...(readTrimmedString(payloadData.installationId)
+              ? { installationId: readTrimmedString(payloadData.installationId) }
+              : {}),
+            ...(readTrimmedString(payloadData.paywallSlug)
+              ? { paywallSlug: readTrimmedString(payloadData.paywallSlug) }
+              : {}),
+            ...(readTrimmedString(payloadData.fallbackPath)
+              ? { fallbackPath: readTrimmedString(payloadData.fallbackPath) }
+              : {}),
+          });
+          return;
+        }
+        const fallbackPath = readTrimmedString(payloadData.fallbackPath);
+        if (fallbackPath) {
+          host.navigate(fallbackPath);
+        }
+        return;
+      }
+
       if (type === "XAPPS_UI_EXPAND_REQUEST") {
         const source = event.source as Window | null;
         const payloadData = asRecord(data ?? payload);

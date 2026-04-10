@@ -51,6 +51,13 @@ export type WidgetOpenOperationalSurfaceInput = {
   notificationId?: string;
 };
 
+export type WidgetOpenMonetizationPlansInput = {
+  xappId?: string;
+  installationId?: string;
+  paywallSlug?: string;
+  fallbackPath?: string;
+};
+
 export type GuardRequestInput = {
   guardSlug: string;
   trigger?: string;
@@ -85,6 +92,7 @@ export type WidgetHostAdapter = {
   navigate: (path: string) => void;
   refresh: () => void;
   openOperationalSurface?: (input: WidgetOpenOperationalSurfaceInput) => void;
+  openMonetizationPlans?: (input: WidgetOpenMonetizationPlansInput) => void;
 
   // Optional convenience hooks for hosts that want tighter integration.
   updateState?: (patch: Record<string, unknown>) => void;

@@ -6,6 +6,7 @@ export type {
   WidgetExpandRequestInput,
   WidgetExpandResult,
   WidgetExpandStage,
+  WidgetOpenMonetizationPlansInput,
   UiKitWidgetProps,
   AppShellWidgetProps,
 } from "./types";

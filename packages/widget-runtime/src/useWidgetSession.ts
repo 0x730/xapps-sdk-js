@@ -17,6 +17,7 @@ export type WidgetSessionResult = {
     subjectId: string | null;
     requestId?: string | null;
     resultPresentation?: "runtime_default" | "inline" | "publisher_managed";
+    locale?: string | null;
   } | null;
   widget?: unknown | null;
   tool?: unknown | null;
@@ -62,6 +63,7 @@ export function useWidgetSession(input: {
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errorPayload, setErrorPayload] = useState<unknown | null>(null);
 
   const [embedUrl, setEmbedUrl] = useState<string>("");
   const [widgetToken, setWidgetToken] = useState<string>("");
@@ -82,6 +84,7 @@ export function useWidgetSession(input: {
   const refreshSession = useCallback(async () => {
     if (missing || busy) return;
     setError(null);
+    setErrorPayload(null);
     setBusy(true);
     try {
       const res = await createWidgetSession({ installationId, widgetId });
@@ -154,6 +157,7 @@ export function useWidgetSession(input: {
         // ignore (not all widgets will have latest request)
       }
     } catch (error: unknown) {
+      setErrorPayload(error);
       setError(readFirstString(asRecord(error).message) || String(error));
     } finally {
       setBusy(false);
@@ -236,6 +240,7 @@ export function useWidgetSession(input: {
     () => ({
       busy,
       error,
+      errorPayload,
       refreshSession,
       embedUrl,
       widgetToken,
@@ -252,6 +257,7 @@ export function useWidgetSession(input: {
       busy,
       embedUrl,
       error,
+      errorPayload,
       refreshSession,
       requestId,
       requestResponse,

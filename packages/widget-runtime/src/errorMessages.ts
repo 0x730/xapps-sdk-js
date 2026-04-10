@@ -16,6 +16,7 @@ function readGuardBlockedContext(data: unknown): {
   action: Record<string, unknown>;
   paymentAttemptState: string;
   finalityState: string;
+  details: Record<string, unknown>;
 } {
   const body = asRecord(data);
   const envelope = asRecord(body.error);
@@ -43,6 +44,7 @@ function readGuardBlockedContext(data: unknown): {
     finalityState: readString(
       (body as any).finality_state || monetizationState.finality_state,
     ).toLowerCase(),
+    details: mergedDetails,
   };
 }
 
@@ -56,6 +58,9 @@ function renderActionHint(action: Record<string, unknown>, locale?: string | nul
   }
   if (kind === "complete_payment") {
     return translateWidgetRuntime("action_complete_payment", locale, { suffix });
+  }
+  if (kind === "open_monetization_plans") {
+    return translateWidgetRuntime("action_open_monetization_plans", locale, { suffix });
   }
   if (kind === "step_up_auth") {
     const method = readString(action.method);
@@ -77,6 +82,28 @@ function renderActionHint(action: Record<string, unknown>, locale?: string | nul
       : translateWidgetRuntime("action_complete_subject_profile", locale);
   }
   return "";
+}
+
+function resolveFriendlyGuardMessage(input: {
+  code: string;
+  reason: string;
+  message: string;
+  locale?: string | null;
+}): string | null {
+  if (input.code !== "GUARD_BLOCKED" && !input.reason) return null;
+  if (input.reason === "payment_evidence_missing" || input.reason === "payment_required") {
+    return translateWidgetRuntime("payment_required_for_request", input.locale);
+  }
+  if (input.reason === "insufficient_credits") {
+    return translateWidgetRuntime("xms_insufficient_credits_for_request", input.locale);
+  }
+  if (input.reason === "xms_usage_policy_not_found") {
+    return translateWidgetRuntime("xms_usage_policy_not_available", input.locale);
+  }
+  if (input.reason === "xms_usage_policy_tool_missing") {
+    return translateWidgetRuntime("xms_usage_policy_tool_missing", input.locale);
+  }
+  return null;
 }
 
 function resolvePaymentLockHint(input: {
@@ -120,11 +147,16 @@ export function formatRequestErrorMessage(
   const body = asRecord(data);
   const text = typeof data === "string" ? data.trim() : "";
   const ctx = readGuardBlockedContext(data);
-  const message = ctx.message || readString(body.message) || text || `HTTP ${status}`;
+  const friendlyMessage = resolveFriendlyGuardMessage({
+    code: ctx.code,
+    reason: ctx.reason,
+    message: ctx.message,
+    locale,
+  });
+  const message =
+    friendlyMessage || ctx.message || readString(body.message) || text || `HTTP ${status}`;
   const details: string[] = [];
   if (ctx.code === "GUARD_BLOCKED" || ctx.guardSlug || ctx.reason) {
-    if (ctx.guardSlug) details.push(`guard=${ctx.guardSlug}`);
-    if (ctx.reason) details.push(`reason=${ctx.reason}`);
     const actionHint = renderActionHint(ctx.action, locale);
     if (actionHint) details.push(actionHint);
     const lockHint = resolvePaymentLockHint({
@@ -135,6 +167,10 @@ export function formatRequestErrorMessage(
       locale,
     });
     if (lockHint) details.push(lockHint);
+    if (!friendlyMessage) {
+      if (ctx.guardSlug) details.push(`guard=${ctx.guardSlug}`);
+      if (ctx.reason) details.push(`reason=${ctx.reason}`);
+    }
   }
   return details.length > 0 ? `${message} (${details.join("; ")})` : message;
 }

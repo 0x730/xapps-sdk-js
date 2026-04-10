@@ -47,6 +47,7 @@ const catalogs = {
     debug_widget_state: "Debug: Widget State",
     action_upgrade_subscription: "Action: upgrade subscription{suffix}",
     action_complete_payment: "Action: complete payment{suffix}",
+    action_open_monetization_plans: "Action: open plans{suffix}",
     action_complete_step_up_authentication: "Action: complete step-up authentication{suffix}",
     action_confirm_action: "Action: confirm action",
     action_confirm_action_message: "Action: confirm action ({message})",
@@ -60,6 +61,12 @@ const catalogs = {
     payment_attempt_failed: "Last payment attempt failed. Complete payment to continue.",
     payment_evidence_used: "Payment evidence already used. Start a new payment attempt.",
     payment_required_for_request: "Payment is required before this request can proceed.",
+    xms_insufficient_credits_for_request:
+      "You do not have enough credits to continue. Choose a plan or top up credits.",
+    xms_usage_policy_not_available:
+      "This action is not available right now because its XMS usage policy is missing.",
+    xms_usage_policy_tool_missing:
+      "This action is not available right now because its XMS configuration is incomplete.",
     invalid_hex_string: "Invalid hex string",
     subject_signature_requires_subject_id:
       "Subject signature required by policy (ed25519), but widget session has no subjectId.",
@@ -118,6 +125,7 @@ const catalogs = {
     debug_widget_state: "Depanare: stare widget",
     action_upgrade_subscription: "Acțiune: actualizați abonamentul{suffix}",
     action_complete_payment: "Acțiune: finalizați plata{suffix}",
+    action_open_monetization_plans: "Acțiune: deschideți planurile{suffix}",
     action_complete_step_up_authentication:
       "Acțiune: finalizați autentificarea suplimentară{suffix}",
     action_confirm_action: "Acțiune: confirmați acțiunea",
@@ -136,6 +144,12 @@ const catalogs = {
     payment_evidence_used: "Dovada plății a fost deja folosită. Porniți o nouă încercare.",
     payment_required_for_request:
       "Plata este necesară înainte ca această cerere să poată continua.",
+    xms_insufficient_credits_for_request:
+      "Nu aveți suficiente credite pentru a continua. Alegeți un plan sau alimentați soldul.",
+    xms_usage_policy_not_available:
+      "Această acțiune nu este disponibilă acum deoarece politica XMS de utilizare lipsește.",
+    xms_usage_policy_tool_missing:
+      "Această acțiune nu este disponibilă acum deoarece configurația XMS este incompletă.",
     invalid_hex_string: "Șir hex invalid",
     subject_signature_requires_subject_id:
       "Semnătura subiectului este cerută de politică (ed25519), dar sesiunea widget nu are subjectId.",

@@ -106,11 +106,34 @@ describe("widget-runtime", () => {
       402,
     );
 
-    expect(message).toContain("Request blocked");
-    expect(message).toContain("guard=payment-gate");
-    expect(message).toContain("reason=payment_required");
+    expect(message).toContain("Payment is required before this request can proceed.");
     expect(message).toContain("Action: complete payment");
     expect(message).toContain("Payment requires additional action");
+  });
+
+  it("formats XMS insufficient-credit guard errors with localized copy", () => {
+    const message = formatRequestErrorMessage(
+      {
+        error: {
+          code: "GUARD_BLOCKED",
+          message: "Insufficient credits for request execution",
+        },
+        guard: {
+          slug: "xms-credit-gate",
+          reason: "insufficient_credits",
+          action: {
+            kind: "open_monetization_plans",
+          },
+        },
+      },
+      403,
+      "en",
+    );
+
+    expect(message).toContain("You do not have enough credits to continue.");
+    expect(message).toContain("Action: open plans");
+    expect(message).not.toContain("guard=");
+    expect(message).not.toContain("reason=insufficient_credits");
   });
 
   it("renders loading state while widget session is being minted", async () => {
