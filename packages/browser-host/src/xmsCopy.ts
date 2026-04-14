@@ -23,6 +23,31 @@ export type XmsPackageCopy = {
   startingCheckoutLabel: string;
   purchaseAddOnUnlockLabel: string;
   continueToCheckoutLabel: string;
+  generalUpgradeFitLabel: string;
+  generalUpgradeSummary: string;
+  durableUnlockFitLabel: string;
+  durableUnlockSummary: string;
+  recurringMembershipFitLabel: string;
+  recurringMembershipSummary: string;
+  creditTopUpFitLabel: string;
+  hybridUpgradeFitLabel: string;
+  creditPackFitSummary(unitLabel: string): string;
+  hybridPackFitSummary(unitLabel: string): string;
+  packageCurrencySignalLabel(unitLabel: string): string;
+  billedSignalLabel(periodLabel: string): string;
+  generalOfferingSummary: string;
+  featurePaywallOfferingSummary: string;
+  defaultPaywallOfferingSummary: string;
+  checkoutOfferingSummary: string;
+  upgradeOfferingSummary: string;
+  featureDurableUnlockReason: string;
+  featureRecurringAccessReason: string;
+  featureHybridAccessReason: string;
+  featureSubscriptionDirectReason: string;
+  featureHybridSubscriptionReason: string;
+  creditRequirementCoveredLabel(amountLabel: string): string;
+  creditRequirementAddedLabel(amountLabel: string): string;
+  hybridCreditsSupportLabel(unitLabel: string): string;
 };
 
 export type XmsSurfaceCopy = {
@@ -30,6 +55,18 @@ export type XmsSurfaceCopy = {
   historyTitle: string;
   plansSubtitle: string;
   historySubtitle: string;
+  offeringFallbackLabel: string;
+  packageFallbackLabel: string;
+  paywallFallbackLabel: string;
+  availableLabel: string;
+  unavailableLabel: string;
+  unknownLabel: string;
+  yesLabel: string;
+  noLabel: string;
+  defaultBadgeLabel: string;
+  choosePackageActionLabel: string;
+  noPaywallPackagesLabel: string;
+  priceUnavailableLabel: string;
   plansLabel: string;
   historyLabel: string;
   closeLabel: string;
@@ -79,6 +116,7 @@ export type XmsSurfaceCopy = {
   managementDestinationHintPublisherLabel: string;
   managementDestinationHintOwnerLabel: string;
   openManagementDestinationActionLabel: string;
+  virtualCurrencyLabel: string;
   creditsRemainingLabel: string;
   addOnUnlocksLabel: string;
   coverageActiveLabel: string;
@@ -96,6 +134,8 @@ export type XmsSurfaceCopy = {
   recentTimelineSubtitle: string;
   historyAuditTitle: string;
   historyAuditSubtitle: string;
+  historyBalanceSummaryTitle: string;
+  historyBalanceSummarySubtitle: string;
   noHistoryAvailableLabel: string;
   historyGenericLabel: string;
   historyPurchaseIntentsTitle: string;
@@ -121,6 +161,32 @@ export type XmsSurfaceCopy = {
   historyAccessSnapshotLabel: string;
   historyInvoicesTitle: string;
   historyInvoiceLabel: string;
+  featureCurrentAccessMissingLabel: string;
+  featureSubscriptionMissingLabel: string;
+  featureCreditsMissingLabel(requiredLabel: string, availableLabel: string): string;
+  featureBlockedSummary(title: string): string;
+  featureReadySummary(title: string): string;
+  featureNeedMixedAccessLabel: string;
+  featureNeedMembershipAndCreditsLabel(unitLabel: string): string;
+  featureNeedMembershipLabel: string;
+  featureNeedCreditsLabel(unitLabel: string): string;
+  featureNeedAccessLabel: string;
+  featureLockedLabel: string;
+  featureGapShortLabel(amountLabel: string): string;
+  featureCurrentAccessMissingBadge: string;
+  featureMembershipNotActiveBadge: string;
+  featureCandidateLead(selectedPackageTitle: string): string;
+  featureCandidateFallbackLead: string;
+  featureViewHybridOptionsLabel: string;
+  featureViewMembershipOptionsLabel: string;
+  featureViewCreditOptionsLabel(unitLabel: string): string;
+  featureViewUnlockOptionsLabel: string;
+  featureOpenPaywallLabel: string;
+  featureUnlockCheckoutLabel: string;
+  featureStartMembershipCheckoutLabel: string;
+  featureBuyCreditsCheckoutLabel(unitLabel: string): string;
+  featureStartHybridCheckoutLabel: string;
+  featureCreatePaymentSessionLabel: string;
 };
 
 export const XMS_COPY_CATALOG = {
@@ -137,16 +203,60 @@ export const XMS_COPY_CATALOG = {
       startingCheckoutLabel: "Starting checkout...",
       purchaseAddOnUnlockLabel: "Purchase add-on unlock",
       continueToCheckoutLabel: "Continue to checkout",
+      generalUpgradeFitLabel: "Flexible option",
+      generalUpgradeSummary: "A general plan option for this app.",
+      durableUnlockFitLabel: "One-time unlock",
+      durableUnlockSummary: "Best when you want access without an ongoing subscription.",
+      recurringMembershipFitLabel: "Subscription",
+      recurringMembershipSummary:
+        "Best when this app is meant to stay active through recurring coverage.",
+      creditTopUpFitLabel: "Balance top-up",
+      hybridUpgradeFitLabel: "Access + balance",
+      creditPackFitSummary: (unitLabel: string) =>
+        `Best when the feature spends ${unitLabel} for each advanced action.`,
+      hybridPackFitSummary: (unitLabel: string) =>
+        `Blends access coverage with bundled ${unitLabel} for mixed workflows.`,
+      packageCurrencySignalLabel: (unitLabel: string) => `currency ${unitLabel}`,
+      billedSignalLabel: (periodLabel: string) => `billed ${periodLabel}`,
+      generalOfferingSummary: "Available plans for this app.",
+      featurePaywallOfferingSummary: "Shown when this app needs extra access or balance.",
+      defaultPaywallOfferingSummary: "Main plan selection for this app.",
+      checkoutOfferingSummary: "Direct purchase flow for this app.",
+      upgradeOfferingSummary: "Best for switching or upgrading your current plan.",
+      featureDurableUnlockReason: "Aligned with one-time unlock access.",
+      featureRecurringAccessReason: "Recurring membership also grants current access.",
+      featureHybridAccessReason: "Hybrid package contributes to current access coverage.",
+      featureSubscriptionDirectReason: "Matches the subscription requirement directly.",
+      featureHybridSubscriptionReason:
+        "Hybrid package can also cover part of the subscription shape.",
+      creditRequirementCoveredLabel: (amountLabel: string) =>
+        `Covers the ${amountLabel} requirement.`,
+      creditRequirementAddedLabel: (amountLabel: string) =>
+        `Adds ${amountLabel} toward the requirement.`,
+      hybridCreditsSupportLabel: (unitLabel: string) =>
+        `Hybrid package can add bundled ${unitLabel} for this flow.`,
     },
     surface: {
       plansTitle: "Plans",
       historyTitle: "History",
-      plansSubtitle: "Current access and published plans for this app",
+      plansSubtitle: "Access, plans, and balances for this app",
       historySubtitle: "Recent monetization events, invoices, subscriptions, and wallet activity",
+      offeringFallbackLabel: "Offering",
+      packageFallbackLabel: "Package",
+      paywallFallbackLabel: "Plans",
+      availableLabel: "Available",
+      unavailableLabel: "Unavailable",
+      unknownLabel: "Unknown",
+      yesLabel: "Yes",
+      noLabel: "No",
+      defaultBadgeLabel: "default",
+      choosePackageActionLabel: "Choose package",
+      noPaywallPackagesLabel: "No plans are currently available.",
+      priceUnavailableLabel: "Price unavailable",
       plansLabel: "Plans",
       historyLabel: "History",
       closeLabel: "Close",
-      tabsAriaLabel: "XMS view",
+      tabsAriaLabel: "Plans and history view",
       loadingLabel: "Loading plans...",
       subjectRequiredNotice:
         "Checkout requires a subject-bound catalog session. Start from a signed host session to purchase plans.",
@@ -162,7 +272,7 @@ export const XMS_COPY_CATALOG = {
       subscriptionCancelConfirmLabel: "Cancel subscription",
       subscriptionCancelDismissLabel: "Keep subscription",
       missingPackageMetadataMessage:
-        "This package is missing purchase metadata in the published paywall.",
+        "This package is missing purchase metadata in the published plans configuration.",
       missingIntentMessage: "Purchase intent was created without an identifier.",
       missingPaymentPageMessage: "Payment page is not available for this package.",
       startCheckoutFailedMessage: "Unable to start checkout for this package.",
@@ -170,7 +280,7 @@ export const XMS_COPY_CATALOG = {
       currentCoverageTitle: "Current coverage",
       currentPlanLabel: "Current plan",
       membershipAccessLabel: "Membership access",
-      subscriptionStatusLabel: "Subscription status",
+      subscriptionStatusLabel: "Subscription state",
       subscriptionCoverageLabel: "Coverage",
       subscriptionReasonLabel: "Status reason",
       currentPeriodEndsLabel: "Current period ends",
@@ -198,7 +308,8 @@ export const XMS_COPY_CATALOG = {
       managementDestinationHintOwnerLabel:
         "Advanced subscription management is handled by the app owner.",
       openManagementDestinationActionLabel: "Open management",
-      creditsRemainingLabel: "Credits remaining",
+      virtualCurrencyLabel: "Currency",
+      creditsRemainingLabel: "Balance",
       addOnUnlocksLabel: "Add-on unlocks",
       coverageActiveLabel: "Still covered",
       coverageInactiveLabel: "Not covered",
@@ -210,11 +321,16 @@ export const XMS_COPY_CATALOG = {
       refreshingStatusActionLabel: "Refreshing...",
       cancelSubscriptionActionLabel: "Cancel subscription",
       cancellingSubscriptionActionLabel: "Cancelling...",
-      noPublishedPlansLabel: "No published plans are currently available.",
-      recentTimelineTitle: "Recent timeline",
-      recentTimelineSubtitle: "Latest monetization events correlated for this subject and app.",
-      historyAuditTitle: "History and audit",
-      historyAuditSubtitle: "Recent monetization records for this subject and app.",
+      noPublishedPlansLabel: "No plans are currently available.",
+      recentTimelineTitle: "Recent activity",
+      recentTimelineSubtitle:
+        "Latest subscription, balance, purchase, and invoice activity for this app.",
+      historyAuditTitle: "Detailed history",
+      historyAuditSubtitle:
+        "Recent records grouped by subscriptions, balances, purchases, and invoices.",
+      historyBalanceSummaryTitle: "Balances now",
+      historyBalanceSummarySubtitle:
+        "Latest visible wallet balances grouped by virtual currency for this app.",
       noHistoryAvailableLabel: "No monetization history is available for this app yet.",
       historyGenericLabel: "History",
       historyPurchaseIntentsTitle: "Purchase intents",
@@ -240,6 +356,38 @@ export const XMS_COPY_CATALOG = {
       historyAccessSnapshotLabel: "Access snapshot",
       historyInvoicesTitle: "Invoices",
       historyInvoiceLabel: "Invoice",
+      featureCurrentAccessMissingLabel: "Current access coverage is not active on this scope.",
+      featureSubscriptionMissingLabel: "No active subscription is visible for this scope.",
+      featureCreditsMissingLabel: (requiredLabel: string, availableLabel: string) =>
+        `This action needs ${requiredLabel}, but only ${availableLabel} are visible right now.`,
+      featureBlockedSummary: (title: string) =>
+        `${title || "Feature"} is blocked on the current scope.`,
+      featureReadySummary: (title: string) =>
+        `${title || "Feature"} can be unlocked from the current plan options.`,
+      featureNeedMixedAccessLabel: "needs mixed access",
+      featureNeedMembershipAndCreditsLabel: (unitLabel: string) =>
+        `needs membership + ${unitLabel}`,
+      featureNeedMembershipLabel: "needs membership",
+      featureNeedCreditsLabel: (unitLabel: string) => `needs ${unitLabel}`,
+      featureNeedAccessLabel: "needs access",
+      featureLockedLabel: "locked",
+      featureGapShortLabel: (amountLabel: string) => `${amountLabel} short`,
+      featureCurrentAccessMissingBadge: "current access missing",
+      featureMembershipNotActiveBadge: "membership not active",
+      featureCandidateLead: (selectedPackageTitle: string) =>
+        `${selectedPackageTitle || "Selected package"} is one package candidate for this access gap.`,
+      featureCandidateFallbackLead: "Choose a plan option that covers the current access gap.",
+      featureViewHybridOptionsLabel: "View hybrid options",
+      featureViewMembershipOptionsLabel: "View membership options",
+      featureViewCreditOptionsLabel: (unitLabel: string) => `View ${unitLabel} options`,
+      featureViewUnlockOptionsLabel: "View unlock options",
+      featureOpenPaywallLabel: "Open plans",
+      featureUnlockCheckoutLabel: "Unlock with hosted checkout",
+      featureStartMembershipCheckoutLabel: "Start membership checkout",
+      featureBuyCreditsCheckoutLabel: (unitLabel: string) =>
+        `Buy ${unitLabel} with hosted checkout`,
+      featureStartHybridCheckoutLabel: "Start hybrid checkout",
+      featureCreatePaymentSessionLabel: "Create payment session",
     },
   },
   ro: {
@@ -255,17 +403,60 @@ export const XMS_COPY_CATALOG = {
       startingCheckoutLabel: "Se pornește checkout-ul...",
       purchaseAddOnUnlockLabel: "Cumpără suplimentul",
       continueToCheckoutLabel: "Continuă spre checkout",
+      generalUpgradeFitLabel: "Opțiune flexibilă",
+      generalUpgradeSummary: "O opțiune generală de plan pentru această aplicație.",
+      durableUnlockFitLabel: "Unlock unic",
+      durableUnlockSummary: "Potrivit când vrei acces fără un abonament recurent.",
+      recurringMembershipFitLabel: "Abonament",
+      recurringMembershipSummary:
+        "Potrivit când această aplicație trebuie să rămână activă prin acoperire recurentă.",
+      creditTopUpFitLabel: "Top-up sold",
+      hybridUpgradeFitLabel: "Acces + sold",
+      creditPackFitSummary: (unitLabel: string) =>
+        `Potrivit când funcția consumă ${unitLabel} pentru fiecare acțiune avansată.`,
+      hybridPackFitSummary: (unitLabel: string) =>
+        `Combină acoperirea accesului cu ${unitLabel} incluse pentru fluxuri mixte.`,
+      packageCurrencySignalLabel: (unitLabel: string) => `monedă ${unitLabel}`,
+      billedSignalLabel: (periodLabel: string) => `facturat ${periodLabel}`,
+      generalOfferingSummary: "Planuri disponibile pentru această aplicație.",
+      featurePaywallOfferingSummary:
+        "Afișat când această aplicație are nevoie de acces sau sold suplimentar.",
+      defaultPaywallOfferingSummary: "Selecția principală de planuri pentru această aplicație.",
+      checkoutOfferingSummary: "Flux de cumpărare direct pentru această aplicație.",
+      upgradeOfferingSummary: "Potrivit pentru schimbarea sau îmbunătățirea planului curent.",
+      featureDurableUnlockReason: "Se potrivește cu accesul de tip unlock unic.",
+      featureRecurringAccessReason: "Abonamentul recurent oferă și acces curent pentru acest flux.",
+      featureHybridAccessReason: "Pachetul hibrid contribuie la acoperirea accesului curent.",
+      featureSubscriptionDirectReason: "Se potrivește direct cu cerința de abonament.",
+      featureHybridSubscriptionReason:
+        "Pachetul hibrid poate acoperi și o parte din forma de abonament.",
+      creditRequirementCoveredLabel: (amountLabel: string) => `Acoperă cerința de ${amountLabel}.`,
+      creditRequirementAddedLabel: (amountLabel: string) => `Adaugă ${amountLabel} către cerință.`,
+      hybridCreditsSupportLabel: (unitLabel: string) =>
+        `Pachetul hibrid poate adăuga ${unitLabel} incluse pentru acest flux.`,
     },
     surface: {
       plansTitle: "Planuri",
       historyTitle: "Istoric",
-      plansSubtitle: "Accesul curent și planurile publicate pentru această aplicație",
+      plansSubtitle: "Acces, planuri și solduri pentru această aplicație",
       historySubtitle:
         "Evenimente recente de monetizare, facturi, abonamente și activitate din portofel",
+      offeringFallbackLabel: "Ofertă",
+      packageFallbackLabel: "Pachet",
+      paywallFallbackLabel: "Planuri",
+      availableLabel: "Disponibil",
+      unavailableLabel: "Indisponibil",
+      unknownLabel: "Necunoscut",
+      yesLabel: "Da",
+      noLabel: "Nu",
+      defaultBadgeLabel: "implicit",
+      choosePackageActionLabel: "Alege pachetul",
+      noPaywallPackagesLabel: "Nu există momentan planuri disponibile.",
+      priceUnavailableLabel: "Preț indisponibil",
       plansLabel: "Planuri",
       historyLabel: "Istoric",
       closeLabel: "Închide",
-      tabsAriaLabel: "Vizualizare XMS",
+      tabsAriaLabel: "Vizualizare planuri și istoric",
       loadingLabel: "Se încarcă planurile...",
       subjectRequiredNotice:
         "Checkout-ul necesită o sesiune de catalog asociată unui subiect. Pornește dintr-o sesiune gazdă autentificată pentru a cumpăra planuri.",
@@ -281,7 +472,7 @@ export const XMS_COPY_CATALOG = {
       subscriptionCancelConfirmLabel: "Anulează abonamentul",
       subscriptionCancelDismissLabel: "Păstrează abonamentul",
       missingPackageMetadataMessage:
-        "Acest pachet nu are metadatele de cumpărare necesare în paywall-ul publicat.",
+        "Acest pachet nu are metadatele de cumpărare necesare în configurația publicată a planurilor.",
       missingIntentMessage: "Intentul de cumpărare a fost creat fără identificator.",
       missingPaymentPageMessage: "Pagina de plată nu este disponibilă pentru acest pachet.",
       startCheckoutFailedMessage: "Nu s-a putut porni checkout-ul pentru acest pachet.",
@@ -317,7 +508,8 @@ export const XMS_COPY_CATALOG = {
       managementDestinationHintOwnerLabel:
         "Administrarea avansată a abonamentului este gestionată de proprietarul aplicației.",
       openManagementDestinationActionLabel: "Deschide administrarea",
-      creditsRemainingLabel: "Credite rămase",
+      virtualCurrencyLabel: "Monedă virtuală",
+      creditsRemainingLabel: "Sold",
       addOnUnlocksLabel: "Unlock-uri suplimentare",
       coverageActiveLabel: "Încă activ",
       coverageInactiveLabel: "Neacoperit",
@@ -329,13 +521,16 @@ export const XMS_COPY_CATALOG = {
       refreshingStatusActionLabel: "Se actualizează...",
       cancelSubscriptionActionLabel: "Anulează abonamentul",
       cancellingSubscriptionActionLabel: "Se anulează...",
-      noPublishedPlansLabel: "Nu există planuri publicate disponibile în acest moment.",
-      recentTimelineTitle: "Cronologie recentă",
+      noPublishedPlansLabel: "Nu există planuri disponibile în acest moment.",
+      recentTimelineTitle: "Activitate recentă",
       recentTimelineSubtitle:
-        "Cele mai recente evenimente de monetizare corelate pentru acest subiect și această aplicație.",
-      historyAuditTitle: "Istoric și audit",
+        "Cele mai recente actualizări pentru abonamente, solduri, cumpărări și facturi pentru această aplicație.",
+      historyAuditTitle: "Istoric detaliat",
       historyAuditSubtitle:
-        "Înregistrări recente de monetizare pentru acest subiect și această aplicație.",
+        "Înregistrări recente grupate după abonamente, solduri, cumpărări și facturi.",
+      historyBalanceSummaryTitle: "Solduri acum",
+      historyBalanceSummarySubtitle:
+        "Cele mai recente solduri vizibile din portofel, grupate după moneda virtuală pentru această aplicație.",
       noHistoryAvailableLabel:
         "Nu există încă istoric de monetizare disponibil pentru această aplicație.",
       historyGenericLabel: "Istoric",
@@ -363,6 +558,38 @@ export const XMS_COPY_CATALOG = {
       historyAccessSnapshotLabel: "Instantaneu acces",
       historyInvoicesTitle: "Facturi",
       historyInvoiceLabel: "Factură",
+      featureCurrentAccessMissingLabel: "Acoperirea de acces curent nu este activă pe acest scope.",
+      featureSubscriptionMissingLabel: "Nu este vizibil niciun abonament activ pentru acest scope.",
+      featureCreditsMissingLabel: (requiredLabel: string, availableLabel: string) =>
+        `Această acțiune are nevoie de ${requiredLabel}, dar acum sunt vizibile doar ${availableLabel}.`,
+      featureBlockedSummary: (title: string) =>
+        `${title || "Funcția"} este blocată pe scope-ul curent.`,
+      featureReadySummary: (title: string) =>
+        `${title || "Funcția"} poate fi deblocată din opțiunile curente de plan.`,
+      featureNeedMixedAccessLabel: "necesită acces mixt",
+      featureNeedMembershipAndCreditsLabel: (unitLabel: string) =>
+        `necesită abonament + ${unitLabel}`,
+      featureNeedMembershipLabel: "necesită abonament",
+      featureNeedCreditsLabel: (unitLabel: string) => `necesită ${unitLabel}`,
+      featureNeedAccessLabel: "necesită acces",
+      featureLockedLabel: "blocat",
+      featureGapShortLabel: (amountLabel: string) => `lipsește ${amountLabel}`,
+      featureCurrentAccessMissingBadge: "lipsește accesul curent",
+      featureMembershipNotActiveBadge: "abonamentul nu este activ",
+      featureCandidateLead: (selectedPackageTitle: string) =>
+        `${selectedPackageTitle || "Pachetul selectat"} este un pachet candidat pentru acest gol de acces.`,
+      featureCandidateFallbackLead: "Alege o opțiune de plan care acoperă golul curent de acces.",
+      featureViewHybridOptionsLabel: "Vezi opțiunile hibride",
+      featureViewMembershipOptionsLabel: "Vezi opțiunile de abonament",
+      featureViewCreditOptionsLabel: (unitLabel: string) => `Vezi opțiunile ${unitLabel}`,
+      featureViewUnlockOptionsLabel: "Vezi opțiunile de unlock",
+      featureOpenPaywallLabel: "Deschide planurile",
+      featureUnlockCheckoutLabel: "Deblochează prin checkout găzduit",
+      featureStartMembershipCheckoutLabel: "Pornește checkout-ul de abonament",
+      featureBuyCreditsCheckoutLabel: (unitLabel: string) =>
+        `Cumpără ${unitLabel} prin checkout găzduit`,
+      featureStartHybridCheckoutLabel: "Pornește checkout-ul hibrid",
+      featureCreatePaymentSessionLabel: "Creează sesiunea de plată",
     },
   },
 } as const;

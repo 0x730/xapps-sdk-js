@@ -81,7 +81,10 @@ const snapshotSummary = summarizeXappMonetizationSnapshot({
     overdue_policy: { has_current_access: true },
   },
 });
-assert(snapshotSummary.accessCoverage.coverageLabel === "Available", "snapshot coverage mismatch");
+assert(
+  snapshotSummary.accessCoverage.coverageLabel === "Still covered",
+  "snapshot coverage mismatch",
+);
 assert(snapshotSummary.wallet.creditsRemaining === "500", "snapshot wallet mismatch");
 
 console.log("browser-host smoke: ok");

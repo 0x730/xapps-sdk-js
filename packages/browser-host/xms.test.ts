@@ -114,9 +114,15 @@ describe("@xapps-platform/browser-host xms helpers", () => {
             slug: "creator_unlock_pro",
             title: { en: "Creator Unlock Pro" },
             package_kind: "one_time_unlock",
-            metadata: { badge: "Popular" },
+            metadata: { badge: "Popular", credits: 25 },
             product: {
+              id: "prod_unlock",
+              slug: "creator_unlock",
               product_family: "one_time_unlock",
+              virtual_currency: {
+                code: "CREATOR_CREDITS",
+                name: "Creator Credits",
+              },
             },
             prices: [
               {
@@ -136,11 +142,12 @@ describe("@xapps-platform/browser-host xms helpers", () => {
 
     expect(offering.offeringLabel).toBe("Creator Feature Paywall");
     expect(offering.placementLabel).toBe("feature paywall");
-    expect(offering.summary).toContain("Feature-paywall placement");
-    expect(pkg.fitLabel).toBe("Durable unlock");
+    expect(offering.summary).toContain("Shown when this app needs extra access or balance");
+    expect(pkg.fitLabel).toBe("One-time unlock");
     expect(pkg.moneyLabel).toBe("29 RON / one_time");
     expect(pkg.signals).toContain("Popular");
-    expect(pkg.signals).toContain("feature paywall");
+    expect(pkg.signals).toContain("25 Creator Credits");
+    expect(pkg.signals).not.toContain("feature paywall");
   });
 
   it("lists, selects, and presents paywall definitions without forcing a visual policy", () => {
@@ -206,6 +213,18 @@ describe("@xapps-platform/browser-host xms helpers", () => {
             offering_id: "off_paywall",
             offering_slug: "creator_feature_paywall",
             offering_placement: "paywall",
+            metadata: {
+              credits: 25,
+            },
+            product: {
+              id: "prod_unlock",
+              slug: "creator_unlock",
+              product_family: "one_time_unlock",
+              virtual_currency: {
+                code: "CREATOR_CREDITS",
+                name: "Creator Credits",
+              },
+            },
             prices: [
               {
                 id: "price_unlock",
@@ -231,6 +250,8 @@ describe("@xapps-platform/browser-host xms helpers", () => {
     expect(renderModel.badges).toContain("1 package");
     expect(renderModel.packages[0]?.isDefault).toBe(true);
     expect(renderModel.packages[0]?.moneyLabel).toBe("29 RON / one_time");
+    expect(renderModel.packages[0]?.virtualCurrencyCode).toBe("CREATOR_CREDITS");
+    expect(renderModel.packages[0]?.signals).toContain("25 Creator Credits");
   });
 
   it("builds shared paywall preview html for browser consumers", () => {
@@ -411,6 +432,11 @@ describe("@xapps-platform/browser-host xms helpers", () => {
                 title: "refund",
                 settlement_effect: "wallet_refund",
                 occurred_at: "2026-04-05T10:03:00.000Z",
+                amount: "12.00",
+                virtual_currency: {
+                  code: "CREATOR_CREDITS",
+                  name: "Creator Credits",
+                },
               },
               {
                 bucket: "invoices",
@@ -446,7 +472,28 @@ describe("@xapps-platform/browser-host xms helpers", () => {
                 settlement_effect: "wallet_refund",
                 amount: "12.00",
                 currency: "RON",
+                virtual_currency: {
+                  code: "CREATOR_CREDITS",
+                  name: "Creator Credits",
+                },
                 occurred_at: "2026-04-05T10:03:00.000Z",
+              },
+            ],
+          },
+          access_snapshots: {
+            total: 1,
+            items: [
+              {
+                id: "snap_1",
+                tier: "pro",
+                entitlement_state: "active",
+                balance_state: "available",
+                credits_remaining: "12",
+                virtual_currency: {
+                  code: "CREATOR_CREDITS",
+                  name: "Creator Credits",
+                },
+                updated_at: "2026-04-05T10:04:00.000Z",
               },
             ],
           },
@@ -471,15 +518,21 @@ describe("@xapps-platform/browser-host xms helpers", () => {
       },
     );
 
-    expect(html).toContain("Recent timeline");
+    expect(html).toContain("Balances now");
+    expect(html).toContain("Recent activity");
+    expect(html).toContain("Detailed history");
+    expect(html).toContain("Balances now");
     expect(html).toContain("INV-0001");
-    expect(html).toContain("History and audit");
     expect(html).toContain("transaction refunded");
     expect(html).toContain("transaction chargeback");
     expect(html).toContain("Dispute warning: response needed");
     expect(html).toContain("wallet refund");
+    expect(html).toContain("12.00 Creator Credits");
+    expect(html).toContain("12 Creator Credits");
     expect(html).toContain("invoice voided");
     expect(html).toContain("customer requested reversal");
+    expect(html.indexOf("Current balances")).toBeLessThan(html.indexOf("Recent activity"));
+    expect(html.indexOf("Recent activity")).toBeLessThan(html.indexOf("Detailed history"));
   });
 
   it("hides operator management guidance on subject plans surfaces", () => {
@@ -807,6 +860,43 @@ describe("@xapps-platform/browser-host xms helpers", () => {
     expect(copy.candidateLead).toContain("one package candidate");
   });
 
+  it("localizes named virtual currency paywall copy", () => {
+    const copy = buildFeaturePaywallCopyModel({
+      locale: "ro",
+      feature: {
+        title: "Export premium",
+        requirements: {
+          credits: 25,
+        },
+      },
+      snapshotSummary: {
+        accessCoverage: {
+          available: true,
+          coverageLabel: "Disponibil",
+        },
+        wallet: {
+          creditsRemaining: "10",
+          virtualCurrencyLabel: "Credite Creator (CREATOR_CREDITS)",
+        },
+      },
+      activePackage: {
+        packageTitle: "Pachet Credite Creator",
+        packageKind: "credit_pack",
+        virtualCurrency: {
+          code: "CREATOR_CREDITS",
+          name: "Credite Creator",
+        },
+      },
+    });
+
+    expect(copy.summary).toContain("25 Credite Creator");
+    expect(copy.ctaLabel).toBe("Cumpără Credite Creator prin checkout găzduit");
+    expect(copy.openPaywallLabel).toBe("Vezi opțiunile Credite Creator");
+    expect(copy.statusLabel).toBe("necesită Credite Creator");
+    expect(copy.gapBadges).toContain("lipsește 15 Credite Creator");
+    expect(copy.creditsLabel).toBe("10 Credite Creator");
+  });
+
   it("summarizes a mixed XMS snapshot into reusable access, subscription, and wallet sections", () => {
     const summary = summarizeXappMonetizationSnapshot({
       access_projection: {
@@ -830,12 +920,90 @@ describe("@xapps-platform/browser-host xms helpers", () => {
       },
     });
 
-    expect(summary.accessCoverage.coverageLabel).toBe("Available");
+    expect(summary.accessCoverage.coverageLabel).toBe("Still covered");
     expect(summary.accessCoverage.tierLabel).toBe("creator team hybrid access");
     expect(summary.currentSubscription.present).toBe(true);
     expect(summary.currentSubscription.coverageLabel).toBe("Still covered");
     expect(summary.wallet.creditsRemaining).toBe("500");
     expect(summary.wallet.currentAccessLabel).toBe("Yes");
+  });
+
+  it("deduplicates additive entitlement labels on the shared plans surface", () => {
+    const html = buildMonetizationPlansSurfaceHtml(
+      {
+        access_projection: {
+          entitlement_state: "active",
+          has_current_access: true,
+          tier: "pro",
+        },
+        additive_entitlements: [
+          {
+            id: "ent_1",
+            status: "active",
+            product_id: "prod_unlock_1",
+            product_slug: "creator_starter_unlock_access",
+          },
+          {
+            id: "ent_2",
+            status: "active",
+            product_id: "prod_unlock_1",
+            product_slug: "creator_starter_unlock_access",
+          },
+          {
+            id: "ent_3",
+            status: "active",
+            product_id: "prod_unlock_2",
+            product_slug: "creator_team_hybrid_access",
+          },
+        ],
+        paywall: {
+          slug: "workspace_default",
+          title: { en: "Workspace plans" },
+          placement: "paywall",
+          packages: [],
+        },
+      },
+      {
+        showHeader: false,
+      },
+    );
+
+    expect(html).toContain("creator_starter_unlock_access");
+    expect(html).toContain("creator_team_hybrid_access");
+    expect(html).not.toContain("creator_starter_unlock_access x2");
+  });
+
+  it("localizes the coverage row on the shared plans surface", () => {
+    const html = buildMonetizationPlansSurfaceHtml(
+      {
+        access_projection: {
+          entitlement_state: "active",
+          has_current_access: true,
+          tier: "pro",
+        },
+        current_subscription: {
+          status: "cancelled",
+          tier: "pro",
+          current_period_ends_at: "2026-06-05T12:01:00.000Z",
+          cancelled_at: "2026-04-09T07:41:00.000Z",
+        },
+        paywall: {
+          slug: "workspace_default",
+          title: { en: "Workspace plans" },
+          placement: "paywall",
+          packages: [],
+        },
+      },
+      {
+        showHeader: false,
+        locale: "ro",
+      },
+    );
+
+    expect(html).toContain("Acoperire curentă");
+    expect(html).toContain("Acces de membru");
+    expect(html).toContain("Încă activ");
+    expect(html).not.toContain(">Available<");
   });
 
   it("builds provider-agnostic lifecycle state from overdue policy and period boundaries", () => {

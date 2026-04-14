@@ -19,6 +19,7 @@ export type MonetizationPaywallPackageRecord = Record<string, unknown> & {
   productId: string;
   productSlug: string;
   productFamily: string;
+  virtualCurrency?: Record<string, unknown> | null;
   packageKind: string;
   purchasePolicy?: MonetizationPackagePurchasePolicy | null;
 };
@@ -30,6 +31,9 @@ export type MonetizationPaywallRenderPackage = {
   productId: string;
   productSlug: string;
   productFamily: string;
+  virtualCurrencyCode: string;
+  virtualCurrencyName: string;
+  virtualCurrencyLabel: string;
   metadata: Record<string, unknown>;
   description: string;
   fitLabel: string;
@@ -118,6 +122,7 @@ export function buildXmsSurfaceCopy(input?: { locale?: unknown }): {
   managementDestinationHintPublisherLabel: string;
   managementDestinationHintOwnerLabel: string;
   openManagementDestinationActionLabel: string;
+  virtualCurrencyLabel: string;
   noPublishedPlansLabel: string;
   recentTimelineTitle: string;
   recentTimelineSubtitle: string;
@@ -307,9 +312,21 @@ export function summarizeXappMonetizationSnapshot(input: unknown): {
   };
   wallet: {
     creditsRemaining: string;
+    virtualCurrencyLabel: string;
     balanceStateLabel: string;
     currentAccessLabel: string;
   };
+};
+export function summarizeVirtualCurrencyBalances(input: unknown): {
+  balances: Array<{
+    key: string;
+    label: string;
+    amount: string;
+    amountLabel: string;
+    accountCount: number;
+  }>;
+  totalAccounts: number;
+  totalCurrencies: number;
 };
 export function resolveMonetizationPackagePurchasePolicy(input: {
   item: unknown;

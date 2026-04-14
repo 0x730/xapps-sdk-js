@@ -20,6 +20,10 @@ Use `@xapps-platform/browser-host` when you want the standard browser host/runti
 
 Use `@xapps-platform/embed-sdk` instead when you want lower-level iframe/bridge/payment-resume primitives and intend to build a more custom browser host.
 
+For the current XMS reader path, including plans, balances, paywalls, history, and virtual currencies, read:
+
+- [docs/specifications/xms/README.md](/home/dacrise/x/xapps/docs/specifications/xms/README.md)
+
 ## Purpose
 
 This package owns the shared browser host logic that should not live in tenant or publisher apps:

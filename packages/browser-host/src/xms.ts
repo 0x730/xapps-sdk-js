@@ -36,6 +36,81 @@ function readLocalizedText(value: unknown, fallback = ""): string {
   );
 }
 
+function readVirtualCurrencyDefinition(value: unknown): Record<string, unknown> | null {
+  const record = readRecord(value);
+  if (!record) return null;
+  const code = readString(record.code);
+  const name = readString(record.name);
+  if (!code && !name) return null;
+  return record;
+}
+
+function formatVirtualCurrencyLabel(
+  value: unknown,
+  options?: {
+    includeCode?: boolean;
+    preferCode?: boolean;
+  },
+): string {
+  const record = readVirtualCurrencyDefinition(value);
+  if (!record) return "";
+  const code = readString(record.code);
+  const name = readString(record.name);
+  if (options?.preferCode && code) return code;
+  if (options?.includeCode && name && code && readLower(name) !== readLower(code)) {
+    return `${name} (${code})`;
+  }
+  return name || code;
+}
+
+function formatVirtualCurrencyAmountLabel(input: {
+  amount: unknown;
+  virtualCurrency?: unknown;
+  fallbackUnit?: string;
+}): string {
+  const amount = readString(input.amount);
+  if (!amount) return "";
+  const currencyLabel = formatVirtualCurrencyLabel(input.virtualCurrency);
+  if (currencyLabel) return `${amount} ${currencyLabel}`;
+  const fallbackUnit = readString(input.fallbackUnit);
+  return fallbackUnit ? `${amount} ${fallbackUnit}` : amount;
+}
+
+function normalizeVirtualCurrencyDisplayLabel(label: unknown): string {
+  const normalized = readString(label);
+  if (!normalized) return "";
+  return normalized.replace(/\s+\([^)]+\)\s*$/, "").trim() || normalized;
+}
+
+function readPackageVirtualCurrency(item: unknown): Record<string, unknown> | null {
+  const record = readRecord(item);
+  return (
+    readVirtualCurrencyDefinition(record?.virtualCurrency) ??
+    readVirtualCurrencyDefinition(readRecord(record?.productMetadata)?.virtual_currency)
+  );
+}
+
+function readFeatureCurrencyUnitLabel(input: {
+  snapshotSummary?: unknown;
+  activePackage?: unknown;
+}): string {
+  const snapshotSummary = readRecord(input.snapshotSummary);
+  const wallet = readRecord(snapshotSummary?.wallet);
+  const walletCurrencyLabel = normalizeVirtualCurrencyDisplayLabel(wallet?.virtualCurrencyLabel);
+  if (walletCurrencyLabel) return walletCurrencyLabel;
+  const packageCurrencyLabel = normalizeVirtualCurrencyDisplayLabel(
+    formatVirtualCurrencyLabel(readPackageVirtualCurrency(input.activePackage), {
+      includeCode: true,
+    }),
+  );
+  return packageCurrencyLabel || "credits";
+}
+
+function formatNamedUnitAmount(amount: unknown, unitLabel: string): string {
+  const normalizedAmount = readString(amount);
+  return normalizedAmount ? `${normalizedAmount} ${unitLabel}` : "";
+}
+
 function escapeHtml(value: unknown): string {
   return String(value ?? "")
     .replaceAll("&", "&amp;")
@@ -139,11 +214,12 @@ function formatCoverageLabel(input: {
   currentSubscription?: Record<string, unknown> | null;
   locale?: unknown;
 }): string {
+  const copy = buildXmsSurfaceCopy({ locale: input.locale });
   if (isExhaustedIncludedCreditAccess(input)) {
     return buildXmsPackageCopy(input.locale).consumedLabel;
   }
-  if (hasEffectiveCoverage(input)) return "Available";
-  return formatStateLabel(input.accessProjection?.entitlement_state, "Unavailable");
+  if (hasEffectiveCoverage(input)) return copy.coverageActiveLabel;
+  return copy.coverageInactiveLabel;
 }
 
 function resolveSubscriptionCoverageLabel(input: {
@@ -347,19 +423,20 @@ export function flattenXappMonetizationCatalog(items: unknown): Array<Record<str
         offeringSlug: readString((offering as any)?.slug),
         offeringTitle: readLocalizedText(
           (offering as any)?.title,
-          readString((offering as any)?.slug) || "Offering",
+          readString((offering as any)?.slug) || buildXmsSurfaceCopy().offeringFallbackLabel,
         ),
         offeringPlacement: readString((offering as any)?.placement) || null,
         packageId: readString((pkg as any)?.id),
         packageSlug: readString((pkg as any)?.slug),
         packageTitle: readLocalizedText(
           (pkg as any)?.title,
-          readString((pkg as any)?.slug) || "Package",
+          readString((pkg as any)?.slug) || buildXmsSurfaceCopy().packageFallbackLabel,
         ),
         packageKind: readString((pkg as any)?.package_kind) || "standard",
         productId: readString((pkg as any)?.product?.id),
         productSlug: readString((pkg as any)?.product?.slug),
         productFamily: readString((pkg as any)?.product?.product_family),
+        virtualCurrency: readVirtualCurrencyDefinition((pkg as any)?.product?.virtual_currency),
         productMetadata:
           (pkg as any)?.product?.metadata && typeof (pkg as any).product.metadata === "object"
             ? (pkg as any).product.metadata
@@ -449,17 +526,22 @@ export function flattenXappMonetizationPaywallPackages(
     out.push({
       offeringId: readString(packageRecord.offering_id),
       offeringSlug: readString(packageRecord.offering_slug),
-      offeringTitle: readString(packageRecord.offering_slug) || "Offering",
+      offeringTitle:
+        readString(packageRecord.offering_slug) || buildXmsSurfaceCopy().offeringFallbackLabel,
       offeringPlacement: readString(packageRecord.offering_placement) || null,
       packageId: readString(packageRecord.id),
       packageSlug: readString(packageRecord.slug),
-      packageTitle: readString(packageRecord.slug) || "Package",
+      packageTitle: readString(packageRecord.slug) || buildXmsSurfaceCopy().packageFallbackLabel,
       packageKind: readString(packageRecord.package_kind) || "standard",
       productId: readString((packageRecord.product as Record<string, unknown> | undefined)?.id),
       productSlug: readString((packageRecord.product as Record<string, unknown> | undefined)?.slug),
       productFamily: readString(
         (packageRecord.product as Record<string, unknown> | undefined)?.product_family,
       ),
+      virtualCurrency:
+        readVirtualCurrencyDefinition(
+          (packageRecord.product as Record<string, unknown> | undefined)?.virtual_currency,
+        ) ?? null,
       productMetadata:
         (packageRecord.product as Record<string, unknown> | undefined)?.metadata &&
         typeof (packageRecord.product as Record<string, unknown>).metadata === "object"
@@ -506,20 +588,23 @@ export function buildMonetizationOfferingPresentation(input: unknown): {
     input && typeof input === "object" && !Array.isArray(input)
       ? (input as Record<string, unknown>)
       : {};
+  const surfaceCopy = buildXmsSurfaceCopy({ locale: record.locale });
   const offeringLabel =
-    readString(record.offeringTitle) || formatStateLabel(record.offeringSlug, "Offering");
+    readString(record.offeringTitle) ||
+    formatStateLabel(record.offeringSlug, surfaceCopy.offeringFallbackLabel);
   const placementRaw = readLower(record.offeringPlacement);
   const placementLabel = formatPlacementLabel(record.offeringPlacement);
-  let summary = "General offering surface for this xapp.";
+  const copy = buildXmsPackageCopy(record.locale);
+  let summary = copy.generalOfferingSummary;
 
   if (placementRaw.includes("feature") && placementRaw.includes("paywall")) {
-    summary = "Feature-paywall placement for gated in-app flows.";
+    summary = copy.featurePaywallOfferingSummary;
   } else if (placementRaw.includes("paywall")) {
-    summary = "Default paywall placement for monetized upgrade prompts.";
+    summary = copy.defaultPaywallOfferingSummary;
   } else if (placementRaw.includes("checkout")) {
-    summary = "Direct checkout placement for purchase-driven flows.";
+    summary = copy.checkoutOfferingSummary;
   } else if (placementRaw.includes("upgrade")) {
-    summary = "Upgrade-oriented placement for membership and package switching.";
+    summary = copy.upgradeOfferingSummary;
   }
 
   return {
@@ -541,7 +626,13 @@ export function buildMonetizationPaywallPresentation(input: unknown): {
       ? (input as Record<string, unknown>)
       : {};
   const paywallLabel =
-    readLocalizedText(record.title, formatStateLabel(record.slug, "Paywall")) || "Paywall";
+    readLocalizedText(
+      record.title,
+      formatStateLabel(
+        record.slug,
+        buildXmsSurfaceCopy({ locale: record.locale }).paywallFallbackLabel,
+      ),
+    ) || buildXmsSurfaceCopy({ locale: record.locale }).paywallFallbackLabel;
   const placementLabel = formatPlacementLabel(record.placement);
   const packages = flattenXappMonetizationPaywallPackages(record);
   const defaultPackageRef = readString(record.default_package_ref);
@@ -577,6 +668,9 @@ export function buildMonetizationPaywallRenderModel(input: unknown): {
     productId: string;
     productSlug: string;
     productFamily: string;
+    virtualCurrencyCode: string;
+    virtualCurrencyName: string;
+    virtualCurrencyLabel: string;
     productMetadata: Record<string, unknown>;
     metadata: Record<string, unknown>;
     description: string;
@@ -599,10 +693,13 @@ export function buildMonetizationPaywallRenderModel(input: unknown): {
     return {
       packageId: readString(item.packageId),
       packageSlug: readString(item.packageSlug),
-      packageTitle: readString(item.packageTitle) || "Package",
+      packageTitle: readString(item.packageTitle) || buildXmsSurfaceCopy().packageFallbackLabel,
       productId: readString(item.productId),
       productSlug: readString(item.productSlug),
       productFamily: readString(item.productFamily),
+      virtualCurrencyCode: formatVirtualCurrencyLabel(item.virtualCurrency, { preferCode: true }),
+      virtualCurrencyName: formatVirtualCurrencyLabel(item.virtualCurrency),
+      virtualCurrencyLabel: formatVirtualCurrencyLabel(item.virtualCurrency, { includeCode: true }),
       productMetadata:
         item.productMetadata &&
         typeof item.productMetadata === "object" &&
@@ -1099,14 +1196,14 @@ export function buildMonetizationPaywallHtml(
   } = {},
 ): string {
   const renderModel = buildMonetizationPaywallRenderModel(input);
-  const actionLabel = readString(options.actionLabel) || "Choose package";
+  const surfaceCopy = buildXmsSurfaceCopy();
+  const actionLabel = readString(options.actionLabel) || surfaceCopy.choosePackageActionLabel;
   const selectedPackageId = readString(options.selectedPackageId);
   const showSummary = options.showSummary !== false;
   const showSignals = options.showSignals !== false;
   const showBadges = options.showBadges !== false;
   const interactive = options.interactive !== false;
-  const emptyLabel =
-    readString(options.emptyLabel) || "No paywall packages are currently available.";
+  const emptyLabel = readString(options.emptyLabel) || surfaceCopy.noPaywallPackagesLabel;
   const themeStyle = buildPaywallThemeStyle({
     themeTokens: options.themeTokens,
     compact: options.compact === true,
@@ -1132,7 +1229,7 @@ export function buildMonetizationPaywallHtml(
                   .join("")}</div>`
               : "";
           const defaultBadge = item.isDefault
-            ? `<span class="xapps-paywall__badge">default</span>`
+            ? `<span class="xapps-paywall__badge">${escapeHtml(surfaceCopy.defaultBadgeLabel)}</span>`
             : "";
           const buttonAttrs = interactive
             ? ` type="button" data-package-id="${escapeHtml(item.packageId)}" data-package-slug="${escapeHtml(
@@ -1256,15 +1353,15 @@ function readActiveAdditiveEntitlements(items: unknown): Array<Record<string, un
 }
 
 function formatAdditiveEntitlementLabels(items: Array<Record<string, unknown>>): string[] {
-  const counts = new Map<string, number>();
+  const labels = new Map<string, string>();
   for (const item of items) {
-    const label = readString(item.tier) || readString(item.product_slug);
+    const label = readString(item.product_slug) || readString(item.tier);
     if (!label) continue;
-    counts.set(label, (counts.get(label) ?? 0) + 1);
+    const identity =
+      readString(item.product_id) || readString(item.product_slug) || readString(item.id) || label;
+    if (!labels.has(identity)) labels.set(identity, label);
   }
-  return Array.from(counts.entries()).map(([label, count]) =>
-    count > 1 ? `${label} x${count}` : label,
-  );
+  return Array.from(labels.values());
 }
 
 function buildPlansActionLabel(input: {
@@ -1307,9 +1404,139 @@ function readHistoryBucket(
   };
 }
 
+function formatBalanceQuantity(value: number): string {
+  if (!Number.isFinite(value)) return "";
+  const normalized = Math.round(value * 10000) / 10000;
+  if (Number.isInteger(normalized)) return String(normalized);
+  return normalized.toFixed(4).replace(/\.?0+$/, "");
+}
+
+export function summarizeVirtualCurrencyBalances(input: unknown): {
+  balances: Array<{
+    key: string;
+    label: string;
+    amount: string;
+    amountLabel: string;
+    accountCount: number;
+  }>;
+  totalAccounts: number;
+  totalCurrencies: number;
+} {
+  const record = readRecord(input) ?? {};
+  const history = readRecord(record.history) ?? record;
+  const walletAccounts = readHistoryBucket(history, "wallet_accounts").items;
+  const accessSnapshots = readHistoryBucket(history, "access_snapshots").items;
+  const aggregates = new Map<
+    string,
+    {
+      label: string;
+      amount: number;
+      accountCount: number;
+      virtualCurrency: unknown;
+      fallbackUnit: string;
+    }
+  >();
+
+  const upsertBalance = (inputValue: {
+    amount: unknown;
+    virtualCurrency?: unknown;
+    fallbackUnit?: unknown;
+    fallbackKey?: unknown;
+  }) => {
+    const amount = readNumber(inputValue.amount, Number.NaN);
+    if (!Number.isFinite(amount) || Math.abs(amount) < 0.0000001) return;
+    const label =
+      formatVirtualCurrencyLabel(inputValue.virtualCurrency, {
+        includeCode: true,
+      }) ||
+      readString(inputValue.fallbackUnit) ||
+      readString(inputValue.fallbackKey) ||
+      "Balance";
+    const key =
+      formatVirtualCurrencyLabel(inputValue.virtualCurrency, {
+        preferCode: true,
+      }) ||
+      readString(inputValue.fallbackKey) ||
+      label.toLowerCase();
+    const existing = aggregates.get(key);
+    if (existing) {
+      existing.amount += amount;
+      existing.accountCount += 1;
+      return;
+    }
+    aggregates.set(key, {
+      label,
+      amount,
+      accountCount: 1,
+      virtualCurrency: inputValue.virtualCurrency ?? null,
+      fallbackUnit: readString(inputValue.fallbackUnit),
+    });
+  };
+
+  for (const item of walletAccounts) {
+    upsertBalance({
+      amount: item.balance_remaining,
+      virtualCurrency: item.virtual_currency,
+      fallbackUnit: item.currency,
+      fallbackKey: item.product_slug || item.id,
+    });
+  }
+
+  if (aggregates.size === 0 && accessSnapshots.length > 0) {
+    for (const item of accessSnapshots) {
+      upsertBalance({
+        amount: item.credits_remaining,
+        virtualCurrency: item.virtual_currency,
+        fallbackUnit: "credits",
+        fallbackKey: item.tier || item.id,
+      });
+    }
+  }
+
+  const balances = Array.from(aggregates.entries())
+    .map(([key, item]) => {
+      const amount = formatBalanceQuantity(item.amount);
+      return {
+        key,
+        label: item.label,
+        amount,
+        amountLabel:
+          formatVirtualCurrencyAmountLabel({
+            amount,
+            virtualCurrency: item.virtualCurrency,
+            fallbackUnit: item.fallbackUnit,
+          }) || amount,
+        accountCount: item.accountCount,
+      };
+    })
+    .sort((left, right) => {
+      const amountDiff = readNumber(right.amount) - readNumber(left.amount);
+      if (Math.abs(amountDiff) > 0.0000001) return amountDiff > 0 ? 1 : -1;
+      return left.label.localeCompare(right.label);
+    });
+
+  return {
+    balances,
+    totalAccounts: walletAccounts.length,
+    totalCurrencies: balances.length,
+  };
+}
+
 function readHistoryTitle(item: Record<string, unknown>, keys: string[], fallback: string): string {
   for (const key of keys) {
-    const value = readString(item[key]);
+    const segments = key.split(".");
+    let current: unknown = item;
+    for (const segment of segments) {
+      const record = readRecord(current);
+      current = record ? record[segment] : undefined;
+    }
+    if (key.startsWith("virtual_currency.")) {
+      const value = formatVirtualCurrencyLabel(item.virtual_currency ?? current, {
+        includeCode: true,
+      });
+      if (value) return value;
+    }
+    const value = readString(current);
     if (value) return value;
   }
   return fallback;
@@ -1318,12 +1545,36 @@ function readHistoryTitle(item: Record<string, unknown>, keys: string[], fallbac
 function readHistoryMeta(item: Record<string, unknown>, keys: string[], locale: string): string[] {
   const out: string[] = [];
   for (const key of keys) {
+    const segments = key.split(".");
+    let current: unknown = item;
+    for (const segment of segments) {
+      const record = readRecord(current);
+      current = record ? record[segment] : undefined;
+    }
     const value =
       key === "settlement_effect_detail"
-        ? formatSettlementEffectDetailLabel(item.settlement_effect, item[key], locale)
-        : key.endsWith("_at")
-          ? formatPlansDateTime(item[key], locale)
-          : readString(item[key]);
+        ? formatSettlementEffectDetailLabel(item.settlement_effect, current, locale)
+        : key === "balance_remaining"
+          ? formatVirtualCurrencyAmountLabel({
+              amount: current,
+              virtualCurrency: item.virtual_currency,
+              fallbackUnit: readString(item.currency),
+            })
+          : key === "amount"
+            ? formatVirtualCurrencyAmountLabel({
+                amount: current,
+                virtualCurrency: item.virtual_currency,
+                fallbackUnit: readString(item.currency),
+              })
+            : key === "credits_remaining"
+              ? formatVirtualCurrencyAmountLabel({
+                  amount: current,
+                  virtualCurrency: item.virtual_currency,
+                  fallbackUnit: "credits",
+                })
+              : key.endsWith("_at")
+                ? formatPlansDateTime(current, locale)
+                : readString(current);
     if (value) out.push(formatStateLabel(value, value));
   }
   return out;
@@ -1386,9 +1637,17 @@ function buildTimelineHtml(input: {
   locale: string;
 }): string {
   if (!input.total) return "";
+  const items = [...input.items].sort((left, right) => {
+    const leftAt = Date.parse(readString(left.occurred_at));
+    const rightAt = Date.parse(readString(right.occurred_at));
+    if (Number.isFinite(leftAt) && Number.isFinite(rightAt) && leftAt !== rightAt) {
+      return rightAt - leftAt;
+    }
+    return readString(right.id).localeCompare(readString(left.id));
+  });
   return `
     <div class="xapps-xms-plans__timeline">
-      ${input.items
+      ${items
         .map((item) => {
           const title =
             readString(item.title) ||
@@ -1408,9 +1667,11 @@ function buildTimelineHtml(input: {
             ),
             readString(item.scope),
             readString(item.correlation),
-            readString(item.amount) && readString(item.currency)
-              ? `${readString(item.amount)} ${readString(item.currency)}`
-              : readString(item.amount),
+            formatVirtualCurrencyAmountLabel({
+              amount: item.amount,
+              virtualCurrency: item.virtual_currency,
+              fallbackUnit: readString(item.currency),
+            }),
             readString(item.note),
           ].filter(Boolean);
           return `
@@ -1492,32 +1753,6 @@ function buildMonetizationHistorySections(input: {
   const copy = buildXmsSurfaceCopy({ locale });
   return [
     buildHistorySectionHtml({
-      title: copy.historyPurchaseIntentsTitle,
-      total: readHistoryBucket(history, "purchase_intents").total,
-      items: readHistoryBucket(history, "purchase_intents").items,
-      locale,
-      itemTitleKeys: ["package_slug", "product_slug", "id"],
-      itemFallbackTitle: copy.historyPurchaseIntentLabel,
-      itemStatusKeys: ["status"],
-      itemMetaKeys: ["amount", "currency", "payment_lane", "updated_at"],
-    }),
-    buildHistorySectionHtml({
-      title: copy.historyTransactionsTitle,
-      total: readHistoryBucket(history, "transactions").total,
-      items: readHistoryBucket(history, "transactions").items,
-      locale,
-      itemTitleKeys: ["package_slug", "product_slug", "id"],
-      itemFallbackTitle: copy.historyTransactionLabel,
-      itemStatusKeys: ["status"],
-      itemMetaKeys: [
-        "amount",
-        "currency",
-        "settlement_effect",
-        "payment_session_id",
-        "occurred_at",
-      ],
-    }),
-    buildHistorySectionHtml({
       title: copy.historySubscriptionsTitle,
       total: readHistoryBucket(history, "subscriptions").total,
       items: readHistoryBucket(history, "subscriptions").items,
@@ -1542,30 +1777,46 @@ function buildMonetizationHistorySections(input: {
       total: readHistoryBucket(history, "wallet_accounts").total,
       items: readHistoryBucket(history, "wallet_accounts").items,
       locale,
-      itemTitleKeys: ["product_slug", "id"],
+      itemTitleKeys: ["virtual_currency.code", "product_slug", "id"],
       itemFallbackTitle: copy.historyWalletAccountLabel,
       itemStatusKeys: ["status"],
-      itemMetaKeys: ["currency", "balance_remaining", "updated_at"],
+      itemMetaKeys: ["balance_remaining", "updated_at"],
     }),
     buildHistorySectionHtml({
       title: copy.historyWalletLedgerTitle,
       total: readHistoryBucket(history, "wallet_ledger").total,
       items: readHistoryBucket(history, "wallet_ledger").items,
       locale,
-      itemTitleKeys: ["event_kind", "wallet_product_slug", "id"],
+      itemTitleKeys: ["event_kind", "virtual_currency.code", "wallet_product_slug", "id"],
       itemFallbackTitle: copy.historyWalletLedgerEntryLabel,
       itemStatusKeys: [],
-      itemMetaKeys: ["amount", "currency", "settlement_effect", "source_kind", "occurred_at"],
+      itemMetaKeys: ["amount", "settlement_effect", "source_kind", "occurred_at"],
     }),
     buildHistorySectionHtml({
-      title: copy.historyAccessSnapshotsTitle,
-      total: readHistoryBucket(history, "access_snapshots").total,
-      items: readHistoryBucket(history, "access_snapshots").items,
+      title: copy.historyTransactionsTitle,
+      total: readHistoryBucket(history, "transactions").total,
+      items: readHistoryBucket(history, "transactions").items,
       locale,
-      itemTitleKeys: ["tier", "id"],
-      itemFallbackTitle: copy.historyAccessSnapshotLabel,
-      itemStatusKeys: ["entitlement_state"],
-      itemMetaKeys: ["balance_state", "credits_remaining", "updated_at"],
+      itemTitleKeys: ["package_slug", "product_slug", "id"],
+      itemFallbackTitle: copy.historyTransactionLabel,
+      itemStatusKeys: ["status"],
+      itemMetaKeys: [
+        "amount",
+        "currency",
+        "settlement_effect",
+        "payment_session_id",
+        "occurred_at",
+      ],
+    }),
+    buildHistorySectionHtml({
+      title: copy.historyPurchaseIntentsTitle,
+      total: readHistoryBucket(history, "purchase_intents").total,
+      items: readHistoryBucket(history, "purchase_intents").items,
+      locale,
+      itemTitleKeys: ["package_slug", "product_slug", "id"],
+      itemFallbackTitle: copy.historyPurchaseIntentLabel,
+      itemStatusKeys: ["status"],
+      itemMetaKeys: ["amount", "currency", "payment_lane", "updated_at"],
     }),
     buildHistorySectionHtml({
       title: copy.historyInvoicesTitle,
@@ -1583,7 +1834,40 @@ function buildMonetizationHistorySections(input: {
         "created_at",
       ],
     }),
+    buildHistorySectionHtml({
+      title: copy.historyAccessSnapshotsTitle,
+      total: readHistoryBucket(history, "access_snapshots").total,
+      items: readHistoryBucket(history, "access_snapshots").items,
+      locale,
+      itemTitleKeys: ["tier", "id"],
+      itemFallbackTitle: copy.historyAccessSnapshotLabel,
+      itemStatusKeys: ["entitlement_state"],
+      itemMetaKeys: ["balance_state", "credits_remaining", "updated_at"],
+    }),
   ].filter(Boolean);
+}
+
+function buildMonetizationHistoryBalanceSummaryHtml(input: {
+  history: Record<string, unknown> | null;
+  locale: string;
+}): string {
+  const { history, locale } = input;
+  const copy = buildXmsSurfaceCopy({ locale });
+  const summary = summarizeVirtualCurrencyBalances(history);
+  if (!summary.balances.length) return "";
+  return `
+    <section class="xapps-xms-plans__card">
+      <h4 class="xapps-xms-plans__section-title">${escapeHtml(copy.historyBalanceSummaryTitle)}</h4>
+      <div class="xapps-xms-plans__subtitle">${escapeHtml(copy.historyBalanceSummarySubtitle)}</div>
+      <div class="xapps-xms-plans__badges">
+        ${summary.balances
+          .map(
+            (item) => `<span class="xapps-xms-plans__badge">${escapeHtml(item.amountLabel)}</span>`,
+          )
+          .join("")}
+      </div>
+    </section>
+  `;
 }
 
 export type XmsSurfaceView = "plans" | "history";
@@ -1772,6 +2056,7 @@ export function buildMonetizationPlansSurfaceHtml(
   const currentTier = readString(currentSubscription?.tier) || readString(accessProjection?.tier);
   const accessState = formatCoverageLabel({ accessProjection, currentSubscription, locale });
   const creditsRemaining = readString(accessProjection?.credits_remaining);
+  const accessVirtualCurrency = readVirtualCurrencyDefinition(accessProjection?.virtual_currency);
   const additiveUnlocks = formatAdditiveEntitlementLabels(additiveEntitlements);
   const accessRows = [
     currentTier ? [surfaceCopy.currentPlanLabel, currentTier] : null,
@@ -1804,7 +2089,22 @@ export function buildMonetizationPlansSurfaceHtml(
       : null,
     operatorAuthority ? [surfaceCopy.operatorAuthorityLabel, operatorAuthority] : null,
     managementDestination ? [surfaceCopy.managementDestinationLabel, managementDestination] : null,
-    creditsRemaining ? [surfaceCopy.creditsRemainingLabel, creditsRemaining] : null,
+    accessVirtualCurrency
+      ? [
+          surfaceCopy.virtualCurrencyLabel,
+          formatVirtualCurrencyLabel(accessVirtualCurrency, { includeCode: true }),
+        ]
+      : null,
+    creditsRemaining
+      ? [
+          surfaceCopy.creditsRemainingLabel,
+          formatVirtualCurrencyAmountLabel({
+            amount: creditsRemaining,
+            virtualCurrency: accessVirtualCurrency,
+            fallbackUnit: "credits",
+          }),
+        ]
+      : null,
   ].filter((item): item is [string, string] => Boolean(item));
   const lifecycleActionsHtml =
     lifecycle.present && (hasRefreshSubscriptionAction || hasCancelSubscriptionAction)
@@ -2109,8 +2409,9 @@ export function buildMonetizationHistorySurfaceHtml(
   const showHeader = options.showHeader !== false;
   const surfaceCopy = buildXmsSurfaceCopy({ locale });
   const historySections = buildMonetizationHistorySections({ history, locale });
+  const balanceSummaryHtml = buildMonetizationHistoryBalanceSummaryHtml({ history, locale });
   const timeline = readHistoryBucket(history, "timeline");
-  const hasHistory = timeline.total || historySections.length;
+  const hasHistory = Boolean(timeline.total || historySections.length || balanceSummaryHtml);
 
   return `
     ${includeStyles ? `<style>${monetizationPlansSurfaceStyles}</style>` : ""}
@@ -2133,6 +2434,7 @@ export function buildMonetizationHistorySurfaceHtml(
       }
       ${readString(options.notice) ? `<div class="xapps-xms-plans__notice">${escapeHtml(readString(options.notice))}</div>` : ""}
       ${readString(options.error) ? `<div class="xapps-xms-plans__error">${escapeHtml(readString(options.error))}</div>` : ""}
+      ${balanceSummaryHtml}
       ${
         timeline.total
           ? `<section class="xapps-xms-plans__card">
@@ -2200,6 +2502,7 @@ export function buildMonetizationPackagePresentation(input: unknown): {
     input && typeof input === "object" && !Array.isArray(input)
       ? (input as Record<string, unknown>)
       : {};
+  const copy = buildXmsPackageCopy(item.locale);
   const packageKind = readString(item.packageKind);
   const packageSlug = readLower(item.packageSlug);
   const metadata =
@@ -2207,43 +2510,64 @@ export function buildMonetizationPackagePresentation(input: unknown): {
       ? (item.metadata as Record<string, unknown>)
       : {};
   const credits = readPackageCredits(item);
+  const virtualCurrency =
+    readVirtualCurrencyDefinition(item.virtualCurrency) ??
+    readVirtualCurrencyDefinition(
+      item.productMetadata && typeof item.productMetadata === "object"
+        ? (item.productMetadata as Record<string, unknown>).virtual_currency
+        : null,
+    );
   const moneyLabel = normalizeMoneyLabel(item);
   const offeringPresentation = buildMonetizationOfferingPresentation(item);
-  let fitLabel = "General upgrade";
-  let summary = "Useful as a general monetization upgrade for this creator scope.";
+  let fitLabel = copy.generalUpgradeFitLabel;
+  let summary = copy.generalUpgradeSummary;
 
   if (packageKind === "one_time_unlock") {
-    fitLabel = "Durable unlock";
-    summary = "Best when the feature mainly needs current access without ongoing membership.";
+    fitLabel = copy.durableUnlockFitLabel;
+    summary = copy.durableUnlockSummary;
   } else if (packageKind === "subscription") {
-    fitLabel = "Recurring membership";
-    summary = "Best when the feature depends on ongoing membership coverage.";
+    fitLabel = copy.recurringMembershipFitLabel;
+    summary = copy.recurringMembershipSummary;
   } else if (packageKind === "credit_pack") {
-    fitLabel = "Credit top-up";
-    summary = "Best when the feature spends credits for each advanced action.";
+    const unitLabel = normalizeVirtualCurrencyDisplayLabel(
+      formatVirtualCurrencyLabel(virtualCurrency, { includeCode: true }),
+    );
+    fitLabel = copy.creditTopUpFitLabel;
+    summary = copy.creditPackFitSummary(unitLabel || "credits");
   } else if (packageSlug.includes("hybrid")) {
-    fitLabel = "Hybrid upgrade";
-    summary = "Blends access coverage with bundled credits for mixed workflows.";
+    const unitLabel = normalizeVirtualCurrencyDisplayLabel(
+      formatVirtualCurrencyLabel(virtualCurrency, { includeCode: true }),
+    );
+    fitLabel = copy.hybridUpgradeFitLabel;
+    summary = copy.hybridPackFitSummary(unitLabel || "credits");
   }
 
   const signals: string[] = [];
   if (readString(metadata.badge)) {
     signals.push(readString(metadata.badge));
   }
-  if (credits > 0) {
+  if (credits > 0 && virtualCurrency) {
+    signals.push(
+      formatVirtualCurrencyAmountLabel({
+        amount: String(credits),
+        virtualCurrency,
+        fallbackUnit: "credits",
+      }),
+    );
+  } else if (credits > 0) {
     signals.push(`${credits} credits`);
+  } else if (virtualCurrency) {
+    signals.push(
+      copy.packageCurrencySignalLabel(
+        formatVirtualCurrencyLabel(virtualCurrency, { includeCode: true }),
+      ),
+    );
   }
   if (readString(item.billingPeriod)) {
-    signals.push(`billed ${readString(item.billingPeriod)}`);
+    signals.push(copy.billedSignalLabel(readString(item.billingPeriod)));
   }
   if (offeringPresentation.offeringLabel) {
     signals.push(offeringPresentation.offeringLabel);
-  }
-  if (
-    offeringPresentation.placementLabel &&
-    offeringPresentation.placementLabel !== "General placement"
-  ) {
-    signals.push(offeringPresentation.placementLabel);
   }
 
   return {
@@ -2561,7 +2885,9 @@ function normalizeMoneyLabel(item: Record<string, unknown>) {
   const amount = readString(item.amount);
   const currency = readString(item.currency);
   const billingPeriod = readString(item.billingPeriod);
-  if (!amount && !currency) return "Price unavailable";
+  if (!amount && !currency) {
+    return buildXmsSurfaceCopy({ locale: item.locale }).priceUnavailableLabel;
+  }
   return `${amount} ${currency}${billingPeriod ? ` / ${billingPeriod}` : ""}`.trim();
 }
 
@@ -2569,7 +2895,12 @@ function packageCredits(item: Record<string, unknown>) {
   return readPackageCredits(item);
 }
 
-function scorePackageForFeature(feature: Record<string, unknown>, item: Record<string, unknown>) {
+function scorePackageForFeature(
+  feature: Record<string, unknown>,
+  item: Record<string, unknown>,
+  locale?: unknown,
+) {
+  const copy = buildXmsPackageCopy(locale);
   const requirements =
     feature.requirements && typeof feature.requirements === "object"
       ? (feature.requirements as Record<string, unknown>)
@@ -2578,29 +2909,34 @@ function scorePackageForFeature(feature: Record<string, unknown>, item: Record<s
   const packageSlug = readString(item.packageSlug);
   const offeringSlug = readString(item.offeringSlug);
   const credits = packageCredits(item);
+  const virtualCurrency = readPackageVirtualCurrency(item);
+  const unitLabel =
+    normalizeVirtualCurrencyDisplayLabel(
+      formatVirtualCurrencyLabel(virtualCurrency, { includeCode: true }),
+    ) || "credits";
   let score = 0;
   const reasons: string[] = [];
 
   if (requirements.currentAccess) {
     if (packageKind === "one_time_unlock") {
       score += 7;
-      reasons.push("Aligned with durable unlock access.");
+      reasons.push(copy.featureDurableUnlockReason);
     } else if (packageKind === "subscription") {
       score += 6;
-      reasons.push("Recurring membership also grants current access.");
+      reasons.push(copy.featureRecurringAccessReason);
     } else if (packageSlug.includes("hybrid")) {
       score += 5;
-      reasons.push("Hybrid package contributes to current access coverage.");
+      reasons.push(copy.featureHybridAccessReason);
     }
   }
 
   if (requirements.subscription) {
     if (packageKind === "subscription") {
       score += 8;
-      reasons.push("Matches the subscription requirement directly.");
+      reasons.push(copy.featureSubscriptionDirectReason);
     } else if (packageSlug.includes("hybrid")) {
       score += 5;
-      reasons.push("Hybrid package can also cover part of the subscription shape.");
+      reasons.push(copy.featureHybridSubscriptionReason);
     }
   }
 
@@ -2608,13 +2944,15 @@ function scorePackageForFeature(feature: Record<string, unknown>, item: Record<s
   if (requiredCredits) {
     if (credits >= requiredCredits) {
       score += 8;
-      reasons.push(`Covers the ${requiredCredits} credit requirement.`);
+      reasons.push(
+        copy.creditRequirementCoveredLabel(formatNamedUnitAmount(requiredCredits, unitLabel)),
+      );
     } else if (credits > 0) {
       score += 4;
-      reasons.push(`Adds ${credits} credits toward the requirement.`);
+      reasons.push(copy.creditRequirementAddedLabel(formatNamedUnitAmount(credits, unitLabel)));
     } else if (packageSlug.includes("hybrid")) {
       score += 3;
-      reasons.push("Hybrid package can add bundled credits for this flow.");
+      reasons.push(copy.hybridCreditsSupportLabel(unitLabel));
     }
   }
 
@@ -2634,6 +2972,7 @@ export function buildFeaturePaywall(input: {
   feature: unknown;
   packages: unknown;
   selectedPackage?: unknown;
+  locale?: unknown;
 }): {
   activePackage: Record<string, unknown> | null;
   candidatePackages: Array<Record<string, unknown>>;
@@ -2657,7 +2996,7 @@ export function buildFeaturePaywall(input: {
         item && typeof item === "object"
           ? (item as Record<string, unknown>)
           : ({} as Record<string, unknown>);
-      const scored = scorePackageForFeature(feature, record);
+      const scored = scorePackageForFeature(feature, record, input.locale);
       return {
         ...record,
         recommendationScore: scored.score,
@@ -2709,59 +3048,88 @@ function buildFeatureGapBadges(input: {
   requirements: Record<string, unknown>;
   snapshotSummary: {
     accessCoverage?: { available?: boolean | null };
-    wallet?: { creditsRemaining?: string | null };
+    wallet?: { creditsRemaining?: string | null; virtualCurrencyLabel?: string | null };
   };
+  activePackage?: unknown;
   currentSubscriptionStatus?: unknown;
+  locale?: unknown;
 }): string[] {
+  const copy = buildXmsSurfaceCopy({ locale: input.locale });
   const badges: string[] = [];
   const creditsRemaining = readNumber(input.snapshotSummary?.wallet?.creditsRemaining);
+  const unitLabel = readFeatureCurrencyUnitLabel({
+    snapshotSummary: input.snapshotSummary,
+    activePackage: input.activePackage,
+  });
   if (input.requirements.currentAccess && !input.snapshotSummary?.accessCoverage?.available) {
-    badges.push("current access missing");
+    badges.push(copy.featureCurrentAccessMissingBadge);
   }
   const hasSubscription = Boolean(readString(input.currentSubscriptionStatus));
   if (input.requirements.subscription && !hasSubscription) {
-    badges.push("membership not active");
+    badges.push(copy.featureMembershipNotActiveBadge);
   }
   const requiredCredits = readNumber(input.requirements.credits);
   if (requiredCredits > 0 && creditsRemaining < requiredCredits) {
-    badges.push(`${requiredCredits - creditsRemaining} credits short`);
+    badges.push(
+      copy.featureGapShortLabel(
+        formatNamedUnitAmount(requiredCredits - creditsRemaining, unitLabel),
+      ),
+    );
   }
   return badges;
 }
 
-function buildFeatureNeedLabel(requirements: Record<string, unknown>): string {
+function buildFeatureNeedLabel(
+  requirements: Record<string, unknown>,
+  unitLabel: string,
+  locale?: unknown,
+): string {
+  const copy = buildXmsSurfaceCopy({ locale });
   const needsAccess = Boolean(requirements.currentAccess);
   const needsSubscription = Boolean(requirements.subscription);
   const needsCredits = readNumber(requirements.credits) > 0;
-  if (needsAccess && needsCredits) return "needs mixed access";
-  if (needsSubscription && needsCredits) return "needs membership + credits";
-  if (needsSubscription) return "needs membership";
-  if (needsCredits) return "needs credits";
-  if (needsAccess) return "needs access";
-  return "locked";
+  if (needsAccess && needsCredits) return copy.featureNeedMixedAccessLabel;
+  if (needsSubscription && needsCredits)
+    return copy.featureNeedMembershipAndCreditsLabel(unitLabel);
+  if (needsSubscription) return copy.featureNeedMembershipLabel;
+  if (needsCredits) return copy.featureNeedCreditsLabel(unitLabel);
+  if (needsAccess) return copy.featureNeedAccessLabel;
+  return copy.featureLockedLabel;
 }
 
-function buildFeaturePaywallOpenLabel(requirements: Record<string, unknown>): string {
+function buildFeaturePaywallOpenLabel(
+  requirements: Record<string, unknown>,
+  unitLabel: string,
+  locale?: unknown,
+): string {
+  const copy = buildXmsSurfaceCopy({ locale });
   const needsAccess = Boolean(requirements.currentAccess);
   const needsSubscription = Boolean(requirements.subscription);
   const needsCredits = readNumber(requirements.credits) > 0;
-  if (needsAccess && needsCredits) return "View hybrid options";
-  if (needsSubscription && needsCredits) return "View membership options";
-  if (needsSubscription) return "View membership options";
-  if (needsCredits) return "View credit options";
-  if (needsAccess) return "View unlock options";
-  return "Open paywall";
+  if (needsAccess && needsCredits) return copy.featureViewHybridOptionsLabel;
+  if (needsSubscription && needsCredits) return copy.featureViewMembershipOptionsLabel;
+  if (needsSubscription) return copy.featureViewMembershipOptionsLabel;
+  if (needsCredits) return copy.featureViewCreditOptionsLabel(unitLabel);
+  if (needsAccess) return copy.featureViewUnlockOptionsLabel;
+  return copy.featureOpenPaywallLabel;
 }
 
-function buildFeatureCheckoutLabel(activePackage: Record<string, unknown> | null): string {
+function buildFeatureCheckoutLabel(
+  activePackage: Record<string, unknown> | null,
+  locale?: unknown,
+): string {
+  const copy = buildXmsSurfaceCopy({ locale });
   const packageKind = readString(activePackage?.packageKind);
-  if (packageKind === "one_time_unlock") return "Unlock with hosted checkout";
-  if (packageKind === "subscription") return "Start membership checkout";
-  if (packageKind === "credit_pack") return "Buy credits with hosted checkout";
-  if (readString(activePackage?.packageSlug).includes("hybrid")) {
-    return "Start hybrid checkout";
+  if (packageKind === "one_time_unlock") return copy.featureUnlockCheckoutLabel;
+  if (packageKind === "subscription") return copy.featureStartMembershipCheckoutLabel;
+  if (packageKind === "credit_pack") {
+    const unitLabel = readFeatureCurrencyUnitLabel({ activePackage });
+    return copy.featureBuyCreditsCheckoutLabel(unitLabel);
   }
-  return "Create payment session";
+  if (readString(activePackage?.packageSlug).includes("hybrid")) {
+    return copy.featureStartHybridCheckoutLabel;
+  }
+  return copy.featureCreatePaymentSessionLabel;
 }
 
 export function buildFeaturePaywallCopyModel(input: {
@@ -2770,6 +3138,7 @@ export function buildFeaturePaywallCopyModel(input: {
   currentSubscriptionStatus?: unknown;
   activePackage?: unknown;
   assetMixLabel?: unknown;
+  locale?: unknown;
 }): {
   summary: string;
   missingLines: string[];
@@ -2802,23 +3171,31 @@ export function buildFeaturePaywallCopyModel(input: {
     input.activePackage && typeof input.activePackage === "object"
       ? (input.activePackage as Record<string, unknown>)
       : null;
+  const copy = buildXmsSurfaceCopy({ locale: input.locale });
+  const unitLabel = readFeatureCurrencyUnitLabel({
+    snapshotSummary,
+    activePackage,
+  });
 
   const missingLines: string[] = [];
   if (requirements.currentAccess && !hasCurrentAccess) {
-    missingLines.push("Current access coverage is not active on this scope.");
+    missingLines.push(copy.featureCurrentAccessMissingLabel);
   }
   if (requirements.subscription && !hasSubscription) {
-    missingLines.push("No active recurring membership is visible for this scope.");
+    missingLines.push(copy.featureSubscriptionMissingLabel);
   }
   if (requiredCredits > 0 && creditsRemaining < requiredCredits) {
     missingLines.push(
-      `This action needs ${requiredCredits} credits, but only ${creditsRemaining} are visible right now.`,
+      copy.featureCreditsMissingLabel(
+        formatNamedUnitAmount(requiredCredits, unitLabel),
+        formatNamedUnitAmount(creditsRemaining, unitLabel),
+      ),
     );
   }
 
-  let summary = `${readString(feature.title) || "Feature"} is blocked on the current scope.`;
+  let summary = copy.featureBlockedSummary(readString(feature.title) || "Feature");
   if (!missingLines.length) {
-    summary = `${readString(feature.title) || "Feature"} can be unlocked from the current paywall package candidates.`;
+    summary = copy.featureReadySummary(readString(feature.title) || "Feature");
   } else if (missingLines.length === 1) {
     summary = missingLines[0];
   } else {
@@ -2826,26 +3203,33 @@ export function buildFeaturePaywallCopyModel(input: {
   }
 
   const candidateLead = activePackage
-    ? `${readString(activePackage.packageTitle) || "Selected package"} is one package candidate for this access gap.`
-    : "Choose a package candidate that covers the current access gap.";
+    ? copy.featureCandidateLead(readString(activePackage.packageTitle))
+    : copy.featureCandidateFallbackLead;
 
   return {
     summary,
     missingLines,
     candidateLead,
     recommendationLead: candidateLead,
-    ctaLabel: buildFeatureCheckoutLabel(activePackage),
-    openPaywallLabel: buildFeaturePaywallOpenLabel(requirements),
+    ctaLabel: buildFeatureCheckoutLabel(activePackage, input.locale),
+    openPaywallLabel: buildFeaturePaywallOpenLabel(requirements, unitLabel, input.locale),
     activePackageLabel: activePackage ? readString(activePackage.packageTitle) : "",
-    statusLabel: missingLines.length ? buildFeatureNeedLabel(requirements) : "ready",
+    statusLabel: missingLines.length
+      ? buildFeatureNeedLabel(requirements, unitLabel, input.locale)
+      : "ready",
     assetMixLabel: readString(input.assetMixLabel) || "unknown",
-    coverageLabel: formatStateLabel(snapshotSummary?.accessCoverage?.coverageLabel, "Unavailable"),
+    coverageLabel: formatStateLabel(
+      snapshotSummary?.accessCoverage?.coverageLabel,
+      buildXmsSurfaceCopy({ locale: input.locale }).unavailableLabel,
+    ),
     subscriptionLabel: formatStateLabel(input.currentSubscriptionStatus, "inactive"),
-    creditsLabel: String(creditsRemaining),
+    creditsLabel: formatNamedUnitAmount(creditsRemaining, unitLabel),
     gapBadges: buildFeatureGapBadges({
       requirements,
       snapshotSummary: snapshotSummary as any,
+      activePackage,
       currentSubscriptionStatus: input.currentSubscriptionStatus,
+      locale: input.locale,
     }),
   };
 }
@@ -2870,6 +3254,7 @@ export function summarizeXappMonetizationSnapshot(input: unknown): {
   };
   wallet: {
     creditsRemaining: string;
+    virtualCurrencyLabel: string;
     balanceStateLabel: string;
     currentAccessLabel: string;
   };
@@ -2904,7 +3289,7 @@ export function summarizeXappMonetizationSnapshot(input: unknown): {
       present: lifecycle.present,
       statusLabel: lifecycle.statusLabel || formatStateLabel(currentSubscription?.status),
       tierLabel: formatStateLabel(currentSubscription?.tier),
-      coverageLabel: lifecycle.coverageLabel || "Unknown",
+      coverageLabel: lifecycle.coverageLabel || buildXmsSurfaceCopy().unknownLabel,
       coverageReasonLabel: lifecycle.reasonLabel || buildXmsSurfaceCopy().noOverdueRestrictionLabel,
       renewsAt: lifecycle.renewsAt,
       expiresAt: lifecycle.expiresAt || lifecycle.currentPeriodEndsAt,
@@ -2912,10 +3297,13 @@ export function summarizeXappMonetizationSnapshot(input: unknown): {
     },
     wallet: {
       creditsRemaining: readString(accessProjection?.credits_remaining) || "0",
+      virtualCurrencyLabel: formatVirtualCurrencyLabel(accessProjection?.virtual_currency, {
+        includeCode: true,
+      }),
       balanceStateLabel: formatStateLabel(accessProjection?.balance_state, "unknown"),
       currentAccessLabel: hasEffectiveCoverage({ accessProjection, currentSubscription })
-        ? "Yes"
-        : "No",
+        ? buildXmsSurfaceCopy().yesLabel
+        : buildXmsSurfaceCopy().noLabel,
     },
   };
 }
