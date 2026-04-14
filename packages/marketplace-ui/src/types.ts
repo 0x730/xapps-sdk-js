@@ -65,6 +65,16 @@ export type MarketplaceMonetizationAccessProjection = {
   has_current_access?: boolean;
   tier?: string | null;
   credits_remaining?: string | null;
+  virtual_currency?: {
+    code?: string | null;
+    name?: string | null;
+    status?: string | null;
+    issuer_scope?: string | null;
+    issuer_ref?: string | null;
+    source_kind?: string | null;
+    product_family?: string | null;
+    [k: string]: unknown;
+  } | null;
   source_ref?: string | null;
   [k: string]: unknown;
 };
@@ -136,6 +146,111 @@ export type MarketplaceSubscriptionLifecycleResult = {
   access_projection?: MarketplaceMonetizationAccessProjection | null;
   snapshot_id?: string | null;
   transaction?: Record<string, unknown> | null;
+};
+
+export type MarketplaceVirtualCurrencyDefinition = {
+  code?: string | null;
+  name?: string | null;
+  status?: string | null;
+  issuer_scope?: string | null;
+  issuer_ref?: string | null;
+  source_kind?: string | null;
+  product_family?: string | null;
+  [k: string]: unknown;
+};
+
+export type MarketplaceMonetizationHistoryTimelineItem = {
+  bucket?: string | null;
+  id?: string | null;
+  title?: string | null;
+  status?: string | null;
+  occurred_at?: string | null;
+  scope?: string | null;
+  correlation?: string | null;
+  amount?: string | null;
+  currency?: string | null;
+  virtual_currency?: MarketplaceVirtualCurrencyDefinition | null;
+  note?: string | null;
+  settlement_effect?: string | null;
+  settlement_effect_detail?: string | null;
+  [k: string]: unknown;
+};
+
+export type MarketplaceMonetizationHistoryWalletAccount = {
+  id?: string | null;
+  status?: string | null;
+  product_id?: string | null;
+  product_slug?: string | null;
+  currency?: string | null;
+  virtual_currency?: MarketplaceVirtualCurrencyDefinition | null;
+  source_kind?: string | null;
+  source_ref?: string | null;
+  state_version?: string | null;
+  balance_remaining?: string | null;
+  [k: string]: unknown;
+};
+
+export type MarketplaceMonetizationHistoryWalletLedger = {
+  id?: string | null;
+  wallet_account_id?: string | null;
+  wallet_product_slug?: string | null;
+  event_kind?: string | null;
+  amount?: string | null;
+  currency?: string | null;
+  virtual_currency?: MarketplaceVirtualCurrencyDefinition | null;
+  reservation_ref?: string | null;
+  idempotency_key?: string | null;
+  purchase_intent_id?: string | null;
+  purchase_transaction_id?: string | null;
+  payment_session_id?: string | null;
+  request_id?: string | null;
+  settlement_ref?: string | null;
+  source_kind?: string | null;
+  source_ref?: string | null;
+  occurred_at?: string | null;
+  settlement_effect?: string | null;
+  settlement_effect_detail?: string | null;
+  [k: string]: unknown;
+};
+
+export type MarketplaceMonetizationHistoryAccessSnapshot = {
+  id?: string | null;
+  entitlement_state?: string | null;
+  balance_state?: string | null;
+  tier?: string | null;
+  credits_remaining?: string | null;
+  virtual_currency?: MarketplaceVirtualCurrencyDefinition | null;
+  source_ref?: string | null;
+  state_version?: string | null;
+  client_id?: string | null;
+  publisher_id?: string | null;
+  subject_id?: string | null;
+  installation_id?: string | null;
+  realm_ref?: string | null;
+  updated_at?: string | null;
+  created_at?: string | null;
+  [k: string]: unknown;
+};
+
+export type MarketplaceXappMonetizationHistory = {
+  xapp_id: string;
+  version_id: string;
+  history: {
+    subject_id: string;
+    limit: number;
+    timeline?: {
+      total: number;
+      items: MarketplaceMonetizationHistoryTimelineItem[];
+    };
+    subscriptions: { total: number; items: Array<Record<string, unknown>> };
+    entitlements: { total: number; items: Array<Record<string, unknown>> };
+    access_snapshots: { total: number; items: MarketplaceMonetizationHistoryAccessSnapshot[] };
+    purchase_intents: { total: number; items: Array<Record<string, unknown>> };
+    wallet_accounts: { total: number; items: MarketplaceMonetizationHistoryWalletAccount[] };
+    wallet_ledger: { total: number; items: MarketplaceMonetizationHistoryWalletLedger[] };
+    transactions: { total: number; items: Array<Record<string, unknown>> };
+    invoices: { total: number; items: Array<Record<string, unknown>> };
+  };
 };
 
 export type OperationalSurfaceDescriptor = {
@@ -221,7 +336,7 @@ export type MarketplaceClient = {
   getMyXappMonetizationHistory?(
     xappId: string,
     options?: { subjectId?: string | null; installationId?: string | null; limit?: number | null },
-  ): Promise<unknown>;
+  ): Promise<MarketplaceXappMonetizationHistory>;
   prepareMyXappPurchaseIntent?(input: {
     xappId: string;
     offeringId: string;

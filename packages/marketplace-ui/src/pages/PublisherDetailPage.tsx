@@ -261,7 +261,7 @@ export function PublisherDetailPage() {
                         to={detailTo}
                         className="mx-btn mx-btn-ghost mx-btn-sm mx-card-footer-link"
                       >
-                        View details
+                        {t("catalog.view_details", undefined, "View details")}
                       </Link>
                     </div>
                   </div>

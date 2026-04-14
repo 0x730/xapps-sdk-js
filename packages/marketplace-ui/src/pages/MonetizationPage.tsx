@@ -1,4 +1,7 @@
-import { summarizeXappMonetizationSnapshot } from "@xapps-platform/browser-host/xms";
+import {
+  summarizeVirtualCurrencyBalances,
+  summarizeXappMonetizationSnapshot,
+} from "@xapps-platform/browser-host/xms";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useMarketplace } from "../MarketplaceContext";
@@ -23,9 +26,29 @@ type MonetizationCard = {
   subscriptionStatus: string;
   subscriptionCoverage: string;
   renewsAt: string;
+  virtualCurrencyLabel: string;
   creditsRemaining: string;
   balanceState: string;
+  balanceSummary: string[];
+  hasSubscription: boolean;
+  hasNamedCurrency: boolean;
+  hasBalance: boolean;
 };
+
+function formatVirtualCurrencyLabel(input: unknown, options?: { includeCode?: boolean }): string {
+  const record = asRecord(input);
+  const code = readString(record.code);
+  const name = readString(record.name);
+  if (name && code && options?.includeCode) return `${name} (${code})`;
+  return name || code || "";
+}
+
+function formatVirtualCurrencyAmount(value: unknown, virtualCurrency: unknown): string {
+  const amount = readString(value);
+  if (!amount) return "";
+  const currencyLabel = formatVirtualCurrencyLabel(virtualCurrency);
+  return currencyLabel ? `${amount} ${currencyLabel}` : amount;
+}
 
 function useQueryToken(): string {
   const loc = useLocation();
@@ -104,6 +127,15 @@ export function MonetizationPage() {
   const visibilityRefreshRef = useRef<number>(0);
 
   const isEmbedded = typeof window !== "undefined" && window.location.pathname.startsWith("/embed");
+  const overview = useMemo(
+    () => ({
+      apps: items.length,
+      subscriptions: items.filter((item) => item.hasSubscription).length,
+      namedCurrencies: items.filter((item) => item.hasNamedCurrency).length,
+      balances: items.filter((item) => item.hasBalance).length,
+    }),
+    [items],
+  );
 
   const refresh = useCallback(async () => {
     if (!client.getMyXappMonetization) {
@@ -111,7 +143,7 @@ export function MonetizationPage() {
         t(
           "activity.unavailable_monetization_title",
           undefined,
-          "Monetization is unavailable in this host.",
+          "Plans and balances are unavailable in this host.",
         ),
       );
       setItems([]);
@@ -175,16 +207,41 @@ export function MonetizationPage() {
     try {
       const next = await Promise.all(
         deduped.map(async (item): Promise<MonetizationCard | null> => {
-          const detail = await client.getCatalogXapp(item.xappId, {
-            installationId: item.installationId || null,
-          });
+          const [detail, state, history] = await Promise.all([
+            client.getCatalogXapp(item.xappId, {
+              installationId: item.installationId || null,
+            }),
+            client.getMyXappMonetization!(item.xappId, {
+              installationId: item.installationId || null,
+              locale,
+            }),
+            typeof client.getMyXappMonetizationHistory === "function"
+              ? client.getMyXappMonetizationHistory(item.xappId, {
+                  installationId: item.installationId || null,
+                  limit: 20,
+                })
+              : Promise.resolve(null),
+          ]);
           if (!xappIdFilter && !isMonetizationCandidate(detail)) return null;
-          const state = await client.getMyXappMonetization!(item.xappId, {
-            installationId: item.installationId || null,
-            locale,
-          });
           const summary = summarizeXappMonetizationSnapshot(state);
+          const balanceSummary = summarizeVirtualCurrencyBalances(history).balances.map(
+            (entry) => entry.amountLabel,
+          );
           const detailRecord = asRecord(detail);
+          const accessProjection = asRecord(asRecord(state).access_projection);
+          const virtualCurrencyLabel = formatVirtualCurrencyLabel(
+            accessProjection.virtual_currency,
+            {
+              includeCode: true,
+            },
+          );
+          const creditsRemainingLabel =
+            formatVirtualCurrencyAmount(
+              accessProjection.credits_remaining,
+              accessProjection.virtual_currency,
+            ) ||
+            summary.wallet.creditsRemaining ||
+            "0";
           const title =
             resolveMarketplaceText(asRecord(detailRecord.manifest).title as any, locale) ||
             readFirstString(asRecord(detailRecord.xapp).name) ||
@@ -195,7 +252,7 @@ export function MonetizationPage() {
             t(
               "activity.monetization_card_subtitle",
               undefined,
-              "Current XMS state, active access, subscriptions, and credits for this app.",
+              "Access, plans, and balances for this app.",
             );
           return {
             xappId: item.xappId,
@@ -244,10 +301,15 @@ export function MonetizationPage() {
             renewsAt:
               summary.currentSubscription.renewsAt ||
               t("activity.monetization_not_scheduled", undefined, "Not scheduled"),
-            creditsRemaining: summary.wallet.creditsRemaining || "0",
+            virtualCurrencyLabel,
+            creditsRemaining: creditsRemainingLabel,
             balanceState:
               summary.wallet.balanceStateLabel ||
               t("activity.monetization_balance_unknown", undefined, "unknown"),
+            balanceSummary,
+            hasSubscription: summary.currentSubscription.present,
+            hasNamedCurrency: Boolean(virtualCurrencyLabel),
+            hasBalance: Boolean(balanceSummary.length || creditsRemainingLabel),
           };
         }),
       );
@@ -358,7 +420,7 @@ export function MonetizationPage() {
     : null;
 
   return (
-    <div className={`mx-catalog-container ${isEmbedded ? "is-embedded" : ""}`}>
+    <div className={`mx-catalog-container mx-monetization-page ${isEmbedded ? "is-embedded" : ""}`}>
       <div className="mx-breadcrumb">
         <Link to={isEmbedded ? "/" : "/marketplace"}>
           {t("common.marketplace", undefined, "Marketplace")}
@@ -440,147 +502,273 @@ export function MonetizationPage() {
       ) : null}
 
       {xappIdFilter ? (
-        <div className="mx-subtle-note">
-          {t("activity.showing_monetization_for_prefix", undefined, "Showing XMS state for")}{" "}
-          <span className="mx-subtle-note-strong">{xappIdFilter}</span>
+        <div className="mx-table-container mx-subtle-note-card">
+          <div className="mx-subtle-note mx-subtle-note-compact">
+            {t(
+              "activity.showing_monetization_for_prefix",
+              undefined,
+              "Showing plans and balances for",
+            )}{" "}
+            <span className="mx-subtle-note-strong">{xappIdFilter}</span>
+          </div>
         </div>
       ) : (
-        <div className="mx-subtle-note">
-          {showPast
-            ? t(
-                "activity.monetization_overview_hint_with_past",
-                undefined,
-                "Review current and past XMS access, subscriptions, and credits across this subject's apps.",
-              )
-            : t(
-                "activity.monetization_overview_hint",
-                undefined,
-                "Review current XMS access, subscriptions, and credits across the apps linked to this subject.",
-              )}
+        <div className="mx-table-container mx-subtle-note-card">
+          <div className="mx-subtle-note mx-subtle-note-compact">
+            {showPast
+              ? t(
+                  "activity.monetization_overview_hint_with_past",
+                  undefined,
+                  "Review current and past plans, subscriptions, and balances across this subject's apps.",
+                )
+              : t(
+                  "activity.monetization_overview_hint",
+                  undefined,
+                  "Review current plans, subscriptions, and balances across this subject's apps.",
+                )}
+          </div>
         </div>
       )}
 
+      <section className="mx-table-container mx-monetization-summary-card">
+        <div className="mx-monetization-card-body">
+          <div className="mx-record-panel-head">
+            <div>
+              <div className="mx-record-panel-kicker">
+                {t("activity.monetization_title", undefined, "Monetization")}
+              </div>
+              <div className="mx-record-panel-id">
+                {t("activity.monetization_summary_title", undefined, "Plans and balances")}
+              </div>
+              <div className="mx-record-panel-subtitle">
+                {t(
+                  "activity.monetization_summary_subtitle",
+                  undefined,
+                  "Review active plans, subscriptions, and balances before opening app details or history.",
+                )}
+              </div>
+            </div>
+          </div>
+          <div className="mx-record-grid">
+            <div className="mx-record-field">
+              <div className="mx-record-label">
+                {t("activity.monetization_summary_apps", undefined, "Apps")}
+              </div>
+              <div className="mx-record-value is-strong">{overview.apps}</div>
+            </div>
+            <div className="mx-record-field">
+              <div className="mx-record-label">
+                {t("activity.monetization_summary_subscriptions", undefined, "Subscriptions")}
+              </div>
+              <div className="mx-record-value is-strong">{overview.subscriptions}</div>
+            </div>
+            <div className="mx-record-field">
+              <div className="mx-record-label">
+                {t("activity.monetization_summary_balances", undefined, "Balances")}
+              </div>
+              <div className="mx-record-value is-strong">{overview.balances}</div>
+            </div>
+            <div className="mx-record-field">
+              <div className="mx-record-label">
+                {t("activity.monetization_summary_currencies", undefined, "Named currencies")}
+              </div>
+              <div className="mx-record-value is-strong">{overview.namedCurrencies}</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {busy ? (
         <div className="mx-table-container">
-          {t("activity.loading_monetization", undefined, "Loading monetization state...")}
+          <div className="mx-loading-center mx-loading-table">
+            {t(
+              "activity.loading_monetization",
+              undefined,
+              "Loading plans, balances, and recent activity...",
+            )}
+          </div>
         </div>
       ) : null}
 
       {!busy && !error && items.length === 0 ? (
         <div className="mx-table-container">
-          {showPast
-            ? t(
-                "activity.no_monetization_history",
-                undefined,
-                "No monetization history was found for this subject.",
-              )
-            : t(
-                "activity.no_monetization_current",
-                undefined,
-                "No current monetization coverage was found for this subject.",
-              )}
+          <div className="mx-empty-catalog">
+            <div className="mx-empty-catalog-icon">◎</div>
+            <div className="mx-empty-catalog-title">
+              {showPast
+                ? t(
+                    "activity.no_monetization_history",
+                    undefined,
+                    "No plan or balance history was found for this subject.",
+                  )
+                : t(
+                    "activity.no_monetization_current",
+                    undefined,
+                    "No current plans or balances were found for this subject.",
+                  )}
+            </div>
+            <div className="mx-empty-catalog-desc">
+              {showPast
+                ? t(
+                    "activity.monetization_overview_hint_with_past",
+                    undefined,
+                    "Review current and past plans, subscriptions, and balances across this subject's apps.",
+                  )
+                : t(
+                    "activity.monetization_overview_hint",
+                    undefined,
+                    "Review current plans, subscriptions, and balances across this subject's apps.",
+                  )}
+            </div>
+          </div>
         </div>
       ) : null}
 
       {!busy && items.length > 0 ? (
         <div className="mx-record-panel-stack">
           {items.map((item) => (
-            <section key={item.xappId} className="mx-record-panel mx-record-panel-monetization">
-              <div className="mx-record-panel-head">
-                <div>
-                  <div className="mx-record-panel-kicker">
-                    {t("activity.monetization", undefined, "Monetization")}
-                  </div>
-                  <div className="mx-record-panel-id">{item.title}</div>
-                  <div className="mx-record-panel-subtitle">{item.subtitle}</div>
-                </div>
-                <div className="mx-record-actions mx-record-actions-monetization">
-                  <div className="mx-action-group">
-                    <Link to={item.plansHref as any} className="mx-btn mx-btn-primary">
-                      {t("activity.monetization_open_plans", undefined, "Open plans")}
-                    </Link>
-                    <Link to={item.historyHref as any} className="mx-btn mx-btn-secondary">
-                      {t("activity.monetization_open_history", undefined, "Open history")}
-                    </Link>
-                  </div>
-                  <div className="mx-action-group">
-                    <Link to={item.detailHref as any} className="mx-btn mx-btn-ghost">
-                      {t("common.view_app_details", undefined, "View app details")}
-                    </Link>
-                    {!xappIdFilter ? (
-                      <Link
-                        to={
-                          {
-                            pathname: isEmbedded ? "/monetization" : "/marketplace/monetization",
-                            search: (() => {
-                              const qs = new URLSearchParams();
-                              if (token) qs.set("token", token);
-                              qs.set("xappId", item.xappId);
-                              if (item.installationId)
-                                qs.set("installationId", item.installationId);
-                              const suffix = qs.toString();
-                              return suffix ? `?${suffix}` : "";
-                            })(),
-                          } as any
-                        }
-                        className="mx-btn mx-btn-ghost"
+            <section key={item.xappId} className="mx-table-container mx-monetization-activity-card">
+              <div className="mx-monetization-card-body">
+                <div className="mx-record-panel-head">
+                  <div>
+                    <div className="mx-record-panel-kicker">
+                      {t("activity.monetization", undefined, "Monetization")}
+                    </div>
+                    <div className="mx-record-panel-id">{item.title}</div>
+                    <div className="mx-record-panel-subtitle">{item.subtitle}</div>
+                    <div className="mx-monetization-card-badges">
+                      <span className="mx-badge mx-badge-warning">{item.accessLabel}</span>
+                      <span
+                        className={`mx-badge ${
+                          item.hasSubscription ? "mx-badge-success" : "mx-badge-warning"
+                        }`}
                       >
-                        {t("activity.monetization_focus_xapp", undefined, "Focus this app")}
+                        {item.subscriptionStatus}
+                      </span>
+                      <span className="mx-tag">
+                        {item.virtualCurrencyLabel ||
+                          t("activity.monetization_no_currency", undefined, "No named currency")}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="mx-record-actions mx-record-actions-monetization">
+                    <div className="mx-action-group">
+                      <Link to={item.plansHref as any} className="mx-btn mx-btn-primary">
+                        {t("activity.monetization_open_plans", undefined, "View plans")}
                       </Link>
-                    ) : null}
+                      <Link to={item.historyHref as any} className="mx-btn mx-btn-secondary">
+                        {t("activity.monetization_open_history", undefined, "View history")}
+                      </Link>
+                    </div>
+                    <div className="mx-action-group">
+                      <Link to={item.detailHref as any} className="mx-btn mx-btn-ghost">
+                        {t("common.view_app_details", undefined, "View app details")}
+                      </Link>
+                      {!xappIdFilter ? (
+                        <Link
+                          to={
+                            {
+                              pathname: isEmbedded ? "/monetization" : "/marketplace/monetization",
+                              search: (() => {
+                                const qs = new URLSearchParams();
+                                if (token) qs.set("token", token);
+                                qs.set("xappId", item.xappId);
+                                if (item.installationId)
+                                  qs.set("installationId", item.installationId);
+                                const suffix = qs.toString();
+                                return suffix ? `?${suffix}` : "";
+                              })(),
+                            } as any
+                          }
+                          className="mx-btn mx-btn-ghost"
+                        >
+                          {t("activity.monetization_focus_xapp", undefined, "Only this app")}
+                        </Link>
+                      ) : null}
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <div className="mx-record-grid">
-                <div className="mx-record-field">
-                  <div className="mx-record-label">
-                    {t("activity.monetization_access_label", undefined, "Current access")}
+                <div className="mx-record-grid mx-monetization-card-primary-grid">
+                  <div className="mx-record-field">
+                    <div className="mx-record-label">
+                      {t("activity.monetization_access_label", undefined, "Access")}
+                    </div>
+                    <div className="mx-record-value is-strong">{item.accessLabel}</div>
                   </div>
-                  <div className="mx-record-value is-strong">{item.accessLabel}</div>
-                </div>
-                <div className="mx-record-field">
-                  <div className="mx-record-label">
-                    {t("activity.monetization_plan_label", undefined, "Current plan")}
+                  <div className="mx-record-field">
+                    <div className="mx-record-label">
+                      {t("activity.monetization_plan_label", undefined, "Plan")}
+                    </div>
+                    <div className="mx-record-value is-strong">{item.tierLabel}</div>
                   </div>
-                  <div className="mx-record-value is-strong">{item.tierLabel}</div>
-                </div>
-                <div className="mx-record-field">
-                  <div className="mx-record-label">
-                    {t("activity.monetization_credits_label", undefined, "Credits remaining")}
+                  <div className="mx-record-field">
+                    <div className="mx-record-label">
+                      {t("activity.monetization_subscription_label", undefined, "Subscription")}
+                    </div>
+                    <div className="mx-record-value">{item.subscriptionStatus}</div>
                   </div>
-                  <div className="mx-record-value is-strong">{item.creditsRemaining}</div>
-                </div>
-                <div className="mx-record-field">
-                  <div className="mx-record-label">
-                    {t("activity.monetization_subscription_label", undefined, "Subscription")}
+                  <div className="mx-record-field">
+                    <div className="mx-record-label">
+                      {t("activity.monetization_credits_label", undefined, "Balance")}
+                    </div>
+                    <div className="mx-record-value is-strong">{item.creditsRemaining}</div>
                   </div>
-                  <div className="mx-record-value">{item.subscriptionStatus}</div>
-                </div>
-                <div className="mx-record-field">
-                  <div className="mx-record-label">
-                    {t("activity.monetization_coverage_label", undefined, "Coverage")}
+                  <div className="mx-record-field">
+                    <div className="mx-record-label">
+                      {t("activity.monetization_renews_at", undefined, "Renews at")}
+                    </div>
+                    <div className="mx-record-value">{item.renewsAt}</div>
                   </div>
-                  <div className="mx-record-value">{item.subscriptionCoverage}</div>
                 </div>
-                <div className="mx-record-field">
-                  <div className="mx-record-label">
-                    {t("activity.monetization_renews_at", undefined, "Renews at")}
+
+                <div className="mx-monetization-card-secondary">
+                  <div className="mx-monetization-card-secondary-row">
+                    <span className="mx-monetization-card-secondary-label">
+                      {t("xapp.virtual_currency_label", undefined, "Currency")}
+                    </span>
+                    <span className="mx-monetization-card-secondary-value">
+                      {item.virtualCurrencyLabel || "—"}
+                    </span>
                   </div>
-                  <div className="mx-record-value">{item.renewsAt}</div>
-                </div>
-                <div className="mx-record-field">
-                  <div className="mx-record-label">
-                    {t("activity.monetization_balance_state", undefined, "Balance state")}
+                  <div className="mx-monetization-card-secondary-row">
+                    <span className="mx-monetization-card-secondary-label">
+                      {t("activity.monetization_coverage_label", undefined, "Renewal state")}
+                    </span>
+                    <span className="mx-monetization-card-secondary-value">
+                      {item.subscriptionCoverage}
+                    </span>
                   </div>
-                  <div className="mx-record-value">{item.balanceState}</div>
-                </div>
-                <div className="mx-record-field">
-                  <div className="mx-record-label">
-                    {t("activity.monetization_source_label", undefined, "Source")}
+                  <div className="mx-monetization-card-secondary-row">
+                    <span className="mx-monetization-card-secondary-label">
+                      {t("activity.monetization_balance_state", undefined, "Balance status")}
+                    </span>
+                    <span className="mx-monetization-card-secondary-value">
+                      {item.balanceState}
+                    </span>
                   </div>
-                  <div className="mx-record-value">{item.sourceLabel}</div>
+                  <div className="mx-monetization-card-secondary-row">
+                    <span className="mx-monetization-card-secondary-label">
+                      {t("activity.monetization_source_label", undefined, "Origin")}
+                    </span>
+                    <span className="mx-monetization-card-secondary-value">{item.sourceLabel}</span>
+                  </div>
                 </div>
+
+                {item.balanceSummary.length > 0 ? (
+                  <div className="mx-monetization-card-balance-strip">
+                    <div className="mx-record-label">
+                      {t("activity.monetization_balances_label", undefined, "Balances")}
+                    </div>
+                    <div className="mx-tag-list">
+                      {item.balanceSummary.map((entry) => (
+                        <span key={`${item.xappId}:${entry}`} className="mx-tag">
+                          {entry}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
               </div>
             </section>
           ))}

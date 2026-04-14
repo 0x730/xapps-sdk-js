@@ -43,6 +43,29 @@ describe("XappDetailPage monetization", () => {
       getMyRequest: async () => ({}),
       listMyRequests: async () => ({ items: [] }),
       getWidgetToken: async () => ({ token: "widget-token" }),
+      getMyXappMonetizationHistory: async () => ({
+        history: {
+          wallet_accounts: {
+            total: 1,
+            items: [
+              {
+                id: "wallet_1",
+                balance_remaining: "25",
+                currency: "credits",
+                virtual_currency: {
+                  code: "PRO_CREDITS",
+                  name: "Pro Credits",
+                },
+              },
+            ],
+          },
+          access_snapshots: {
+            total: 0,
+            items: [],
+          },
+          timeline: { total: 0, items: [] },
+        },
+      }),
       getMyXappMonetization: async () => ({
         xapp_id: "xapp_1",
         version_id: "ver_1",
@@ -51,6 +74,10 @@ describe("XappDetailPage monetization", () => {
           entitlement_state: "active",
           tier: "pro",
           credits_remaining: "25",
+          virtual_currency: {
+            code: "PRO_CREDITS",
+            name: "Pro Credits",
+          },
         },
         current_subscription: {
           id: "sub_1",
@@ -109,13 +136,17 @@ describe("XappDetailPage monetization", () => {
     });
 
     const text = host.textContent || "";
-    expect(text).toContain("Current Access");
+    expect(text).toContain("Current access");
     expect(text).toContain("Current plan");
     expect(text).toContain("pro");
-    expect(text).toContain("Subscription status");
+    expect(text).toContain("Subscription state");
     expect(text).toContain("active");
-    expect(text).toContain("Credits remaining");
-    expect(text).toContain("25");
+    expect(text).toContain("Currency");
+    expect(text).toContain("Pro Credits (PRO_CREDITS)");
+    expect(text).toContain("Balances now");
+    expect(text).toContain("25 Pro Credits");
+    expect(text).toContain("Balance");
+    expect(text).toContain("25 Pro Credits");
     expect(text).toContain("Add-on unlocks");
     expect(text).toContain("starter");
   });
@@ -453,8 +484,8 @@ describe("XappDetailPage monetization", () => {
 
     const text = host.textContent || "";
     expect(text).toContain("Preview as of");
-    expect(text).toContain("Subscription lifecycle is being previewed for the selected time.");
-    expect(text).toContain("Current Access");
+    expect(text).toContain("Subscription state is being previewed for the selected time.");
+    expect(text).toContain("Current access");
   });
 
   it("preserves marketplace breadcrumbs on the plans route", async () => {
@@ -629,7 +660,7 @@ describe("XappDetailPage monetization", () => {
     });
 
     const text = host.textContent || "";
-    expect(text).toContain("Subscription status");
+    expect(text).toContain("Subscription state");
     expect(text).toContain("past due");
     expect(text).toContain("Coverage");
     expect(text).toContain("Not covered");
@@ -710,10 +741,10 @@ describe("XappDetailPage monetization", () => {
     });
 
     const text = host.textContent || "";
-    expect(text).toContain("Current Access");
+    expect(text).toContain("Current access");
     expect(text).toContain("Access state");
     expect(text).toContain("available");
-    expect(text).toContain("Credits remaining");
+    expect(text).toContain("Balance");
     expect(text).toContain("1");
     expect(text).not.toContain("Access stateinactive");
   });
@@ -789,7 +820,7 @@ describe("XappDetailPage monetization", () => {
     });
 
     const text = host.textContent || "";
-    expect(text).toContain("Current Access");
+    expect(text).toContain("Current access");
     expect(text).toContain("Access state");
     expect(text).toContain("available");
     expect(text).not.toContain("Access stateinactive");
@@ -866,10 +897,17 @@ describe("XappDetailPage monetization", () => {
                 offering_id: "off_1",
                 offering_slug: "creator_membership",
                 offering_placement: "paywall",
+                metadata: {
+                  credits: 25,
+                },
                 product: {
                   id: "prod_2",
                   slug: "creator_credits",
                   product_family: "credit_pack",
+                  virtual_currency: {
+                    code: "CREATOR_CREDITS",
+                    name: "Creator Credits",
+                  },
                 },
                 prices: [
                   {
@@ -925,7 +963,8 @@ describe("XappDetailPage monetization", () => {
     expect(text).toContain("Creator plans");
     expect(text).toContain("creator_pro_monthly");
     expect(text).toContain("19.00 USD / monthly");
-    expect(text).toContain("Recurring membership");
+    expect(text).toContain("Subscription");
+    expect(text).toContain("25 Creator Credits");
     expect(text).toContain("Default");
   });
 

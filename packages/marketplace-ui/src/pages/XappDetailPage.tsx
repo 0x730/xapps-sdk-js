@@ -10,6 +10,7 @@ import {
   listXappMonetizationPaywalls,
   resolveMonetizationPackagePurchasePolicy,
   selectXappMonetizationPaywall,
+  summarizeVirtualCurrencyBalances,
 } from "@xapps-platform/browser-host/xms";
 import { useMarketplace } from "../MarketplaceContext";
 import { ConfirmActionModal } from "../components/ConfirmActionModal";
@@ -220,6 +221,38 @@ function formatDateTime(value: unknown, locale: string): string {
   }
 }
 
+function readVirtualCurrencyDefinition(value: unknown): Record<string, unknown> | null {
+  const record = asRecord(value);
+  if (!record) return null;
+  const code = readString(record.code);
+  const name = readString(record.name);
+  if (!code && !name) return null;
+  return record;
+}
+
+function formatVirtualCurrencyLabel(
+  value: unknown,
+  options?: {
+    includeCode?: boolean;
+  },
+): string {
+  const record = readVirtualCurrencyDefinition(value);
+  if (!record) return "";
+  const code = readString(record.code);
+  const name = readString(record.name);
+  if (options?.includeCode && name && code && name.toLowerCase() !== code.toLowerCase()) {
+    return `${name} (${code})`;
+  }
+  return name || code;
+}
+
+function formatVirtualCurrencyAmount(value: unknown, virtualCurrency: unknown): string {
+  const amount = readString(value);
+  if (!amount) return "";
+  const currencyLabel = formatVirtualCurrencyLabel(virtualCurrency);
+  return currencyLabel ? `${amount} ${currencyLabel}` : amount;
+}
+
 function normalizeUsageCreditSummary(value: unknown): UsageCreditSummary | null {
   const summary = asRecord(value);
   if (!summary) return null;
@@ -314,9 +347,7 @@ function buildMonetizationHookSummaryItems(manifest: Record<string, unknown> | n
   );
   baseItems.push({
     slug: "xms_after_payment_completed",
-    label: defaultInvoiceRef
-      ? `XMS payment completed · ${defaultInvoiceRef}`
-      : "XMS payment completed",
+    label: defaultInvoiceRef ? `Payment completed · ${defaultInvoiceRef}` : "Payment completed",
     trigger: "after:payment_completed",
     headless: true,
     blocking: false,
@@ -334,8 +365,8 @@ function buildMonetizationHookSummaryItems(manifest: Record<string, unknown> | n
     baseItems.push({
       slug: `xms_after_payment_completed_${paymentGuardRef}`,
       label: invoiceRef
-        ? `XMS payment completed · ${paymentGuardRef} · ${invoiceRef}`
-        : `XMS payment completed · ${paymentGuardRef}`,
+        ? `Payment completed · ${paymentGuardRef} · ${invoiceRef}`
+        : `Payment completed · ${paymentGuardRef}`,
       trigger: "after:payment_completed",
       headless: true,
       blocking: false,
@@ -1321,6 +1352,29 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
   const expiresAt = formatDateTime(subscriptionLifecycle.expiresAt, locale);
   const lifecyclePreviewAt = lifecyclePreviewEnabled ? formatDateTime(routePreviewAt, locale) : "";
   const creditsRemaining = readString(monetizationAccess?.credits_remaining);
+  const accessVirtualCurrencyLabel = formatVirtualCurrencyLabel(
+    monetizationAccess?.virtual_currency,
+    {
+      includeCode: true,
+    },
+  );
+  const creditsRemainingLabel = formatVirtualCurrencyAmount(
+    monetizationAccess?.credits_remaining,
+    monetizationAccess?.virtual_currency,
+  );
+  const currentBalanceSummary = useMemo(() => {
+    const historySource =
+      (asRecord(monetizationHistory)?.history as Record<string, unknown> | null | undefined) ??
+      monetizationHistory;
+    const summarized = summarizeVirtualCurrencyBalances({
+      history: historySource,
+    }).balances;
+    if (summarized.length > 0) {
+      return summarized.map((item) => item.amountLabel).filter(Boolean);
+    }
+    if (creditsRemainingLabel) return [creditsRemainingLabel];
+    return [];
+  }, [creditsRemainingLabel, monetizationHistory]);
   const accessState = resolveMarketplaceDefaultAccessState({
     projection: monetizationAccessProjection,
     hasCatalogMonetization,
@@ -1339,6 +1393,8 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
     cancelledAt ||
     expiresAt ||
     lifecyclePreviewAt ||
+    accessVirtualCurrencyLabel ||
+    currentBalanceSummary.length > 0 ||
     creditsRemaining ||
     additiveUnlockLabels.length > 0,
   );
@@ -1360,7 +1416,7 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
   const currentAccessCard = hasMonetizationState ? (
     <div className="mx-sidebar-card">
       <h3 className="mx-section-title mx-detail-sidebar-title">
-        {t("xapp.current_access_title", undefined, "Current Access")}
+        {t("xapp.current_access_title", undefined, "Current access")}
       </h3>
       {currentTier ? (
         <div className="mx-meta-item">
@@ -1381,7 +1437,7 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
       {subscriptionStatus ? (
         <div className="mx-meta-item">
           <span className="mx-meta-label">
-            {t("xapp.subscription_status_label", undefined, "Subscription status")}
+            {t("xapp.subscription_status_label", undefined, "Subscription state")}
           </span>
           <span className="mx-meta-value">{subscriptionStatus}</span>
         </div>
@@ -1456,12 +1512,32 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
           <span className="mx-meta-value">{lifecyclePreviewAt}</span>
         </div>
       ) : null}
+      {accessVirtualCurrencyLabel ? (
+        <div className="mx-meta-item">
+          <span className="mx-meta-label">
+            {t("xapp.virtual_currency_label", undefined, "Currency")}
+          </span>
+          <span className="mx-meta-value">{accessVirtualCurrencyLabel}</span>
+        </div>
+      ) : null}
+      {currentBalanceSummary.length > 0 ? (
+        <div className="mx-meta-item mx-meta-item-top">
+          <span className="mx-meta-label">
+            {t("xapp.current_balances_label", undefined, "Balances now")}
+          </span>
+          <div className="mx-meta-value mx-meta-stack-sm">
+            {currentBalanceSummary.map((label, index) => (
+              <div key={`${label}:${index}`}>{label}</div>
+            ))}
+          </div>
+        </div>
+      ) : null}
       {creditsRemaining ? (
         <div className="mx-meta-item">
           <span className="mx-meta-label">
-            {t("xapp.credits_remaining_label", undefined, "Credits remaining")}
+            {t("xapp.credits_remaining_label", undefined, "Balance")}
           </span>
-          <span className="mx-meta-value">{creditsRemaining}</span>
+          <span className="mx-meta-value">{creditsRemainingLabel || creditsRemaining}</span>
         </div>
       ) : null}
       {additiveUnlockLabels.length > 0 ? (
@@ -1481,7 +1557,7 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
           {t(
             "xapp.lifecycle_preview_hint",
             undefined,
-            "Subscription lifecycle is being previewed for the selected time.",
+            "Subscription state is being previewed for the selected time.",
           )}
         </div>
       ) : null}
@@ -1533,6 +1609,9 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
         {t("xapp.plan_options_title", undefined, "Plans")}
       </h3>
       <div className="mx-paywall-card-head">
+        <div className="mx-paywall-card-kicker">
+          {t("xapp.plan_options_title", undefined, "Plans")}
+        </div>
         <div className="mx-paywall-card-title">{selectedPaywallRenderModel.paywallLabel}</div>
         {selectedPaywallRenderModel.summary ? (
           <div className="mx-paywall-card-summary">{selectedPaywallRenderModel.summary}</div>
@@ -1564,6 +1643,23 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
             const isAdditiveCompanion =
               purchasePolicy.transitionKind === "buy_additive_unlock" &&
               subscriptionStatus === "active";
+            const packageActionNote = isOwnedAdditive
+              ? t(
+                  "xapp.owned_unlock_note",
+                  undefined,
+                  "This add-on is already included in the current access.",
+                )
+              : isCurrentPackage
+                ? t(
+                    "xapp.current_plan_note",
+                    undefined,
+                    "This plan is already active for this app.",
+                  )
+                : t(
+                    "xapp.checkout_hint",
+                    undefined,
+                    "Checkout opens in a secure hosted payment page managed by the platform.",
+                  );
             return (
               <div
                 key={`${item.packageId || item.packageSlug || normalizedPackageSlug}:${index}`}
@@ -1625,33 +1721,47 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
                     {t(
                       "xapp.additive_unlock_message",
                       undefined,
-                      "This one-time unlock is additive. It adds access on top of the active recurring membership instead of replacing it.",
+                      "This one-time unlock is additive. It adds access on top of the active subscription instead of replacing it.",
                     )}
                   </div>
                 ) : null}
-                {typeof client.prepareMyXappPurchaseIntent === "function" &&
-                typeof client.createMyXappPurchasePaymentSession === "function" &&
-                hasSubject &&
-                canMutate ? (
-                  <button
-                    className="mx-btn mx-btn-secondary"
-                    disabled={
-                      !purchasePolicy.canPurchase ||
-                      checkoutBusyPackageSlug === normalizedPackageSlug
-                    }
-                    onClick={() => void startPackageCheckout(item.packageSlug)}
-                  >
-                    {isOwnedAdditive
-                      ? t("xapp.owned_unlock_active", undefined, "Owned unlock active")
-                      : isCurrentPackage
-                        ? t("xapp.current_plan_active", undefined, "Current plan active")
-                        : checkoutBusyPackageSlug === normalizedPackageSlug
-                          ? t("xapp.checkout_starting", undefined, "Starting checkout...")
-                          : isAdditiveCompanion
-                            ? t("xapp.additive_unlock_action", undefined, "Purchase add-on unlock")
-                            : t("xapp.checkout_action", undefined, "Continue to checkout")}
-                  </button>
-                ) : null}
+                <div className="mx-paywall-card-package-actions">
+                  {typeof client.prepareMyXappPurchaseIntent === "function" &&
+                  typeof client.createMyXappPurchasePaymentSession === "function" &&
+                  hasSubject &&
+                  canMutate ? (
+                    <button
+                      className={`mx-btn ${
+                        purchasePolicy.canPurchase &&
+                        !checkoutBusyPackageSlug &&
+                        !isOwnedAdditive &&
+                        !isCurrentPackage
+                          ? "mx-btn-primary"
+                          : "mx-btn-secondary"
+                      }`}
+                      disabled={
+                        !purchasePolicy.canPurchase ||
+                        checkoutBusyPackageSlug === normalizedPackageSlug
+                      }
+                      onClick={() => void startPackageCheckout(item.packageSlug)}
+                    >
+                      {isOwnedAdditive
+                        ? t("xapp.owned_unlock_active", undefined, "Owned unlock active")
+                        : isCurrentPackage
+                          ? t("xapp.current_plan_active", undefined, "Current plan active")
+                          : checkoutBusyPackageSlug === normalizedPackageSlug
+                            ? t("xapp.checkout_starting", undefined, "Starting checkout...")
+                            : isAdditiveCompanion
+                              ? t(
+                                  "xapp.additive_unlock_action",
+                                  undefined,
+                                  "Purchase add-on unlock",
+                                )
+                              : t("xapp.checkout_action", undefined, "Start checkout")}
+                    </button>
+                  ) : null}
+                  <div className="mx-paywall-card-package-note">{packageActionNote}</div>
+                </div>
               </div>
             );
           },
@@ -1677,12 +1787,12 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
             ? t(
                 "xapp.history_route_subtitle",
                 { title },
-                `Recent purchases, invoices, subscriptions, and credit activity for ${title}.`,
+                `Balances, recent activity, and purchases for ${title}.`,
               )
             : t(
                 "xapp.history_route_subtitle_default",
                 undefined,
-                "Recent purchases, invoices, subscriptions, and credit activity for this app.",
+                "Balances, recent activity, and purchases for this app.",
               ),
           locale,
           showHeader: false,
@@ -1695,8 +1805,20 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
       <div className={`mx-detail-container ${isEmbedded ? "is-embedded" : ""}`}>
         {error && <div className="mx-detail-error">{error}</div>}
         {busy && !data ? (
-          <div className="mx-sidebar-card mx-detail-empty" aria-busy="true">
-            {t("common.loading", undefined, "Loading...")}
+          <div className="mx-sidebar-card mx-detail-empty mx-plans-route-empty" aria-busy="true">
+            <div className="mx-empty-catalog">
+              <div className="mx-empty-catalog-icon">◎</div>
+              <div className="mx-empty-catalog-title">
+                {t("xapp.plans_loading_title", undefined, "Loading plans")}
+              </div>
+              <div className="mx-empty-catalog-desc">
+                {t(
+                  "xapp.plans_loading_desc",
+                  undefined,
+                  "Preparing published plans, balances, and current access for this app.",
+                )}
+              </div>
+            </div>
           </div>
         ) : (
           <div className={`mx-plans-route ${widgetHostedPlansMode ? "is-widget-hosted" : ""}`}>
@@ -1728,23 +1850,23 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
                       ? t(
                           "xapp.history_route_subtitle",
                           { title },
-                          `Recent purchases, invoices, subscriptions, and credit activity for ${title}.`,
+                          `Balances, recent activity, and purchases for ${title}.`,
                         )
                       : t(
                           "xapp.history_route_subtitle_default",
                           undefined,
-                          "Recent purchases, invoices, subscriptions, and credit activity for this app.",
+                          "Balances, recent activity, and purchases for this app.",
                         )
                     : title
                       ? t(
                           "xapp.plans_route_subtitle",
                           { title },
-                          `Current access and published plans for ${title}.`,
+                          `Access, plans, and balances for ${title}.`,
                         )
                       : t(
                           "xapp.plans_route_subtitle_default",
                           undefined,
-                          "Current access and published plans for this app.",
+                          "Access, plans, and balances for this app.",
                         )}
                 </div>
               </div>
@@ -1759,12 +1881,20 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
                   />
                 ) : (
                   plansCard || (
-                    <div className="mx-sidebar-card mx-detail-empty">
-                      {t(
-                        "xapp.no_plans_available",
-                        undefined,
-                        "No published plans are currently available.",
-                      )}
+                    <div className="mx-sidebar-card mx-detail-empty mx-plans-route-empty">
+                      <div className="mx-empty-catalog">
+                        <div className="mx-empty-catalog-icon">◎</div>
+                        <div className="mx-empty-catalog-title">
+                          {t("xapp.no_plans_available", undefined, "No plans are currently available.")}
+                        </div>
+                        <div className="mx-empty-catalog-desc">
+                          {t(
+                            "xapp.no_plans_available_desc",
+                            undefined,
+                            "Published plans will appear here when this app exposes a paywall.",
+                          )}
+                        </div>
+                      </div>
                     </div>
                   )
                 )}

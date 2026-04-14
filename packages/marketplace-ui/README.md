@@ -6,6 +6,10 @@ React UI package for marketplace/catalog and xapp operational screens.
 
 This package is now prepared for public distribution for React integrators who want the ready-made marketplace/catalog/activity UI layer above `@xapps-platform/embed-sdk`.
 
+For the current XMS current-user plans, balances, paywalls, and history reader path, read:
+
+- [docs/specifications/xms/README.md](/home/dacrise/x/xapps/docs/specifications/xms/README.md)
+
 ## Exports
 
 - `MarketplaceProvider`, `useMarketplace`
