@@ -1,6 +1,6 @@
 {
   "name": "@xapps-platform/server-sdk",
-  "version": "0.2.6",
+  "version": "0.2.7",
   "license": "MIT",
   "author": "Daniel Vladescu <daniel.vladescu@gmail.com>",
   "description": "Node SDK for Xapps publisher server integrations",
