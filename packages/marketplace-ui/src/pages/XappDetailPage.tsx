@@ -989,7 +989,9 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
           ? (item.productMetadata as Record<string, unknown>)
           : {};
       const label =
-        readString(item.packageTitle) || readString(item.productTitle) || readString(item.productSlug);
+        readString(item.packageTitle) ||
+        readString(item.productTitle) ||
+        readString(item.productSlug);
       if (!label) continue;
       for (const candidate of [
         item.packageSlug,
@@ -1405,10 +1407,9 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
     monetizationAccess?.virtual_currency,
   );
   const hasNamedAccessCurrency = Boolean(accessVirtualCurrencyLabel);
-  const currentCreditBalanceLabel =
-    hasNamedAccessCurrency
-      ? t("xapp.credits_remaining_label", undefined, "Balance")
-      : t("xapp.credit_balance_label", undefined, "Credits");
+  const currentCreditBalanceLabel = hasNamedAccessCurrency
+    ? t("xapp.credits_remaining_label", undefined, "Balance")
+    : t("xapp.credit_balance_label", undefined, "Credits");
   const accessState = resolveMarketplaceDefaultAccessState({
     projection: monetizationAccessProjection,
     hasCatalogMonetization,

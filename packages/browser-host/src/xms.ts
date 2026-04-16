@@ -1497,7 +1497,9 @@ function buildMonetizationPackageLabelResolver(
         ? (item.productMetadata as Record<string, unknown>)
         : {};
     const label =
-      readString(item.packageTitle) || readString(item.productTitle) || readString(item.productSlug);
+      readString(item.packageTitle) ||
+      readString(item.productTitle) ||
+      readString(item.productSlug);
     if (!label) continue;
     for (const candidate of [
       item.packageSlug,
@@ -2333,7 +2335,9 @@ export function buildMonetizationPlansSurfaceHtml(
       : null,
     creditsRemaining
       ? [
-          hasNamedAccessCurrency ? surfaceCopy.creditsRemainingLabel : surfaceCopy.creditBalanceLabel,
+          hasNamedAccessCurrency
+            ? surfaceCopy.creditsRemainingLabel
+            : surfaceCopy.creditBalanceLabel,
           formatVirtualCurrencyAmountLabel({
             amount: creditsRemaining,
             virtualCurrency: accessVirtualCurrency,

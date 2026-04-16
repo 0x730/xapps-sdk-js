@@ -187,14 +187,17 @@ export function createHttpMarketplaceClient(
       return getJson(`${routes.myRequestsPath}/${encodeSegment(id)}`);
     },
     async reconcileMyRequestPayment(input) {
-      return postJson(`${routes.myRequestsPath}/${encodeSegment(input.requestId)}/payment/reconcile`, {
-        ...(readString(input.paymentSessionId)
-          ? { payment_session_id: readString(input.paymentSessionId) }
-          : {}),
-        ...(readString(input.returnUrl) ? { return_url: readString(input.returnUrl) } : {}),
-        ...(readString(input.cancelUrl) ? { cancel_url: readString(input.cancelUrl) } : {}),
-        ...(readString(input.xappsResume) ? { xapps_resume: readString(input.xappsResume) } : {}),
-      });
+      return postJson(
+        `${routes.myRequestsPath}/${encodeSegment(input.requestId)}/payment/reconcile`,
+        {
+          ...(readString(input.paymentSessionId)
+            ? { payment_session_id: readString(input.paymentSessionId) }
+            : {}),
+          ...(readString(input.returnUrl) ? { return_url: readString(input.returnUrl) } : {}),
+          ...(readString(input.cancelUrl) ? { cancel_url: readString(input.cancelUrl) } : {}),
+          ...(readString(input.xappsResume) ? { xapps_resume: readString(input.xappsResume) } : {}),
+        },
+      );
     },
     async listMyPaymentSessions(input) {
       return getJson(
@@ -208,7 +211,9 @@ export function createHttpMarketplaceClient(
           createdFrom: readString(input?.createdFrom) || undefined,
           createdTo: readString(input?.createdTo) || undefined,
           limit:
-            typeof input?.limit === "number" && Number.isFinite(input.limit) ? input.limit : undefined,
+            typeof input?.limit === "number" && Number.isFinite(input.limit)
+              ? input.limit
+              : undefined,
         }),
       );
     },
@@ -247,10 +252,11 @@ export function createHttpMarketplaceClient(
           trigger: readString(input?.trigger) || undefined,
           xappId: readString(input?.xappId) || undefined,
           installationId: readString(input?.installationId) || undefined,
-          unread:
-            typeof input?.unread === "boolean" ? String(input.unread) : undefined,
+          unread: typeof input?.unread === "boolean" ? String(input.unread) : undefined,
           limit:
-            typeof input?.limit === "number" && Number.isFinite(input.limit) ? input.limit : undefined,
+            typeof input?.limit === "number" && Number.isFinite(input.limit)
+              ? input.limit
+              : undefined,
         }),
       );
     },

@@ -701,9 +701,7 @@ export function MonetizationPage() {
                     <div className="mx-record-value">{item.subscriptionStatus}</div>
                   </div>
                   <div className="mx-record-field">
-                    <div className="mx-record-label">
-                      {item.balanceTitle}
-                    </div>
+                    <div className="mx-record-label">{item.balanceTitle}</div>
                     <div className="mx-record-value is-strong">{item.creditsRemaining}</div>
                   </div>
                   <div className="mx-record-field">

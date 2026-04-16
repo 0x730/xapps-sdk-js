@@ -15,7 +15,7 @@
   },
   "dependencies": {
     "@xapps-platform/openapi-import": "^0.1.4",
-    "@xapps-platform/server-sdk": "^0.2.6"
+    "@xapps-platform/server-sdk": "^0.2.7"
   },
   "files": [
     "dist"
