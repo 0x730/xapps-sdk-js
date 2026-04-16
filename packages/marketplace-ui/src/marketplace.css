@@ -18,8 +18,15 @@
   --mx-radius-lg: 1rem;
   --mx-radius-md: 0.75rem;
   --mx-radius-sm: 0.5rem;
-  --mx-font-family: var(--xapps-font-family, system-ui, sans-serif);
-  --mx-display-font: "IBM Plex Serif", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+  --mx-font-family: var(
+    --xapps-font-family,
+    "Inter",
+    "Segoe UI",
+    system-ui,
+    -apple-system,
+    sans-serif
+  );
+  --mx-display-font: var(--xapps-display-font, var(--mx-font-family));
 }
 
 :root[data-xapps-theme-mode="dark"] {

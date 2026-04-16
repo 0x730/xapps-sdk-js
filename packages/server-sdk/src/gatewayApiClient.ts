@@ -63,6 +63,7 @@ export type CatalogSessionInput = {
   xappId?: string | null;
   publishers?: string[] | null;
   tags?: string[] | null;
+  customerProfile?: Record<string, unknown> | null;
 };
 
 export type CatalogSessionResult = {
@@ -445,6 +446,12 @@ export type EmbedMyXappCreatePurchasePaymentSessionInput = {
 export type EmbedMyXappFinalizePurchasePaymentSessionInput = {
   xappId: string;
   intentId: string;
+  token: string;
+};
+
+export type EmbedMyXappSubscriptionContractInput = {
+  xappId: string;
+  contractId: string;
   token: string;
 };
 
@@ -1087,12 +1094,17 @@ export function createGatewayApiClient(options: GatewayApiClientOptions) {
     async createCatalogSession(input: CatalogSessionInput): Promise<CatalogSessionResult> {
       const publishers = normalizeOptionalStringList(input.publishers);
       const tags = normalizeOptionalStringList(input.tags);
+      const customerProfile =
+        input.customerProfile && typeof input.customerProfile === "object"
+          ? input.customerProfile
+          : null;
       const payload = await requestJson("POST", "/v1/catalog-sessions", {
         origin: input.origin,
         ...(input.subjectId ? { subjectId: input.subjectId } : {}),
         ...(input.xappId ? { xappId: input.xappId } : {}),
         ...(publishers ? { publishers } : {}),
         ...(tags ? { tags } : {}),
+        ...(customerProfile ? { customerProfile } : {}),
       });
       const result = extractResultObject<any>(payload);
       const token = String(result.token || "").trim();
@@ -1538,6 +1550,64 @@ export function createGatewayApiClient(options: GatewayApiClientOptions) {
         {},
       );
       return extractResultObject<XappPurchasePaymentFinalizeResult>(payload);
+    },
+
+    async cancelEmbedMyXappSubscriptionContract(
+      input: EmbedMyXappSubscriptionContractInput,
+    ): Promise<XappSubscriptionContractLifecycleResult> {
+      const resolvedXappId = requireXappId(input.xappId);
+      const contractId = String(input.contractId || "").trim();
+      if (!contractId) {
+        throw new GatewayApiClientError({
+          code: "GATEWAY_API_INVALID_RESPONSE",
+          message: "contractId is required",
+        });
+      }
+      const token = String(input.token || "").trim();
+      if (!token) {
+        throw new GatewayApiClientError({
+          code: "GATEWAY_API_INVALID_RESPONSE",
+          message: "token is required",
+        });
+      }
+      const payload = await requestJson(
+        "POST",
+        appendQueryParams(
+          `/embed/my-xapps/${encodeURIComponent(resolvedXappId)}/monetization/subscription-contracts/${encodeURIComponent(contractId)}/cancel`,
+          { token },
+        ),
+        {},
+      );
+      return extractResultObject<XappSubscriptionContractLifecycleResult>(payload);
+    },
+
+    async refreshEmbedMyXappSubscriptionContractState(
+      input: EmbedMyXappSubscriptionContractInput,
+    ): Promise<XappSubscriptionContractLifecycleResult> {
+      const resolvedXappId = requireXappId(input.xappId);
+      const contractId = String(input.contractId || "").trim();
+      if (!contractId) {
+        throw new GatewayApiClientError({
+          code: "GATEWAY_API_INVALID_RESPONSE",
+          message: "contractId is required",
+        });
+      }
+      const token = String(input.token || "").trim();
+      if (!token) {
+        throw new GatewayApiClientError({
+          code: "GATEWAY_API_INVALID_RESPONSE",
+          message: "token is required",
+        });
+      }
+      const payload = await requestJson(
+        "POST",
+        appendQueryParams(
+          `/embed/my-xapps/${encodeURIComponent(resolvedXappId)}/monetization/subscription-contracts/${encodeURIComponent(contractId)}/refresh-state`,
+          { token },
+        ),
+        {},
+      );
+      return extractResultObject<XappSubscriptionContractLifecycleResult>(payload);
     },
 
     async getXappMonetizationCatalog(

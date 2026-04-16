@@ -149,6 +149,11 @@ export type StandardMarketplaceRuntimeUi = {
 export type CreateStandardMarketplaceRuntimeOptions = {
   baseUrl: string;
   subjectId?: string | null;
+  getCustomerProfile?:
+    | ((input: {
+        xappId?: string | null;
+      }) => Promise<Record<string, unknown> | null> | Record<string, unknown> | null)
+    | undefined;
   locale?: string | null;
   installationPolicy?: CatalogOptions["installationPolicy"];
   paymentResumeState: ReturnType<typeof createHostPaymentResumeState>;
@@ -329,6 +334,8 @@ function applyThemeToDocument(theme: CatalogOptions["theme"] | null | undefined)
     ["radiusMd", ["--cx-radius-md", "--mx-radius-md"]],
     ["radius", ["--cx-radius", "--cx-radius-lg", "--mx-radius-md", "--mx-radius-lg"]],
     ["radiusLg", ["--cx-radius-lg", "--mx-radius-lg"]],
+    ["fontFamily", ["--xapps-font-family", "--mx-font-family"]],
+    ["displayFont", ["--xapps-display-font", "--mx-display-font"]],
   ];
   for (const [key, cssVars] of map) {
     const value =
@@ -359,7 +366,13 @@ function applyThemeToDocument(theme: CatalogOptions["theme"] | null | undefined)
     for (const [cssVar, rawValue] of Object.entries(directTokens)) {
       const value = typeof rawValue === "string" ? rawValue.trim() : "";
       if (!value) continue;
-      if (!cssVar.startsWith("--mx-") && !cssVar.startsWith("--cx-")) continue;
+      if (
+        !cssVar.startsWith("--mx-") &&
+        !cssVar.startsWith("--cx-") &&
+        !cssVar.startsWith("--xapps-")
+      ) {
+        continue;
+      }
       root.style.setProperty(cssVar, value);
     }
   }
@@ -482,6 +495,7 @@ export function createStandardMarketplaceRuntime(
       container: catalogMount,
       baseUrl: options.baseUrl,
       subjectId: String(options.subjectId || "").trim() || undefined,
+      getCustomerProfile: options.getCustomerProfile,
       locale: String(options.locale || "").trim() || undefined,
       installationPolicy: options.installationPolicy || undefined,
       theme: options.theme,
@@ -847,6 +861,10 @@ export function createSplitPanelMutationCallbacks(
         await host.openWidget({
           installationId: current.installationId,
           widgetId: targetWidgetId,
+          xappId:
+            current.xappId ||
+            String((event.data as Record<string, unknown> | undefined)?.xappId || "").trim() ||
+            undefined,
         });
       } catch {}
     },
@@ -1018,6 +1036,7 @@ export function createEmbedHost(options: CreateEmbedHostOptions): EmbedHostContr
               data: {
                 installationId: target.installationId,
                 widgetId: target.widgetId,
+                ...(target.xappId ? { xappId: target.xappId } : {}),
               },
             });
           } catch {}
@@ -1033,6 +1052,7 @@ export function createEmbedHost(options: CreateEmbedHostOptions): EmbedHostContr
         await host.openWidget({
           installationId: target.installationId,
           widgetId: target.widgetId,
+          xappId: target.xappId || undefined,
           hostReturnUrl: target.hostReturnUrl,
         });
         consumeResumeTarget(paymentResumeState, buildHostReturnUrl);

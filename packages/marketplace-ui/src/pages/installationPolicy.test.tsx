@@ -5,7 +5,10 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { MarketplaceProvider } from "../MarketplaceContext";
+import { shouldHideMarketplaceVersions } from "../utils/installationPolicy";
 import { CatalogPage } from "./CatalogPage";
+import { RequestDetailPage } from "./RequestDetailPage";
+import { RequestsPage } from "./RequestsPage";
 import { XappDetailPage } from "./XappDetailPage";
 
 const cleanupFns: Array<() => void> = [];
@@ -408,5 +411,194 @@ describe("marketplace installation policy", () => {
     expect(host.textContent || "").not.toContain("Added only");
     expect(findButtonByText(host, "Add app")).toBeFalsy();
     expect(requestInstall).not.toHaveBeenCalled();
+  });
+
+  it("hides versions in catalog and xapp detail when auto-install and auto-update are enabled", async () => {
+    const client: any = {
+      listCatalogXapps: async () => ({
+        items: [
+          {
+            id: "xapp_1",
+            slug: "demo-app",
+            name: "Demo App",
+            description: "Demo description",
+            publisher: { slug: "demo-publisher", name: "Demo Publisher" },
+            latest_version: { version: "1.1.0" },
+            manifest: {
+              title: { en: "Demo App" },
+              description: { en: "Demo description" },
+              widgets: [{ id: "widget_default", default: true, title: { en: "Main widget" } }],
+            },
+          },
+        ],
+      }),
+      getCatalogXapp: async () => ({
+        xapp: {
+          id: "xapp_1",
+          publisher: { slug: "demo-publisher", name: "Demo Publisher" },
+          name: "Demo App",
+        },
+        version: { id: "ver_1", version: "1.1.0" },
+        manifest: { title: { en: "Demo App" }, description: { en: "Demo description" } },
+        tools: [],
+        widgets: [],
+      }),
+      listMyRequests: async () => ({ items: [] }),
+      getWidgetToken: async () => ({ token: "widget-token" }),
+      getMyXappMonetization: async () => null,
+    };
+
+    const hostAdapter: any = {
+      subjectId: "self",
+      installationPolicy: {
+        mode: "auto_available",
+        update_mode: "auto_update_compatible",
+      },
+      canMutate: () => true,
+      getInstallationsByXappId: () => ({}),
+      refreshInstallations: () => {},
+      requestInstall: vi.fn(),
+      requestUninstall: vi.fn(),
+      openWidget: vi.fn(),
+    };
+
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+    const root = createRoot(host);
+
+    cleanupFns.push(() => {
+      act(() => root.unmount());
+      host.remove();
+    });
+
+    await act(async () => {
+      root.render(
+        <MemoryRouter initialEntries={["/marketplace"]}>
+          <MarketplaceProvider client={client} host={hostAdapter}>
+            <Routes>
+              <Route path="/marketplace" element={<CatalogPage />} />
+              <Route path="/marketplace/xapps/:xappId" element={<XappDetailPage />} />
+            </Routes>
+          </MarketplaceProvider>
+        </MemoryRouter>,
+      );
+    });
+    await flushUi();
+    expect(host.textContent || "").not.toContain("v1.1.0");
+
+    await act(async () => {
+      root.render(
+        <MemoryRouter initialEntries={["/marketplace/xapps/xapp_1"]}>
+          <MarketplaceProvider client={client} host={hostAdapter}>
+            <Routes>
+              <Route path="/marketplace" element={<CatalogPage />} />
+              <Route path="/marketplace/xapps/:xappId" element={<XappDetailPage />} />
+            </Routes>
+          </MarketplaceProvider>
+        </MemoryRouter>,
+      );
+    });
+    await flushUi();
+    expect(host.textContent || "").not.toContain("v1.1.0");
+  });
+
+  it("hides versions in requests and request detail when auto-install and auto-update are enabled", async () => {
+    const client: any = {
+      listMyRequests: async () => ({
+        items: [
+          {
+            id: "req_1",
+            xapp_id: "xapp_1",
+            xapp_name: "Demo App",
+            xapp_version: "1.1.0",
+            status: "COMPLETED",
+            created_at: "2026-01-01T10:00:00.000Z",
+          },
+        ],
+        pagination: { total: 1, page: 1, pageSize: 20, totalPages: 1 },
+      }),
+      getCatalogXapp: async () => ({
+        xapp: { id: "xapp_1", name: "Demo App" },
+        version: { id: "ver_1", version: "1.1.0" },
+        manifest: { title: { en: "Demo App" } },
+        tools: [],
+        widgets: [],
+      }),
+      getMyRequest: async () => ({
+        request: {
+          id: "req_1",
+          xapp_id: "xapp_1",
+          xapp_name: "Demo App",
+          xapp_version: "1.1.0",
+          status: "COMPLETED",
+        },
+        manifest: { title: { en: "Demo App" } },
+      }),
+    };
+
+    const hostAdapter: any = {
+      subjectId: "self",
+      installationPolicy: {
+        mode: "auto_available",
+        update_mode: "auto_update_compatible",
+      },
+      canMutate: () => true,
+      getInstallationsByXappId: () => ({}),
+      refreshInstallations: () => {},
+      notifyNavigation: vi.fn(),
+    };
+
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+    const root = createRoot(host);
+
+    cleanupFns.push(() => {
+      act(() => root.unmount());
+      host.remove();
+    });
+
+    await act(async () => {
+      root.render(
+        <MemoryRouter initialEntries={["/marketplace/requests?xappId=xapp_1"]}>
+          <MarketplaceProvider client={client} host={hostAdapter}>
+            <Routes>
+              <Route path="/marketplace/requests" element={<RequestsPage />} />
+              <Route path="/marketplace/requests/:id" element={<RequestDetailPage />} />
+            </Routes>
+          </MarketplaceProvider>
+        </MemoryRouter>,
+      );
+    });
+    await flushUi();
+    expect(host.textContent || "").not.toContain("Version");
+    expect(host.textContent || "").not.toContain("v1.1.0");
+
+    await act(async () => {
+      root.render(
+        <MemoryRouter initialEntries={["/marketplace/requests/req_1?xappId=xapp_1"]}>
+          <MarketplaceProvider client={client} host={hostAdapter}>
+            <Routes>
+              <Route path="/marketplace/requests" element={<RequestsPage />} />
+              <Route path="/marketplace/requests/:id" element={<RequestDetailPage />} />
+            </Routes>
+          </MarketplaceProvider>
+        </MemoryRouter>,
+      );
+    });
+    await flushUi();
+    expect(host.textContent || "").not.toContain("v1.1.0");
+  });
+
+  it("hides versions even when the host does not expose a subject id yet", async () => {
+    expect(
+      shouldHideMarketplaceVersions({
+        installationPolicy: {
+          mode: "auto_available",
+          update_mode: "auto_update_compatible",
+        } as any,
+        installationPolicyResolved: true,
+        subjectId: "",
+      }),
+    ).toBe(true);
   });
 });

@@ -11,6 +11,7 @@ type HostReferenceModuleInput = {
   gateway?: StringRecord;
   branding?: StringRecord;
   reference?: StringRecord;
+  subjectProfiles?: StringRecord;
   enableLifecycle?: boolean;
   enableBridge?: boolean;
   allowedOrigins?: string[];
@@ -32,6 +33,7 @@ type HostReferenceModuleDeps = {
       allowedOrigins: string[];
       bootstrap: BackendKitNormalizedOptions["host"]["bootstrap"];
       branding: StringRecord;
+      subjectProfiles: StringRecord;
       hostProxyService: unknown;
     },
   ) => Promise<void> | void;
@@ -93,6 +95,7 @@ export function createHostReferenceModule(
     gateway = {},
     branding = {},
     reference = {},
+    subjectProfiles = {},
     enableLifecycle = true,
     enableBridge = true,
     allowedOrigins = [],
@@ -122,6 +125,7 @@ export function createHostReferenceModule(
     allowedOrigins,
     bootstrap,
     branding,
+    subjectProfiles,
     hostProxyService: resolvedHostProxyService,
   };
 

@@ -1,6 +1,17 @@
-function readString(value: unknown): string {
-  if (typeof value === "string") return value.trim();
-  if (typeof value === "number" || typeof value === "boolean") return String(value).trim();
+import { createModalShell } from "./modalShell.js";
+
+function readString(...values: unknown[]): string {
+  for (const value of values) {
+    if (typeof value === "string") {
+      const normalized = value.trim();
+      if (normalized) return normalized;
+      continue;
+    }
+    if (typeof value === "number" || typeof value === "boolean") {
+      const normalized = String(value).trim();
+      if (normalized) return normalized;
+    }
+  }
   return "";
 }
 
@@ -66,6 +77,30 @@ function readFormDescriptor(input: unknown): Record<string, unknown> {
   return readRecord(remediation.form) || {};
 }
 
+function allowProfileCreation(input: unknown): boolean {
+  const remediation = readRemediation(input);
+  const selection = readRecord(remediation.selection);
+  const value = selection?.allow_profile_creation;
+  return value !== false;
+}
+
+function allowProfileEditing(input: unknown): boolean {
+  const remediation = readRemediation(input);
+  const selection = readRecord(remediation.selection);
+  if (selection?.allow_profile_editing === false) return false;
+  if (selection?.allow_profile_editing === true) return true;
+  return allowProfileCreation(input);
+}
+
+function readDirectSelectableSources(input: unknown): string[] {
+  const remediation = readRemediation(input);
+  const selection = readRecord(remediation.selection);
+  const value = Array.isArray(selection?.direct_selectable_sources)
+    ? selection?.direct_selectable_sources
+    : [];
+  return value.map((item) => readString(item)).filter(Boolean);
+}
+
 function listCandidates(input: unknown): Array<Record<string, unknown>> {
   const remediation = readRemediation(input);
   const candidates = Array.isArray(remediation.candidates) ? remediation.candidates : [];
@@ -82,6 +117,19 @@ function listRefreshSources(input: unknown): Array<Record<string, unknown>> {
     .filter((item): item is Record<string, unknown> => Boolean(item));
 }
 
+function readCurrentSelection(input: unknown): {
+  source: string | null;
+  candidateId: string | null;
+} {
+  const remediation = readRemediation(input);
+  const selection = readRecord(remediation.selection);
+  const current = readRecord(selection?.current_selection);
+  return {
+    source: readString(current?.source),
+    candidateId: readString(current?.candidate_id, current?.selected_profile_id),
+  };
+}
+
 function familyLabel(value: string, locale?: unknown): string {
   const normalized = readLower(value);
   if (normalized === "billing_business") {
@@ -96,14 +144,62 @@ function familyLabel(value: string, locale?: unknown): string {
   return value || (readLower(locale).startsWith("ro") ? "Profil" : "Profile");
 }
 
-function shouldUseCandidate(candidate: Record<string, unknown>): boolean {
+function shouldUseCandidate(candidate: Record<string, unknown>, input: unknown): boolean {
   const capabilities = readRecord(candidate.capabilities);
-  return capabilities?.can_select !== false;
+  if (capabilities?.can_select === false) return false;
+  const candidateFamily = readString(candidate.profile_family);
+  const candidateSource = readString(candidate.source);
+  const selectionPayload = readRecord(candidate.selection_payload);
+  const remediation = readRemediation(input);
+  const acceptableFamilies = Array.isArray(remediation.acceptable_profile_families)
+    ? remediation.acceptable_profile_families.map((family) => readString(family)).filter(Boolean)
+    : [];
+  if (
+    acceptableFamilies.length > 0 &&
+    (!candidateFamily || !acceptableFamilies.includes(candidateFamily))
+  ) {
+    return false;
+  }
+  if (
+    candidateSource === "subject_self_profile" &&
+    readString(selectionPayload?.candidate_id, selectionPayload?.selected_profile_id)
+  ) {
+    return true;
+  }
+  const resolvedProfile = candidateResolvedProfile(candidate);
+  if (!resolvedProfile) return false;
+  const requirement = readRecord(remediation.requirement);
+  const fieldsByFamily = readRecord(requirement?.required_profile_fields_by_family);
+  const requiredFields =
+    candidateFamily && Array.isArray(fieldsByFamily?.[candidateFamily])
+      ? (fieldsByFamily?.[candidateFamily] as unknown[])
+      : Array.isArray(requirement?.required_profile_fields)
+        ? (requirement?.required_profile_fields as unknown[])
+        : [];
+  for (const rawField of requiredFields) {
+    const field = readString(rawField);
+    if (!field) continue;
+    const value = resolvedProfile[field];
+    if (value === undefined || value === null) return false;
+    if (typeof value === "string" && !value.trim()) return false;
+    if (Array.isArray(value) && value.length === 0) return false;
+  }
+  return true;
 }
 
-function shouldEditCandidate(candidate: Record<string, unknown>): boolean {
+function shouldEditCandidate(candidate: Record<string, unknown>, input: unknown): boolean {
   const capabilities = readRecord(candidate.capabilities);
-  return capabilities?.can_edit === true || Boolean(readRecord(candidate.editable_profile));
+  if (capabilities?.can_edit === true) return true;
+  const source = readString(candidate.source);
+  const directSelectableSources = readDirectSelectableSources(input);
+  const canEditProfile = allowProfileEditing(input);
+  if (source === "subject_self_profile") {
+    return canEditProfile && directSelectableSources.includes("subject_self_profile");
+  }
+  if (source === "tenant_subject_profile" || source === "publisher_subject_profile") {
+    return canEditProfile && Boolean(candidateResolvedProfile(candidate));
+  }
+  return false;
 }
 
 function candidateLabel(candidate: Record<string, unknown>, locale?: unknown): string {
@@ -198,15 +294,66 @@ function readProfileSummary(candidate: Record<string, unknown>): string {
 
 function mergeRefreshedCandidates(
   descriptor: Record<string, unknown>,
-  input: { source: string; candidates: Array<Record<string, unknown>> },
+  input: {
+    source: string;
+    candidates: Array<Record<string, unknown>>;
+    selectedCandidateId?: string | null;
+  },
 ) {
   const nextDescriptor = { ...descriptor };
   const remediation = { ...(readRemediation(descriptor) || {}) };
   const currentCandidates = listCandidates(descriptor);
+  const directSelectableSources = readDirectSelectableSources(descriptor);
+  const allowCreateProfile = allowProfileCreation(descriptor);
+  const allowEditProfile = allowProfileEditing(descriptor);
+  const normalizedSource = readString(input.source);
+  const preferredCandidateId = readString(input.selectedCandidateId);
+  const refreshedCandidates = input.candidates.map((candidate) => {
+    const candidateSource = readString(candidate.source) || normalizedSource;
+    const isExternalSource =
+      candidateSource === "tenant_subject_profile" ||
+      candidateSource === "publisher_subject_profile";
+    if (!isExternalSource) return candidate;
+    const candidateId = readString(candidate.candidate_id);
+    const capabilities = { ...(readRecord(candidate.capabilities) || {}) };
+    const canDirectSelect = directSelectableSources.includes(candidateSource);
+    const isSelectedCandidate =
+      candidate.selected === true ||
+      candidate.is_default === true ||
+      Boolean(preferredCandidateId && candidateId === preferredCandidateId);
+    return {
+      ...candidate,
+      source: candidateSource,
+      capabilities: {
+        ...capabilities,
+        can_select: canDirectSelect || isSelectedCandidate,
+        can_edit: allowEditProfile,
+        can_save_private: allowCreateProfile,
+        can_refresh_from_source: true,
+      },
+    };
+  });
   remediation.candidates = [
     ...currentCandidates.filter((candidate) => readString(candidate.source) !== input.source),
-    ...input.candidates,
+    ...refreshedCandidates,
   ];
+  const selection = { ...(readRecord(remediation.selection) || {}) };
+  const currentSelection = { ...(readRecord(selection.current_selection) || {}) };
+  const selectedCandidateId =
+    readString(input.selectedCandidateId) ||
+    readString(
+      input.candidates.find((candidate) => candidate.selected === true)?.candidate_id,
+      input.candidates.find((candidate) => candidate.is_default === true)?.candidate_id,
+    );
+  if (selectedCandidateId || readString(input.source)) {
+    selection.current_selection = {
+      ...currentSelection,
+      source: readString(input.source),
+      candidate_id: selectedCandidateId,
+      selected_profile_id: selectedCandidateId,
+    };
+    remediation.selection = selection;
+  }
   nextDescriptor.remediation = remediation;
   return nextDescriptor;
 }
@@ -267,6 +414,7 @@ const i18nCatalog = {
     current_profile_missing: "No current billing profile selected yet",
     current_profile_ready: "Ready to continue",
     current_profile_review: "Review saved profiles or create a new one below.",
+    current_profile_review_restricted: "Review the provided billing profiles below.",
     complete_required_profile: "Complete the required profile",
     complete_required_profile_help:
       "This flow needs a complete billing profile before it can continue.",
@@ -281,6 +429,7 @@ const i18nCatalog = {
     default: "default",
     editing: "editing",
     no_profiles: "No reusable subject profiles yet. Load a source or create a new profile.",
+    no_profiles_restricted: "No billing profiles were provided for this flow yet.",
     use_profile: "Use this profile",
     edit: "Edit",
     edit_copy: "Edit copy",
@@ -318,6 +467,7 @@ const i18nCatalog = {
     current_profile_missing: "Nu este selectat încă un profil curent de facturare",
     current_profile_ready: "Gata pentru a continua",
     current_profile_review: "Revizuiește profilurile salvate sau creează unul nou mai jos.",
+    current_profile_review_restricted: "Revizuiește mai jos profilurile de facturare furnizate.",
     complete_required_profile: "Completează profilul necesar",
     complete_required_profile_help:
       "Acest flux are nevoie de un profil complet de facturare înainte să poată continua.",
@@ -332,6 +482,7 @@ const i18nCatalog = {
     editing: "în editare",
     no_profiles:
       "Nu există încă profiluri reutilizabile. Încarcă o sursă sau creează un profil nou.",
+    no_profiles_restricted: "Nu au fost furnizate încă profiluri de facturare pentru acest flux.",
     use_profile: "Folosește acest profil",
     edit: "Editează",
     edit_copy: "Editează copia",
@@ -378,35 +529,107 @@ function translate(
 export const subjectProfileGuardSurfaceStyles = `
   .xapps-subject-profile {
     --xapps-subject-profile-columns: minmax(0, 1.08fr) minmax(0, 0.92fr);
-    --sp-primary: #2563eb;
-    --sp-primary-hover: #1d4ed8;
-    --sp-primary-bg: rgba(37, 99, 235, 0.06);
-    --sp-primary-border: rgba(37, 99, 235, 0.18);
-    --sp-success: #059669;
-    --sp-success-bg: rgba(5, 150, 105, 0.07);
-    --sp-success-border: rgba(5, 150, 105, 0.2);
-    --sp-amber: #b45309;
-    --sp-amber-bg: rgba(180, 83, 9, 0.07);
-    --sp-amber-border: rgba(180, 83, 9, 0.18);
-    --sp-purple: #7c3aed;
-    --sp-purple-bg: rgba(124, 58, 237, 0.07);
-    --sp-purple-border: rgba(124, 58, 237, 0.18);
-    --sp-text: #0f172a;
-    --sp-text-2: #334155;
-    --sp-text-3: #475569;
-    --sp-text-muted: #64748b;
-    --sp-surface: #ffffff;
-    --sp-bg: #f8fafc;
-    --sp-border: rgba(148, 163, 184, 0.22);
+    --sp-primary: var(--xapps-paywall-accent-start, var(--xapps-accent, #2563eb));
+    --sp-primary-hover: var(--xapps-paywall-accent-end, var(--xapps-accent-strong, var(--xapps-accent, #1d4ed8)));
+    --sp-primary-bg: var(
+      --xapps-paywall-primary-bg,
+      color-mix(in srgb, var(--xapps-accent, #2563eb) 8%, var(--xapps-surface-bg, #ffffff))
+    );
+    --sp-primary-border: var(
+      --xapps-paywall-primary-border,
+      color-mix(in srgb, var(--xapps-accent, #2563eb) 18%, var(--xapps-border-color, rgba(148, 163, 184, 0.22)))
+    );
+    --sp-primary-text: var(
+      --xapps-paywall-primary-text,
+      color-mix(in srgb, var(--xapps-accent, #2563eb) 24%, var(--xapps-text-primary, #0f172a))
+    );
+    --sp-success: var(
+      --xapps-paywall-success-text,
+      color-mix(in srgb, var(--xapps-success, #059669) 74%, var(--xapps-text-primary, #0f172a))
+    );
+    --sp-success-bg: var(
+      --xapps-paywall-success-bg,
+      color-mix(in srgb, var(--xapps-success, #059669) 7%, var(--xapps-surface-bg, #ffffff))
+    );
+    --sp-success-border: var(
+      --xapps-paywall-success-border,
+      color-mix(in srgb, var(--xapps-success, #059669) 18%, var(--xapps-border-color, rgba(148, 163, 184, 0.22)))
+    );
+    --sp-amber: var(
+      --xapps-paywall-warning-text,
+      color-mix(in srgb, var(--xapps-warning, var(--xapps-accent, #b45309)) 72%, var(--xapps-text-primary, #0f172a))
+    );
+    --sp-amber-bg: var(
+      --xapps-paywall-warning-bg,
+      color-mix(in srgb, var(--xapps-warning, var(--xapps-accent, #b45309)) 8%, var(--xapps-surface-bg, #ffffff))
+    );
+    --sp-amber-border: var(
+      --xapps-paywall-warning-border,
+      color-mix(in srgb, var(--xapps-warning, var(--xapps-accent, #b45309)) 18%, var(--xapps-border-color, rgba(148, 163, 184, 0.22)))
+    );
+    --sp-purple: var(
+      --xapps-paywall-badge-text,
+      color-mix(in srgb, var(--xapps-accent-strong, var(--xapps-accent, #7c3aed)) 72%, var(--xapps-text-primary, #0f172a))
+    );
+    --sp-purple-bg: var(
+      --xapps-paywall-badge-bg,
+      color-mix(in srgb, var(--xapps-accent-strong, var(--xapps-accent, #7c3aed)) 8%, var(--xapps-surface-bg, #ffffff))
+    );
+    --sp-purple-border: var(
+      --xapps-paywall-selected-border,
+      color-mix(in srgb, var(--xapps-accent-strong, var(--xapps-accent, #7c3aed)) 18%, var(--xapps-border-color, rgba(148, 163, 184, 0.22)))
+    );
+    --sp-text: var(--xapps-paywall-text, var(--xapps-text-primary, #0f172a));
+    --sp-text-2: color-mix(in srgb, var(--xapps-text-primary, #0f172a) 88%, white);
+    --sp-text-3: color-mix(in srgb, var(--xapps-text-primary, #0f172a) 76%, white);
+    --sp-text-muted: var(--xapps-paywall-muted, var(--xapps-text-secondary, #64748b));
+    --sp-surface: var(--xapps-paywall-surface, var(--xapps-surface-bg, #ffffff));
+    --sp-bg: color-mix(
+      in srgb,
+      var(--xapps-paywall-surface, var(--xapps-surface-bg, #ffffff)) 84%,
+      var(--xapps-surface-subtle, #f8fafc)
+    );
+    --sp-border: color-mix(
+      in srgb,
+      var(--xapps-paywall-border, var(--xapps-border-color, rgba(148, 163, 184, 0.22))) 92%,
+      transparent
+    );
     --sp-shadow-sm: 0 1px 2px rgba(15,23,42,0.04);
-    --sp-shadow: 0 1px 3px rgba(15,23,42,0.03), 0 6px 16px rgba(15,23,42,0.06);
-    --sp-shadow-lg: 0 2px 6px rgba(15,23,42,0.03), 0 10px 28px rgba(15,23,42,0.08);
-    --sp-focus-ring: 0 0 0 3px rgba(37, 99, 235, 0.15);
+    --sp-shadow: 0 16px 36px color-mix(in srgb, var(--xapps-text-primary, #0f172a) 8%, transparent);
+    --sp-shadow-lg: 0 24px 60px color-mix(in srgb, var(--xapps-text-primary, #0f172a) 14%, transparent);
+    --sp-focus-ring: 0 0 0 3px color-mix(in srgb, var(--sp-primary) 15%, transparent);
+    --sp-notice-bg: var(
+      --xapps-paywall-notice-bg,
+      color-mix(in srgb, var(--xapps-accent, #2563eb) 7%, var(--xapps-surface-bg, #ffffff))
+    );
+    --sp-notice-border: var(
+      --xapps-paywall-notice-border,
+      color-mix(in srgb, var(--xapps-accent, #2563eb) 18%, var(--xapps-border-color, rgba(148, 163, 184, 0.22)))
+    );
+    --sp-notice-text: var(
+      --xapps-paywall-notice-text,
+      color-mix(in srgb, var(--xapps-accent, #2563eb) 74%, var(--xapps-text-primary, #0f172a))
+    );
+    --sp-danger-bg: var(
+      --xapps-paywall-danger-bg,
+      color-mix(in srgb, var(--xapps-danger, #dc2626) 8%, var(--xapps-surface-bg, #ffffff))
+    );
+    --sp-danger-border: var(
+      --xapps-paywall-danger-border,
+      color-mix(in srgb, var(--xapps-danger, #dc2626) 18%, var(--xapps-border-color, rgba(148, 163, 184, 0.22)))
+    );
+    --sp-danger-text: var(
+      --xapps-paywall-danger-text,
+      color-mix(in srgb, var(--xapps-danger, #dc2626) 74%, var(--xapps-text-primary, #0f172a))
+    );
     --sp-ease: cubic-bezier(0.4, 0, 0.2, 1);
     display: grid;
     gap: 16px;
     color: var(--sp-text);
-    font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    font-family: var(
+      --xapps-font-family,
+      var(--mx-font-family, "Inter", "Segoe UI", system-ui, -apple-system, sans-serif)
+    );
     font-size: 14px;
     line-height: 1.5;
     -webkit-font-smoothing: antialiased;
@@ -426,7 +649,11 @@ export const subjectProfileGuardSurfaceStyles = `
     gap: 8px;
     border: 1px solid var(--sp-border);
     border-radius: 16px;
-    background: linear-gradient(180deg, var(--sp-surface) 0%, var(--sp-bg) 100%);
+    background: linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--sp-surface) 98%, var(--sp-bg)) 0%,
+      color-mix(in srgb, var(--sp-surface) 92%, var(--sp-bg)) 100%
+    );
     padding: 14px 16px;
     transition: box-shadow 200ms var(--sp-ease), border-color 200ms var(--sp-ease);
   }
@@ -453,7 +680,11 @@ export const subjectProfileGuardSurfaceStyles = `
     gap: 14px;
     border: 1px solid var(--sp-border);
     border-radius: 16px;
-    background: linear-gradient(180deg, rgba(248,250,255,0.95) 0%, var(--sp-surface) 100%);
+    background: linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--sp-surface) 97%, var(--sp-bg)) 0%,
+      var(--sp-surface) 100%
+    );
     padding: 18px;
   }
   .xapps-subject-profile__focus-copy {
@@ -462,7 +693,8 @@ export const subjectProfileGuardSurfaceStyles = `
   }
   .xapps-subject-profile__title {
     margin: 0;
-    font: 700 1.05rem/1.25 "IBM Plex Sans", system-ui, sans-serif;
+    font: 700 1.05rem/1.15
+      var(--xapps-display-font, var(--mx-display-font, var(--mx-font-family, "Inter", "Segoe UI", system-ui, -apple-system, sans-serif)));
     color: var(--sp-text);
     letter-spacing: -0.01em;
   }
@@ -477,14 +709,14 @@ export const subjectProfileGuardSurfaceStyles = `
     font: 400 0.82rem/1.5 system-ui, sans-serif;
   }
   .xapps-subject-profile__notice {
-    background: #eff6ff;
-    border: 1px solid #bfdbfe;
-    color: #1e40af;
+    background: var(--sp-notice-bg);
+    border: 1px solid var(--sp-notice-border);
+    color: var(--sp-notice-text);
   }
   .xapps-subject-profile__error {
-    background: #fef2f2;
-    border: 1px solid #fecaca;
-    color: #b91c1c;
+    background: var(--sp-danger-bg);
+    border: 1px solid var(--sp-danger-border);
+    color: var(--sp-danger-text);
   }
   .xapps-subject-profile__layout {
     display: grid;
@@ -495,7 +727,11 @@ export const subjectProfileGuardSurfaceStyles = `
   .xapps-subject-profile__card {
     border: 1px solid var(--sp-border);
     border-radius: 18px;
-    background: var(--sp-surface);
+    background: linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--sp-surface) 98%, var(--sp-bg)) 0%,
+      color-mix(in srgb, var(--sp-surface) 92%, var(--sp-bg)) 100%
+    );
     box-shadow: var(--sp-shadow);
     padding: 18px;
     display: grid;
@@ -505,9 +741,10 @@ export const subjectProfileGuardSurfaceStyles = `
   }
   .xapps-subject-profile__section-title {
     margin: 0;
-    font: 600 0.9rem/1.25 system-ui, sans-serif;
+    font: 700 0.98rem/1.1
+      var(--xapps-display-font, var(--mx-display-font, var(--mx-font-family, "Inter", "Segoe UI", system-ui, -apple-system, sans-serif)));
     color: var(--sp-text);
-    letter-spacing: -0.005em;
+    letter-spacing: -0.01em;
   }
   .xapps-subject-profile__section-meta {
     color: var(--sp-text-muted);
@@ -551,8 +788,8 @@ export const subjectProfileGuardSurfaceStyles = `
   }
   .xapps-subject-profile__candidate {
     border: 1px solid var(--sp-border);
-    border-radius: 12px;
-    background: var(--sp-surface);
+    border-radius: 16px;
+    background: color-mix(in srgb, var(--sp-surface) 94%, var(--sp-bg));
     padding: 14px 16px;
     display: grid;
     gap: 10px;
@@ -561,13 +798,13 @@ export const subjectProfileGuardSurfaceStyles = `
     cursor: default;
   }
   .xapps-subject-profile__candidate:hover {
-    border-color: rgba(148, 163, 184, 0.4);
+    border-color: color-mix(in srgb, var(--sp-primary) 20%, var(--sp-border));
     box-shadow: var(--sp-shadow-sm);
   }
   .xapps-subject-profile__candidate.is-selected {
-    border-color: rgba(37, 99, 235, 0.35);
-    background: linear-gradient(180deg, rgba(239,246,255,0.5) 0%, var(--sp-surface) 100%);
-    box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.08), var(--sp-shadow);
+    border-color: color-mix(in srgb, var(--sp-primary) 34%, var(--sp-border));
+    background: linear-gradient(180deg, color-mix(in srgb, var(--sp-primary) 5%, var(--sp-surface)) 0%, var(--sp-surface) 100%);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sp-primary) 12%, transparent), var(--sp-shadow-sm);
   }
   .xapps-subject-profile__candidate.is-selected::before {
     content: "";
@@ -577,7 +814,7 @@ export const subjectProfileGuardSurfaceStyles = `
     bottom: 14px;
     width: 3px;
     border-radius: 999px;
-    background: linear-gradient(180deg, var(--sp-primary) 0%, #0ea5e9 100%);
+    background: linear-gradient(180deg, var(--sp-primary) 0%, var(--sp-primary-hover) 100%);
   }
   .xapps-subject-profile__candidate-head {
     display: flex;
@@ -586,7 +823,8 @@ export const subjectProfileGuardSurfaceStyles = `
     gap: 10px;
   }
   .xapps-subject-profile__candidate-title {
-    font: 600 0.88rem/1.3 system-ui, sans-serif;
+    font: 700 0.98rem/1.15
+      var(--xapps-display-font, var(--mx-display-font, var(--mx-font-family, "Inter", "Segoe UI", system-ui, -apple-system, sans-serif)));
     color: var(--sp-text);
   }
   .xapps-subject-profile__candidate-meta,
@@ -632,8 +870,8 @@ export const subjectProfileGuardSurfaceStyles = `
     font: 600 0.67rem/1 system-ui, sans-serif;
     letter-spacing: 0.02em;
     white-space: nowrap;
-    border: 1px solid rgba(148, 163, 184, 0.3);
-    background: rgba(248, 250, 252, 0.9);
+    border: 1px solid color-mix(in srgb, var(--sp-border) 88%, transparent);
+    background: color-mix(in srgb, var(--sp-surface) 96%, var(--sp-bg));
     color: var(--sp-text-3);
   }
   .xapps-subject-profile__badge[data-badge="ready"] {
@@ -658,7 +896,7 @@ export const subjectProfileGuardSurfaceStyles = `
   }
   .xapps-subject-profile__detail {
     border-radius: 999px;
-    border: 1px solid rgba(226, 232, 240, 0.9);
+    border: 1px solid color-mix(in srgb, var(--sp-border) 82%, transparent);
     background: var(--sp-bg);
     color: var(--sp-text-2);
     padding: 3px 9px;
@@ -667,20 +905,23 @@ export const subjectProfileGuardSurfaceStyles = `
   .xapps-subject-profile__button {
     appearance: none;
     border: 1px solid var(--sp-border);
-    background: var(--sp-surface);
+    background: color-mix(in srgb, var(--sp-surface) 96%, var(--sp-bg));
     color: var(--sp-text);
-    border-radius: 8px;
-    padding: 8px 14px;
-    font: 600 0.78rem/1.2 system-ui, sans-serif;
+    border-radius: 999px;
+    padding: 10px 14px;
+    font: 700 0.78rem/1.2
+      var(--xapps-font-family, var(--mx-font-family, "Inter", "Segoe UI", system-ui, sans-serif));
     cursor: pointer;
     transition: all 180ms var(--sp-ease);
     user-select: none;
     white-space: nowrap;
+    box-shadow: var(--sp-shadow-sm);
   }
   .xapps-subject-profile__button:hover {
     border-color: var(--sp-primary-border);
-    color: var(--sp-primary);
-    box-shadow: var(--sp-shadow-sm);
+    background: color-mix(in srgb, var(--sp-primary) 7%, var(--sp-surface));
+    color: var(--sp-primary-text);
+    box-shadow: 0 8px 18px color-mix(in srgb, var(--sp-primary) 18%, transparent);
   }
   .xapps-subject-profile__button:active {
     transform: scale(0.97);
@@ -690,30 +931,34 @@ export const subjectProfileGuardSurfaceStyles = `
     box-shadow: var(--sp-focus-ring);
   }
   .xapps-subject-profile__button[data-kind="primary"] {
-    border-color: var(--sp-primary);
-    background: var(--sp-primary);
-    color: #fff;
-    box-shadow: 0 1px 3px rgba(37, 99, 235, 0.25);
+    border: 0;
+    background: linear-gradient(
+      135deg,
+      var(--xapps-paywall-accent-start, color-mix(in srgb, var(--sp-primary) 94%, white)),
+      var(--xapps-paywall-accent-end, color-mix(in srgb, var(--sp-primary-hover) 94%, black))
+    );
+    color: var(--xapps-paywall-action-text, #f8fafc);
+    box-shadow: 0 10px 22px color-mix(in srgb, var(--sp-primary) 18%, transparent);
   }
   .xapps-subject-profile__button[data-kind="primary"]:hover {
-    background: var(--sp-primary-hover);
-    border-color: var(--sp-primary-hover);
-    box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3);
-    color: #fff;
+    color: var(--xapps-paywall-action-text, #f8fafc);
+    filter: saturate(1.04) brightness(1.01);
+    box-shadow: 0 14px 28px color-mix(in srgb, var(--sp-primary) 24%, transparent);
   }
   .xapps-subject-profile__button[data-kind="primary"]:focus-visible {
-    box-shadow: 0 1px 3px rgba(37, 99, 235, 0.25), var(--sp-focus-ring);
+    box-shadow: 0 10px 22px color-mix(in srgb, var(--sp-primary) 18%, transparent), var(--sp-focus-ring);
   }
   .xapps-subject-profile__button[data-kind="subtle"] {
-    border-color: rgba(226, 232, 240, 0.9);
-    background: var(--sp-bg);
-    color: var(--sp-text-3);
-    box-shadow: none;
+    border-color: var(--sp-border);
+    background: color-mix(in srgb, var(--sp-surface) 96%, var(--sp-bg));
+    color: var(--sp-text);
+    box-shadow: var(--sp-shadow-sm);
   }
   .xapps-subject-profile__button[data-kind="subtle"]:hover {
-    background: rgba(241, 245, 249, 0.95);
-    border-color: rgba(203, 213, 225, 0.95);
-    color: var(--sp-text);
+    border-color: color-mix(in srgb, var(--sp-primary) 28%, var(--sp-border));
+    background: color-mix(in srgb, var(--sp-primary) 7%, var(--sp-surface));
+    color: var(--sp-primary-text);
+    box-shadow: 0 8px 18px color-mix(in srgb, var(--sp-primary) 18%, transparent);
   }
   .xapps-subject-profile__button:disabled {
     opacity: 0.5;
@@ -741,7 +986,7 @@ export const subjectProfileGuardSurfaceStyles = `
   .xapps-subject-profile__field select,
   .xapps-subject-profile__field textarea {
     width: 100%;
-    border: 1px solid rgba(203, 213, 225, 0.7);
+    border: 1px solid color-mix(in srgb, var(--sp-border) 84%, transparent);
     border-radius: 8px;
     background: var(--sp-surface);
     padding: 9px 12px;
@@ -761,7 +1006,7 @@ export const subjectProfileGuardSurfaceStyles = `
   .xapps-subject-profile__field input[type="text"]::placeholder,
   .xapps-subject-profile__field input[type="email"]::placeholder,
   .xapps-subject-profile__field textarea::placeholder {
-    color: rgba(148, 163, 184, 0.7);
+    color: color-mix(in srgb, var(--sp-text-muted) 64%, transparent);
   }
   .xapps-subject-profile__field input[type="checkbox"] {
     appearance: none;
@@ -769,7 +1014,7 @@ export const subjectProfileGuardSurfaceStyles = `
     width: 36px;
     height: 20px;
     border-radius: 999px;
-    background: rgba(203, 213, 225, 0.6);
+    background: color-mix(in srgb, var(--sp-border) 64%, transparent);
     border: none;
     cursor: pointer;
     position: relative;
@@ -784,8 +1029,8 @@ export const subjectProfileGuardSurfaceStyles = `
     width: 16px;
     height: 16px;
     border-radius: 50%;
-    background: #fff;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+    background: var(--sp-surface);
+    box-shadow: 0 1px 3px color-mix(in srgb, var(--sp-text) 15%, transparent);
     transition: transform 180ms var(--sp-ease);
   }
   .xapps-subject-profile__field input[type="checkbox"]:checked {
@@ -907,6 +1152,7 @@ export function createSubjectProfileOverlay(options?: {
   locale?: string;
   title?: string;
   subtitle?: string;
+  themeTokens?: unknown;
   onClose?: () => void;
 }): {
   root: HTMLElement;
@@ -923,127 +1169,25 @@ export function createSubjectProfileOverlay(options?: {
       ? "Alege un profil existent sau completează detaliile necesare pentru facturare."
       : "Choose an existing billing profile or complete the required invoicing details.");
   const onClose = typeof options?.onClose === "function" ? options.onClose : null;
-
-  const overlay = document.createElement("div");
-  Object.assign(overlay.style, {
-    position: "fixed",
-    inset: "0",
-    background: "rgba(15,23,42,0.45)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: "24px",
-    overflow: "auto",
-    zIndex: "2147483000",
-    backdropFilter: "blur(6px)",
+  const shell = createModalShell({
+    title: titleText,
+    subtitle: subtitleText,
+    closeLabel: isRo ? "Închide" : "Close",
+    onClose,
+    themeTokens: options?.themeTokens,
+    bodyPadding: "16px",
   });
-  (overlay.style as any).webkitBackdropFilter = "blur(6px)";
-
-  const panel = document.createElement("div");
-  Object.assign(panel.style, {
-    width: "min(1080px, 96vw)",
-    maxWidth: "1080px",
-    maxHeight: "min(88vh, 740px)",
-    background: "#ffffff",
-    border: "1px solid rgba(148, 163, 184, 0.22)",
-    borderRadius: "18px",
-    boxShadow: "0 2px 6px rgba(15,23,42,0.03), 0 24px 60px rgba(15,23,42,0.2)",
-    overflow: "hidden",
-    display: "flex",
-    flexDirection: "column",
-  });
-
-  const header = document.createElement("div");
-  Object.assign(header.style, {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: "12px",
-    padding: "16px 18px",
-    borderBottom: "1px solid rgba(226, 232, 240, 0.8)",
-    flexShrink: "0",
-  });
-
-  const titleWrap = document.createElement("div");
-  const titleEl = document.createElement("div");
-  titleEl.textContent = titleText;
-  Object.assign(titleEl.style, {
-    font: '700 1.05rem/1.25 "IBM Plex Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif',
-    color: "#0f172a",
-    letterSpacing: "-0.01em",
-  });
-  const subtitleEl = document.createElement("div");
-  subtitleEl.textContent = subtitleText;
-  Object.assign(subtitleEl.style, {
-    marginTop: "4px",
-    font: "400 0.82rem/1.5 system-ui,sans-serif",
-    color: "#64748b",
-  });
-  titleWrap.appendChild(titleEl);
-  titleWrap.appendChild(subtitleEl);
-
-  const closeBtn = document.createElement("button");
-  closeBtn.type = "button";
-  closeBtn.textContent = "\u00d7";
-  closeBtn.setAttribute("aria-label", isRo ? "Închide" : "Close");
-  Object.assign(closeBtn.style, {
-    padding: "4px 10px",
-    border: "none",
-    borderRadius: "8px",
-    background: "transparent",
-    cursor: "pointer",
-    font: "400 1.4rem/1 system-ui,sans-serif",
-    color: "#64748b",
-    transition: "background 180ms ease, color 180ms ease",
-    flexShrink: "0",
-  });
-  closeBtn.addEventListener("mouseenter", () => {
-    closeBtn.style.background = "#f1f5f9";
-    closeBtn.style.color = "#0f172a";
-  });
-  closeBtn.addEventListener("mouseleave", () => {
-    closeBtn.style.background = "transparent";
-    closeBtn.style.color = "#64748b";
-  });
-
-  const body = document.createElement("div");
-  Object.assign(body.style, {
-    padding: "18px",
-    flex: "1 1 auto",
-    minHeight: "0",
-    overflow: "auto",
-    scrollbarWidth: "thin",
-    scrollbarColor: "rgba(148,163,184,0.3) transparent",
-  });
+  const { overlay, body } = shell;
+  body.style.scrollbarWidth = "thin";
+  body.style.scrollbarColor = "rgba(148,163,184,0.3) transparent";
 
   const root = document.createElement("div");
   body.appendChild(root);
 
-  closeBtn.addEventListener("click", () => onClose?.());
-  overlay.addEventListener("click", (event) => {
-    if (event.target === overlay) onClose?.();
-  });
-  panel.addEventListener("click", (event) => event.stopPropagation());
-
-  const onKeyDown = (event: KeyboardEvent) => {
-    if (event.key === "Escape") onClose?.();
-  };
-  document.addEventListener("keydown", onKeyDown);
-
-  header.appendChild(titleWrap);
-  header.appendChild(closeBtn);
-  panel.appendChild(header);
-  panel.appendChild(body);
-  overlay.appendChild(panel);
-  document.body.appendChild(overlay);
-
   return {
     root,
     overlay,
-    destroy() {
-      document.removeEventListener("keydown", onKeyDown);
-      overlay.remove();
-    },
+    destroy: shell.destroy,
   };
 }
 
@@ -1172,9 +1316,18 @@ export function renderSubjectProfileGuardSurface(
           .filter((item): item is Record<string, unknown> => Boolean(item))
       : [];
     if (refreshedCandidates.length > 0) {
+      const candidateEnvelope = readRecord(
+        resultRecord?.candidate_envelope ?? resultRecord?.candidateEnvelope,
+      );
       currentDescriptor = mergeRefreshedCandidates(currentDescriptor, {
         source: readString(resultRecord?.source) || readString(entry.source),
         candidates: refreshedCandidates,
+        selectedCandidateId: readString(
+          resultRecord?.selected_profile_id,
+          candidateEnvelope?.selected_profile_id,
+          candidateEnvelope?.selectedProfileId,
+          refreshedCandidates.find((candidate) => candidate.selected === true)?.candidate_id,
+        ),
       });
       currentRemediation = readRemediation(currentDescriptor);
       render();
@@ -1240,15 +1393,29 @@ export function renderSubjectProfileGuardSurface(
   function render() {
     const candidates = currentCandidates();
     const allCandidates = listCandidates(currentDescriptor);
+    const canEditProfile = allowProfileEditing(currentDescriptor);
     const refreshSources = listRefreshSources(currentDescriptor);
     const showHeader = options.showHeader !== false;
+    const currentSelection = readCurrentSelection(currentDescriptor);
     const currentCandidate =
+      (currentSelection.candidateId
+        ? allCandidates.find(
+            (candidate) => readString(candidate.candidate_id) === currentSelection.candidateId,
+          )
+        : null) ||
+      (currentSelection.source
+        ? allCandidates.find(
+            (candidate) => readString(candidate.source) === currentSelection.source,
+          )
+        : null) ||
       allCandidates.find((candidate) => candidate.selected === true) ||
       allCandidates.find((candidate) => candidate.is_default === true) ||
       null;
-    const readyCount = allCandidates.filter((candidate) => shouldUseCandidate(candidate)).length;
+    const readyCount = allCandidates.filter((candidate) =>
+      shouldUseCandidate(candidate, currentDescriptor),
+    ).length;
     const activeForm = readActiveForm();
-    const showForm = formMode !== "hidden" || allCandidates.length === 0;
+    const showForm = formMode !== "hidden" || (allCandidates.length === 0 && canEditProfile);
     const showCollapsedSources = refreshSources.length > 0 && allCandidates.length > 0;
     const activeSchema = readRecord(activeForm.schema) || {};
     const properties = readRecord(activeSchema.properties) || {};
@@ -1329,7 +1496,12 @@ export function renderSubjectProfileGuardSurface(
             <div class="xapps-subject-profile__summary-meta">${escapeHtml(
               currentCandidate
                 ? t("current_profile_ready", "Ready to continue")
-                : t("current_profile_review", "Review saved profiles or create a new one below."),
+                : canEditProfile
+                  ? t("current_profile_review", "Review saved profiles or create a new one below.")
+                  : t(
+                      "current_profile_review_restricted",
+                      "Review the provided billing profiles below.",
+                    ),
             )}</div>
           </section>
         </div>
@@ -1351,7 +1523,7 @@ export function renderSubjectProfileGuardSurface(
               </div>
               <div class="xapps-subject-profile__toolbar-actions">
                 ${
-                  interactive && !showForm
+                  interactive && !showForm && canEditProfile
                     ? `<button type="button" class="xapps-subject-profile__button" data-action="new-profile" data-kind="subtle">${escapeHtml(
                         t("new_profile", "New profile"),
                       )}</button>`
@@ -1421,7 +1593,7 @@ export function renderSubjectProfileGuardSurface(
                                   type: "family",
                                 }
                               : null,
-                            shouldUseCandidate(candidate)
+                            shouldUseCandidate(candidate, currentDescriptor)
                               ? { text: t("ready", "ready"), type: "ready" }
                               : null,
                             candidate.is_default
@@ -1492,7 +1664,7 @@ export function renderSubjectProfileGuardSurface(
                             interactive
                               ? `<div class="xapps-subject-profile__candidate-actions">
                                   ${
-                                    shouldUseCandidate(candidate)
+                                    shouldUseCandidate(candidate, currentDescriptor)
                                       ? `<button type="button" class="xapps-subject-profile__button" data-action="use-candidate" data-candidate-id="${escapeHtml(
                                           candidateId,
                                         )}" data-kind="primary">${escapeHtml(
@@ -1501,7 +1673,7 @@ export function renderSubjectProfileGuardSurface(
                                       : ""
                                   }
                                   ${
-                                    shouldEditCandidate(candidate)
+                                    shouldEditCandidate(candidate, currentDescriptor)
                                       ? `<button type="button" class="xapps-subject-profile__button" data-action="edit-candidate" data-candidate-id="${escapeHtml(
                                           candidateId,
                                         )}" data-kind="subtle">${escapeHtml(
@@ -1519,10 +1691,15 @@ export function renderSubjectProfileGuardSurface(
                       })
                       .join("")
                   : `<div class="xapps-subject-profile__empty">${escapeHtml(
-                      t(
-                        "no_profiles",
-                        "No reusable subject profiles yet. Load a source or create a new profile.",
-                      ),
+                      canEditProfile
+                        ? t(
+                            "no_profiles",
+                            "No reusable subject profiles yet. Load a source or create a new profile.",
+                          )
+                        : t(
+                            "no_profiles_restricted",
+                            "No billing profiles were provided for this flow yet.",
+                          ),
                     )}</div>`
               }
             </div>
@@ -1676,11 +1853,15 @@ export function renderSubjectProfileGuardSurface(
                         currentCandidate
                           ? t(
                               "continue_with_current_profile_help",
-                              "You can continue immediately with the selected billing profile, edit it, or create another one.",
+                              canEditProfile
+                                ? "You can continue immediately with the selected billing profile, edit it, or create another one."
+                                : "You can continue immediately with the selected billing profile or review the available sources.",
                             )
                           : t(
                               "create_profile_hint",
-                              "Create a new billing profile only if the saved profiles are not the right fit.",
+                              canEditProfile
+                                ? "Create a new billing profile only if the saved profiles are not the right fit."
+                                : "Use one of the available billing profiles or refresh the provided sources.",
                             ),
                       )}</div>
                     </div>
@@ -1702,23 +1883,24 @@ export function renderSubjectProfileGuardSurface(
                     }
                     <div class="xapps-subject-profile__form-actions">
                       ${
-                        currentCandidate && shouldUseCandidate(currentCandidate)
+                        currentCandidate && shouldUseCandidate(currentCandidate, currentDescriptor)
                           ? `<button type="button" class="xapps-subject-profile__button" data-action="use-current-profile" data-kind="primary">${escapeHtml(
                               t("use_current_profile", "Use current profile"),
                             )}</button>`
                           : ""
                       }
                       ${
-                        !currentCandidate ||
-                        (!shouldUseCandidate(currentCandidate) &&
-                          !shouldEditCandidate(currentCandidate))
+                        canEditProfile &&
+                        (!currentCandidate ||
+                          (!shouldUseCandidate(currentCandidate, currentDescriptor) &&
+                            !shouldEditCandidate(currentCandidate, currentDescriptor)))
                           ? `<button type="button" class="xapps-subject-profile__button" data-action="new-profile" data-kind="primary">${escapeHtml(
                               t("new_profile", "New profile"),
                             )}</button>`
                           : ""
                       }
                       ${
-                        currentCandidate && shouldEditCandidate(currentCandidate)
+                        currentCandidate && shouldEditCandidate(currentCandidate, currentDescriptor)
                           ? `<button type="button" class="xapps-subject-profile__button" data-action="edit-current-profile" data-kind="subtle">${escapeHtml(
                               t("edit", "Edit"),
                             )}</button>`

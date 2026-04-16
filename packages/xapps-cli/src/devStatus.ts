@@ -51,8 +51,9 @@ export function runDevStatusRefsCommand(args: CliArgsLike, deps: DevStatusDeps) 
       readme: "apps/publishers/xplace/backend/README.md",
     },
     xapp: {
-      manifest: "apps/publishers/xplace/xapps/xplace-certs/manifest.json",
-      ai_policy: "apps/publishers/xplace/xapps/xplace-certs/ai/policy.readonly.internal-v1.json",
+      manifest: "apps/publishers/xplace-example/xapps/xplace-certs/manifest.json",
+      ai_policy:
+        "apps/publishers/xplace-example/xapps/xplace-certs/ai/policy.readonly.internal-v1.json",
     },
   };
   const sampleStatus = {

@@ -25,6 +25,13 @@ describe("server-sdk embedHostProxy", () => {
           purchase_intents: { total: 1, items: [{ id: "intent_123" }] },
         },
       })),
+      cancelEmbedMyXappSubscriptionContract: vi.fn(async () => ({
+        subscription_contract: { id: "contract_123", status: "cancelled" },
+      })),
+      refreshEmbedMyXappSubscriptionContractState: vi.fn(async () => ({
+        subscription_contract: { id: "contract_123", status: "active" },
+        current_subscription: { id: "contract_123", status: "active" },
+      })),
       listInstallations: vi.fn(async () => ({
         items: [{ id: "inst_123", xapp_id: "xapp_123", status: "installed" }],
       })),
@@ -154,10 +161,25 @@ describe("server-sdk embedHostProxy", () => {
         xappId: "xapp_123",
         publishers: ["pub_a"],
         tags: ["featured"],
+        customerProfile: {
+          profile_family: "billing_business",
+          country_code: "RO",
+        },
       }),
     ).resolves.toEqual({
       token: "catalog_token",
       embedUrl: "/embed/catalog?token=catalog_token",
+    });
+    expect(gatewayClient.createCatalogSession).toHaveBeenCalledWith({
+      origin: "https://tenant.example.test",
+      subjectId: "sub_123",
+      xappId: "xapp_123",
+      publishers: ["pub_a"],
+      tags: ["featured"],
+      customerProfile: {
+        profile_family: "billing_business",
+        country_code: "RO",
+      },
     });
 
     await expect(
@@ -247,6 +269,37 @@ describe("server-sdk embedHostProxy", () => {
       token: "widget_token",
       limit: 8,
     });
+
+    await expect(
+      service.refreshMyXappSubscriptionContractState({
+        xappId: "xapp_123",
+        contractId: "contract_123",
+        token: "widget_token",
+      }),
+    ).resolves.toEqual({
+      subscription_contract: { id: "contract_123", status: "active" },
+      current_subscription: { id: "contract_123", status: "active" },
+    });
+    expect(gatewayClient.refreshEmbedMyXappSubscriptionContractState).toHaveBeenCalledWith({
+      xappId: "xapp_123",
+      contractId: "contract_123",
+      token: "widget_token",
+    });
+
+    await expect(
+      service.cancelMyXappSubscriptionContract({
+        xappId: "xapp_123",
+        contractId: "contract_123",
+        token: "widget_token",
+      }),
+    ).resolves.toEqual({
+      subscription_contract: { id: "contract_123", status: "cancelled" },
+    });
+    expect(gatewayClient.cancelEmbedMyXappSubscriptionContract).toHaveBeenCalledWith({
+      xappId: "xapp_123",
+      contractId: "contract_123",
+      token: "widget_token",
+    });
   });
 
   it("supports optional bridge handlers and rejects missing required inputs", async () => {
@@ -258,6 +311,8 @@ describe("server-sdk embedHostProxy", () => {
         embedUrl: "https://gateway.example.test/embed/widgets/widget_123?token=widget_token",
       })),
       getEmbedMyXappMonetizationHistory: vi.fn(),
+      cancelEmbedMyXappSubscriptionContract: vi.fn(),
+      refreshEmbedMyXappSubscriptionContractState: vi.fn(),
       listInstallations: vi.fn(),
       installXapp: vi.fn(),
       updateInstallation: vi.fn(),
@@ -273,6 +328,8 @@ describe("server-sdk embedHostProxy", () => {
           embedUrl: "https://gateway.example.test/embed/widgets/widget_123?token=widget_token",
         })),
         getEmbedMyXappMonetizationHistory: vi.fn(),
+        cancelEmbedMyXappSubscriptionContract: vi.fn(),
+        refreshEmbedMyXappSubscriptionContractState: vi.fn(),
         listInstallations: vi.fn(),
         installXapp: vi.fn(),
         updateInstallation: vi.fn(),
@@ -337,6 +394,8 @@ describe("server-sdk embedHostProxy", () => {
         createCatalogSession: vi.fn(),
         createWidgetSession: vi.fn(),
         getEmbedMyXappMonetizationHistory: vi.fn(),
+        cancelEmbedMyXappSubscriptionContract: vi.fn(),
+        refreshEmbedMyXappSubscriptionContractState: vi.fn(),
         listInstallations: vi.fn(),
         installXapp: vi.fn(),
         updateInstallation: vi.fn(),

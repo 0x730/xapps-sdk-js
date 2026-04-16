@@ -195,7 +195,18 @@ export type XappManifestMonetizationProduct = {
   description?: LocalizedText;
   product_family: string;
   status?: "draft" | "active" | "archived";
+  virtual_currency?: {
+    code: string;
+    name?: string;
+    status?: "active" | "archived";
+  };
   metadata?: Record<string, unknown>;
+};
+
+export type XappManifestMonetizationVirtualCurrency = {
+  code: string;
+  name?: string;
+  status?: "active" | "archived";
 };
 
 export type XappManifestMonetizationOffering = {
@@ -249,6 +260,7 @@ export type XappManifestMonetizationUsagePolicy = {
   tool_name: string;
   unit?: string;
   credit_cost: number;
+  virtual_currency_code?: string;
   status?: "draft" | "active" | "archived";
   metadata?: Record<string, unknown>;
 };
@@ -294,6 +306,7 @@ export type XappManifest = {
   event_subscriptions?: XappManifestEventSubscription[];
   connectivity?: XappManifestConnectivity;
   monetization?: {
+    virtual_currencies?: XappManifestMonetizationVirtualCurrency[];
     products?: XappManifestMonetizationProduct[];
     offerings?: XappManifestMonetizationOffering[];
     packages?: XappManifestMonetizationPackage[];
@@ -907,6 +920,20 @@ export const xappManifestJsonSchema = {
       type: "object",
       additionalProperties: false,
       properties: {
+        virtual_currencies: {
+          type: "array",
+          maxItems: 200,
+          items: {
+            type: "object",
+            required: ["code"],
+            additionalProperties: false,
+            properties: {
+              code: { type: "string", minLength: 1, maxLength: 100 },
+              name: { type: "string", minLength: 1, maxLength: 200 },
+              status: { type: "string", enum: ["active", "archived"] },
+            },
+          },
+        },
         products: {
           type: "array",
           maxItems: 200,
@@ -920,6 +947,16 @@ export const xappManifestJsonSchema = {
               description: localizedTextSchema(2000),
               product_family: { type: "string", minLength: 1, maxLength: 100 },
               status: { type: "string", enum: ["draft", "active", "archived"] },
+              virtual_currency: {
+                type: "object",
+                additionalProperties: false,
+                required: ["code"],
+                properties: {
+                  code: { type: "string", minLength: 1, maxLength: 100 },
+                  name: { type: "string", minLength: 1, maxLength: 200 },
+                  status: { type: "string", enum: ["active", "archived"] },
+                },
+              },
               metadata: { type: "object" },
             },
           },
@@ -1027,6 +1064,7 @@ export const xappManifestJsonSchema = {
               tool_name: { type: "string", minLength: 1, maxLength: 100 },
               unit: { type: "string", minLength: 1, maxLength: 100 },
               credit_cost: { type: "number", minimum: 0 },
+              virtual_currency_code: { type: "string", minLength: 1, maxLength: 100 },
               status: { type: "string", enum: ["draft", "active", "archived"] },
               metadata: { type: "object" },
             },

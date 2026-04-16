@@ -9,6 +9,7 @@ import {
 } from "../utils/paymentLock";
 import { describeGuardCurrentAccess } from "../utils/guardMonetization";
 import { buildTokenSearch, readHostReturnUrl } from "../utils/embedSearch";
+import { shouldHideMarketplaceVersions } from "../utils/installationPolicy";
 import { buildOperationalSurfaceHref } from "../utils/operationalSurfaces";
 import {
   asRecord,
@@ -74,6 +75,11 @@ export function RequestDetailPage() {
   const effectiveXappTitle =
     resolveMarketplaceText(manifestRecord.title as any, locale) ||
     readFirstString(requestRecord.xapp_name);
+  const hideVersions = shouldHideMarketplaceVersions({
+    installationPolicy: env?.installationPolicy ?? host.installationPolicy ?? null,
+    installationPolicyResolved: env?.installationPolicyResolved,
+    subjectId: host.subjectId,
+  });
   const xappCrumbLabel = effectiveXappTitle || effectiveXappId;
   const isEmbedded = typeof window !== "undefined" && window.location.pathname.startsWith("/embed");
 
@@ -650,7 +656,7 @@ export function RequestDetailPage() {
                   <h2 className="mx-title mx-request-section-title">{title}</h2>
                   <div className="mx-request-meta-row">
                     <span>{effectiveXappTitle || "—"}</span>
-                    {readString(requestRecord.xapp_version) && (
+                    {!hideVersions && readString(requestRecord.xapp_version) && (
                       <>
                         <span>·</span>
                         <span>v{readString(requestRecord.xapp_version)}</span>

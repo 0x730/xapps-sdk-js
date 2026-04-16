@@ -52,11 +52,37 @@ export async function bootMarketplaceHost(config) {
     return bootstrapToken ? { "X-Xapps-Host-Bootstrap": bootstrapToken } : undefined;
   }
 
+  async function resolveCatalogCustomerProfile(input = {}) {
+    const xappId = String(input?.xappId || "").trim();
+    if (!xappId) return null;
+    const currentParams = new URLSearchParams(window.location.search || "");
+    const toolName = String(
+      currentParams.get("toolName") || currentParams.get("tool_name") || "",
+    ).trim();
+    try {
+      const response = await hostApiClient(
+        `${resolveHostApiBasePath(config)}/catalog-customer-profile`,
+        {
+          subjectId: String(currentIdentity?.subjectId || "").trim() || undefined,
+          xappId,
+          ...(toolName ? { toolName } : {}),
+        },
+        { method: "POST" },
+      );
+      const profile = response?.customerProfile;
+      return profile && typeof profile === "object" && !Array.isArray(profile) ? profile : null;
+    } catch (error) {
+      console.warn("[browser-host] catalog customer profile lookup failed", error);
+      return null;
+    }
+  }
+
   function isBootstrapRetryableMessage(message) {
     const normalized = String(message || "")
       .trim()
       .toLowerCase();
     return (
+      normalized === "invalid or expired token" ||
       normalized.includes("host bootstrap token expired") ||
       normalized.includes("missing bootstrap")
     );
@@ -184,6 +210,7 @@ export async function bootMarketplaceHost(config) {
     createStandardMarketplaceRuntime,
     gatewayBaseUrl,
     currentSubjectId: String(identity.subjectId || "").trim() || null,
+    getCustomerProfile: resolveCatalogCustomerProfile,
     locale: initialLocale,
     installationPolicy: hostConfig.installationPolicy || null,
     themeKey,

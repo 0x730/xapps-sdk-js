@@ -63,6 +63,7 @@ export type BackendKitNormalizedOptions = {
     catalogJson: string;
     defaultProfiles: unknown[];
     resolveCandidates: ((...args: unknown[]) => unknown) | null;
+    resolveCatalogCustomerProfile: ((...args: unknown[]) => unknown) | null;
   };
   overrides: {
     hostProxyService: StringRecord | null;
@@ -266,6 +267,13 @@ export function normalizeBackendKitOptions(
         typeof subjectProfiles.resolveCandidates === "function"
           ? (...args: unknown[]) =>
               (subjectProfiles.resolveCandidates as (...args: unknown[]) => unknown)(...args)
+          : null,
+      resolveCatalogCustomerProfile:
+        typeof subjectProfiles.resolveCatalogCustomerProfile === "function"
+          ? (...args: unknown[]) =>
+              (subjectProfiles.resolveCatalogCustomerProfile as (...args: unknown[]) => unknown)(
+                ...args,
+              )
           : null,
     },
     overrides: {

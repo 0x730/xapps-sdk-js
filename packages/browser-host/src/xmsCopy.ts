@@ -117,7 +117,9 @@ export type XmsSurfaceCopy = {
   managementDestinationHintOwnerLabel: string;
   openManagementDestinationActionLabel: string;
   virtualCurrencyLabel: string;
+  currentCreditsLabel: string;
   creditsRemainingLabel: string;
+  creditBalanceLabel: string;
   addOnUnlocksLabel: string;
   coverageActiveLabel: string;
   coverageInactiveLabel: string;
@@ -135,6 +137,7 @@ export type XmsSurfaceCopy = {
   historyAuditTitle: string;
   historyAuditSubtitle: string;
   historyBalanceSummaryTitle: string;
+  historyCreditSummaryTitle: string;
   historyBalanceSummarySubtitle: string;
   noHistoryAvailableLabel: string;
   historyGenericLabel: string;
@@ -309,7 +312,9 @@ export const XMS_COPY_CATALOG = {
         "Advanced subscription management is handled by the app owner.",
       openManagementDestinationActionLabel: "Open management",
       virtualCurrencyLabel: "Currency",
+      currentCreditsLabel: "Credits now",
       creditsRemainingLabel: "Balance",
+      creditBalanceLabel: "Credits",
       addOnUnlocksLabel: "Add-on unlocks",
       coverageActiveLabel: "Still covered",
       coverageInactiveLabel: "Not covered",
@@ -329,6 +334,7 @@ export const XMS_COPY_CATALOG = {
       historyAuditSubtitle:
         "Recent records grouped by subscriptions, balances, purchases, and invoices.",
       historyBalanceSummaryTitle: "Balances now",
+      historyCreditSummaryTitle: "Credits now",
       historyBalanceSummarySubtitle:
         "Latest visible wallet balances grouped by virtual currency for this app.",
       noHistoryAvailableLabel: "No monetization history is available for this app yet.",
@@ -509,7 +515,9 @@ export const XMS_COPY_CATALOG = {
         "Administrarea avansată a abonamentului este gestionată de proprietarul aplicației.",
       openManagementDestinationActionLabel: "Deschide administrarea",
       virtualCurrencyLabel: "Monedă virtuală",
+      currentCreditsLabel: "Credite acum",
       creditsRemainingLabel: "Sold",
+      creditBalanceLabel: "Credite",
       addOnUnlocksLabel: "Unlock-uri suplimentare",
       coverageActiveLabel: "Încă activ",
       coverageInactiveLabel: "Neacoperit",
@@ -529,6 +537,7 @@ export const XMS_COPY_CATALOG = {
       historyAuditSubtitle:
         "Înregistrări recente grupate după abonamente, solduri, cumpărări și facturi.",
       historyBalanceSummaryTitle: "Solduri acum",
+      historyCreditSummaryTitle: "Credite acum",
       historyBalanceSummarySubtitle:
         "Cele mai recente solduri vizibile din portofel, grupate după moneda virtuală pentru această aplicație.",
       noHistoryAvailableLabel:

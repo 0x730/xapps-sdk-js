@@ -4,6 +4,54 @@ import { bootSingleXappHost } from "./src/single-xapp-host.js";
 
 const originalWindow = globalThis.window;
 const originalFetch = globalThis.fetch;
+const singleXappSdkStubUrl = `data:text/javascript,${encodeURIComponent(`
+  export function createHostDomUiController() {
+    return { bridgeOptions: {}, showNotification() {} };
+  }
+  export function createHostPaymentResumeState() {
+    return {
+      getResume: () => null,
+      getPendingPaymentParams: () => new URLSearchParams(),
+      buildHostReturnUrl: ({ baseUrl }) => String(baseUrl || ""),
+    };
+  }
+  export function createEmbedHostWidgetContext() {
+    let current = { installationId: null, widgetId: null, xappId: null };
+    return {
+      get: () => current,
+      set: (next) => {
+        current = { ...current, ...(next || {}) };
+      },
+      reset: () => {
+        current = { installationId: null, widgetId: null, xappId: null };
+      },
+    };
+  }
+  export function createHostApiClient({ fetchImpl }) {
+    return async (path, payload, init = {}) => {
+      const response = await fetchImpl(path, {
+        ...(init || {}),
+        method: init.method || (payload !== undefined ? "POST" : "GET"),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(String(data?.message || String(path || "") + " failed"));
+      }
+      return data;
+    };
+  }
+  export function createMutationFailureCallbacks() {
+    return {};
+  }
+  export function createEmbedHost() {
+    return {
+      mountXapp: async () => {},
+      destroy: () => {},
+      readPendingResumeTarget: () => null,
+      resumeCatalogWidget: () => {},
+    };
+  }
+`)}`;
 
 function setMockWindow(href: string) {
   const url = new URL(href);
@@ -196,6 +244,134 @@ describe("@xapps-platform/browser-host bootstrap helpers", () => {
           mount: async () => {},
           destroy: () => {},
         }),
+      } as any),
+    ).rejects.toThrow("stop after retry");
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({
+      method: "GET",
+      headers: { "X-Xapps-Host-Bootstrap": "stale_token" },
+    });
+    expect(fetchMock.mock.calls[1]?.[1]).toMatchObject({
+      method: "GET",
+      headers: { "X-Xapps-Host-Bootstrap": "fresh_token" },
+    });
+  });
+
+  it("retries marketplace host-config after generic invalid-token failure using refreshed identity", async () => {
+    setMockWindow("http://localhost:3412/marketplace.html?mode=single-panel");
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        json: async () => ({ message: "Invalid or expired token" }),
+        clone() {
+          return {
+            json: async () => ({ message: "Invalid or expired token" }),
+          };
+        },
+      })
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        json: async () => ({ message: "stop after retry" }),
+        clone() {
+          return {
+            json: async () => ({ message: "stop after retry" }),
+          };
+        },
+      });
+    globalThis.fetch = fetchMock as any;
+
+    await expect(
+      bootMarketplaceHost({
+        identityStorageKey: "xconect_reference_host_identity_v1",
+        readStoredJson: () => ({
+          email: "daniel@example.com",
+          subjectId: "sub_123",
+          bootstrapToken: "stale_token",
+        }),
+        refreshStoredJson: async () => ({
+          email: "daniel@example.com",
+          subjectId: "sub_123",
+          bootstrapToken: "fresh_token",
+        }),
+        applyThemePreference: () => "harbor",
+        readThemePreference: () => "harbor",
+        renderIdentity: () => {},
+        setHeaderCollapsed: () => {},
+        readHeaderCollapsedPreference: () => false,
+        readModeFromUrl: () => "single-panel",
+        renderMode: () => {},
+        renderModeShell: () => {},
+        setModeInUrl: () => {},
+        toggleHeaderCollapsed: () => {},
+        createMarketplaceRuntime: () => ({
+          mount: async () => {},
+          destroy: () => {},
+        }),
+      } as any),
+    ).rejects.toThrow("stop after retry");
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({
+      method: "GET",
+      headers: { "X-Xapps-Host-Bootstrap": "stale_token" },
+    });
+    expect(fetchMock.mock.calls[1]?.[1]).toMatchObject({
+      method: "GET",
+      headers: { "X-Xapps-Host-Bootstrap": "fresh_token" },
+    });
+  });
+
+  it("retries single-xapp host-config after generic invalid-token failure using refreshed identity", async () => {
+    setMockWindow("http://localhost:3412/single-xapp.html?xappId=xapp_123");
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        json: async () => ({ message: "Invalid or expired token" }),
+        clone() {
+          return {
+            json: async () => ({ message: "Invalid or expired token" }),
+          };
+        },
+      })
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        json: async () => ({ message: "stop after retry" }),
+        clone() {
+          return {
+            json: async () => ({ message: "stop after retry" }),
+          };
+        },
+      });
+    globalThis.fetch = fetchMock as any;
+
+    await expect(
+      bootSingleXappHost({
+        identityStorageKey: "xconect_reference_host_identity_v1",
+        sdkPath: singleXappSdkStubUrl,
+        readStoredJson: () => ({
+          email: "daniel@example.com",
+          subjectId: "sub_123",
+          bootstrapToken: "stale_token",
+        }),
+        refreshStoredJson: async () => ({
+          email: "daniel@example.com",
+          subjectId: "sub_123",
+          bootstrapToken: "fresh_token",
+        }),
+        applyThemePreference: () => "harbor",
+        readThemePreference: () => "harbor",
+        renderIdentity: () => {},
+        setHeaderCollapsed: () => {},
+        readHeaderCollapsedPreference: () => false,
+        renderSingleXappShell: () => {},
+        resolveTheme: () => ({}),
       } as any),
     ).rejects.toThrow("stop after retry");
 

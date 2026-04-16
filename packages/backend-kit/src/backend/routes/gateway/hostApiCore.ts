@@ -11,11 +11,23 @@ import {
   sendServiceError,
 } from "./shared.js";
 
+function readString(...values) {
+  for (const value of values) {
+    const normalized = String(value ?? "").trim();
+    if (normalized) return normalized;
+  }
+  return "";
+}
+
 export default async function hostApiCoreRoutes(
   fastify,
-  { hostProxyService, allowedOrigins = [], bootstrap = {} } = {},
+  { hostProxyService, allowedOrigins = [], bootstrap = {}, subjectProfiles = {} } = {},
 ) {
   const service = requireHostProxyService(hostProxyService);
+  const resolveCatalogCustomerProfile =
+    typeof subjectProfiles?.resolveCatalogCustomerProfile === "function"
+      ? subjectProfiles.resolveCatalogCustomerProfile
+      : null;
   fastify.get("/api/host-config", async (request, reply) => {
     if (!ensureHostApiOriginAllowed(request, reply, allowedOrigins)) return;
     const config =
@@ -89,10 +101,43 @@ export default async function hostApiCoreRoutes(
           xappId: body.xappId,
           publishers: body.publishers,
           tags: body.tags,
+          customerProfile:
+            body.customerProfile && typeof body.customerProfile === "object"
+              ? body.customerProfile
+              : undefined,
         }),
       );
     } catch (err) {
       return sendServiceError(request, reply, err, "create-catalog-session failed");
+    }
+  });
+
+  fastify.post("/api/catalog-customer-profile", async (request, reply) => {
+    if (!ensureHostApiOriginAllowed(request, reply, allowedOrigins)) return;
+    try {
+      const body = readBodyRecord(request.body);
+      const bootstrapContext = readHostBootstrapContext(request, bootstrap);
+      const subjectId = readString(bootstrapContext?.subjectId, body.subjectId);
+      applyHostApiCorsHeaders(reply, request, allowedOrigins);
+      if (!subjectId || !resolveCatalogCustomerProfile) {
+        return reply.send({ ok: true, customerProfile: null });
+      }
+      const resolved = await resolveCatalogCustomerProfile({
+        subjectId,
+        xappId: readString(body.xappId),
+        profileFamily: readString(body.profile_family, body.profileFamily) || null,
+        xappSlug: readString(body.xapp_slug, body.xappSlug) || null,
+        toolName: readString(body.tool_name, body.toolName) || null,
+      });
+      const data =
+        resolved && typeof resolved === "object" && !Array.isArray(resolved) ? resolved : null;
+
+      return reply.send({
+        ok: true,
+        customerProfile: data || null,
+      });
+    } catch (err) {
+      return sendServiceError(request, reply, err, "catalog-customer-profile failed");
     }
   });
 

@@ -5,6 +5,7 @@ import { useMarketplace } from "../MarketplaceContext";
 import { MarketplacePrimaryNav } from "../components/MarketplacePrimaryNav";
 import type { CatalogXapp } from "../types";
 import { buildTokenSearch } from "../utils/embedSearch";
+import { shouldHideMarketplaceVersions } from "../utils/installationPolicy";
 import { asRecord, readFirstString, readString } from "../utils/readers";
 import "../marketplace.css";
 
@@ -16,7 +17,7 @@ function useQueryToken(): string {
 
 export function PublisherDetailPage() {
   const { publisherSlug = "" } = useParams();
-  const { client, host } = useMarketplace();
+  const { client, host, env } = useMarketplace();
   const { locale, t } = useMarketplaceI18n();
   const loc = useLocation();
   const token = useQueryToken();
@@ -29,6 +30,11 @@ export function PublisherDetailPage() {
   const [q, setQ] = useState("");
 
   const installationsByXappId = host.getInstallationsByXappId();
+  const hideVersions = shouldHideMarketplaceVersions({
+    installationPolicy: env?.installationPolicy ?? host.installationPolicy ?? null,
+    installationPolicyResolved: env?.installationPolicyResolved,
+    subjectId: host.subjectId,
+  });
 
   async function refresh() {
     if (!publisherSlug) return;
@@ -236,7 +242,7 @@ export function PublisherDetailPage() {
                                 {t("common.added", undefined, "Added")}
                               </span>
                             )}
-                            {x.latest_version?.version && (
+                            {!hideVersions && x.latest_version?.version && (
                               <div className="mx-card-version">v{x.latest_version.version}</div>
                             )}
                           </div>

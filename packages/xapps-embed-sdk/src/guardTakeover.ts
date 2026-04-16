@@ -1,3 +1,5 @@
+import { createModalShell } from "@xapps-platform/browser-host/modal-shell";
+
 export type GuardBlockedPayload = {
   message: string;
   trigger: string;
@@ -103,10 +105,6 @@ export async function openGuardWidgetOverlay(input: {
             loading: "Loading...",
           };
     let settled = false;
-    const overlay = document.createElement("div");
-    overlay.className = "xapps-guard-overlay-root";
-    const frameWrap = document.createElement("div");
-    frameWrap.className = "xapps-guard-frame-wrap";
     const iframe = document.createElement("iframe");
 
     const finish = (value: Record<string, unknown> | null, error?: Error) => {
@@ -114,7 +112,7 @@ export async function openGuardWidgetOverlay(input: {
       settled = true;
       window.removeEventListener("message", onMessage);
       try {
-        overlay.remove();
+        shell.destroy();
       } catch {
         // no-op
       }
@@ -160,63 +158,43 @@ export async function openGuardWidgetOverlay(input: {
         const height = Number(asRecord(message.data).height ?? 0);
         if (Number.isFinite(height) && height > 0) {
           const viewportMax = Math.max(320, window.innerHeight - 80);
-          frameWrap.style.height = `${Math.min(Math.max(height + 45, 420), Math.min(900, viewportMax))}px`;
+          panel.style.height = `${Math.min(Math.max(height + 45, 420), Math.min(900, viewportMax))}px`;
         }
       }
     };
 
-    // Inject keyframe animation once
+    // Inject spinner animation once
     if (!document.getElementById("xapps-guard-overlay-style")) {
       const style = document.createElement("style");
       style.id = "xapps-guard-overlay-style";
       style.textContent = `
-        @keyframes xapps-overlay-in { from { opacity: 0; } to { opacity: 1; } }
-        @keyframes xapps-panel-in { from { opacity: 0; transform: translateY(12px) scale(0.98); } to { opacity: 1; transform: none; } }
         @keyframes xapps-spin { to { transform: rotate(360deg); } }
         @media (max-width: 768px) {
-          .xapps-guard-overlay-root { padding: 10px !important; }
-          .xapps-guard-frame-wrap { border-radius: 14px !important; }
+          .xapps-guard-shell-root { padding: 10px !important; }
+          .xapps-guard-shell-panel { border-radius: 14px !important; }
         }
         @media (max-width: 480px) {
-          .xapps-guard-overlay-root { padding: 6px !important; }
-          .xapps-guard-frame-wrap { border-radius: 12px !important; }
+          .xapps-guard-shell-root { padding: 6px !important; }
+          .xapps-guard-shell-panel { border-radius: 12px !important; }
         }
       `;
       document.head.appendChild(style);
     }
 
-    overlay.style.cssText =
-      "position:fixed;inset:0;background:rgba(2,6,23,0.52);display:flex;align-items:flex-start;justify-content:center;padding:16px;overflow:auto;z-index:2147483200;backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);animation:xapps-overlay-in 0.2s ease-out";
-
-    frameWrap.style.cssText =
-      "width:min(1080px,96vw);max-height:calc(100vh - 32px);margin:auto 0;background:#fff;border:1px solid #e2e8f0;border-radius:16px;box-shadow:0 25px 60px rgba(15,23,42,0.22),0 0 0 1px rgba(15,23,42,0.04);overflow:hidden;display:flex;flex-direction:column;animation:xapps-panel-in 0.25s ease-out";
-
-    // Header bar
-    const header = document.createElement("div");
-    header.style.cssText =
-      "display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid #f1f5f9;flex-shrink:0;background:#fafbfc";
-    header.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#475569" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`;
-    const headerTitle = document.createElement("span");
-    headerTitle.style.cssText =
-      "flex:1;font:600 0.8125rem/1 system-ui,sans-serif;color:#334155;letter-spacing:-0.01em";
-    headerTitle.textContent = overlayCatalog.title;
-    header.appendChild(headerTitle);
-    const closeBtn = document.createElement("button");
-    closeBtn.type = "button";
-    closeBtn.setAttribute("aria-label", overlayCatalog.close);
-    closeBtn.style.cssText =
-      "appearance:none;border:none;background:none;cursor:pointer;padding:4px;border-radius:6px;color:#94a3b8;display:flex;align-items:center;justify-content:center;transition:color 0.15s,background 0.15s";
-    closeBtn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
-    closeBtn.addEventListener("mouseenter", () => {
-      closeBtn.style.color = "#334155";
-      closeBtn.style.background = "#f1f5f9";
+    const shell = createModalShell({
+      title: overlayCatalog.title,
+      closeLabel: overlayCatalog.close,
+      themeTokens: input.theme && typeof input.theme === "object" ? input.theme : null,
+      onClose: () => finish(null),
+      zIndex: "2147483200",
+      bodyPadding: "0",
     });
-    closeBtn.addEventListener("mouseleave", () => {
-      closeBtn.style.color = "#94a3b8";
-      closeBtn.style.background = "none";
-    });
-    closeBtn.addEventListener("click", () => finish(null));
-    header.appendChild(closeBtn);
+    const overlay = shell.overlay;
+    const panel = shell.panel;
+    overlay.classList.add("xapps-guard-shell-root");
+    panel.classList.add("xapps-guard-shell-panel");
+    panel.style.width = "min(1100px, 96vw)";
+    panel.style.maxWidth = "1100px";
 
     // Iframe container (with loading state)
     const iframeWrap = document.createElement("div");
@@ -224,7 +202,7 @@ export async function openGuardWidgetOverlay(input: {
 
     const loader = document.createElement("div");
     loader.style.cssText =
-      "position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:10px;background:#fafbfc;z-index:1;transition:opacity 0.3s ease";
+      "position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:10px;background:inherit;z-index:1;transition:opacity 0.3s ease";
     loader.innerHTML = `<div style="width:20px;height:20px;border:2.5px solid #e2e8f0;border-top-color:#3b82f6;border-radius:50%;animation:xapps-spin 0.7s linear infinite"></div><span style="font:500 0.8125rem system-ui,sans-serif;color:#64748b">${overlayCatalog.loading}</span>`;
 
     iframe.style.cssText = "border:0;width:100%;height:100%";
@@ -236,28 +214,11 @@ export async function openGuardWidgetOverlay(input: {
     });
     iframe.src = input.embedUrl;
 
-    // ESC key handler
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") finish(null);
-    };
-    window.addEventListener("keydown", onKeyDown);
-    const originalFinish = finish;
-    const wrappedFinish = (value: Record<string, unknown> | null, error?: Error) => {
-      window.removeEventListener("keydown", onKeyDown);
-      originalFinish(value, error);
-    };
-    // Patch finish reference for event handlers already bound
-    overlay.addEventListener("click", (event) => {
-      if (event.target === overlay) wrappedFinish(null);
-    });
-    frameWrap.addEventListener("click", (event) => event.stopPropagation());
-
     iframeWrap.appendChild(loader);
     iframeWrap.appendChild(iframe);
-    frameWrap.appendChild(header);
-    frameWrap.appendChild(iframeWrap);
-    overlay.appendChild(frameWrap);
+    shell.body.style.padding = "0";
+    shell.body.style.overflow = "hidden";
+    shell.body.appendChild(iframeWrap);
     window.addEventListener("message", onMessage);
-    document.body.appendChild(overlay);
   });
 }

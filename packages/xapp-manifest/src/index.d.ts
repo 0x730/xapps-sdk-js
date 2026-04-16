@@ -162,12 +162,22 @@ export type XappManifest = {
   event_subscriptions?: XappManifestEventSubscription[];
   connectivity?: XappManifestConnectivity;
   monetization?: {
+    virtual_currencies?: Array<{
+      code: string;
+      name?: string;
+      status?: "active" | "archived";
+    }>;
     products?: Array<{
       slug: string;
       title?: string;
       description?: string;
       product_family: string;
       status?: "draft" | "active" | "archived";
+      virtual_currency?: {
+        code: string;
+        name?: string;
+        status?: "active" | "archived";
+      };
       metadata?: Record<string, unknown>;
     }>;
     offerings?: Array<{
@@ -205,6 +215,7 @@ export type XappManifest = {
       tool_name: string;
       unit?: string;
       credit_cost: number;
+      virtual_currency_code?: string;
       status?: "draft" | "active" | "archived";
       metadata?: Record<string, unknown>;
     }>;

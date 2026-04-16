@@ -106,7 +106,7 @@ function normalizeSubjectProfileCandidate(raw, index, requestedFamily, workspace
   return candidate;
 }
 
-async function buildSubjectProfileCandidateEnvelope(payload, options = {}) {
+export async function buildSubjectProfileCandidateEnvelope(payload, options = {}) {
   const guardContext = asObject(payload.guard_context || payload.guardContext);
   const subjectId = readString(payload.subjectId, payload.subject_id, guardContext.subjectId);
   const requestedFamily = readString(payload.profile_family, payload.profileFamily) || null;

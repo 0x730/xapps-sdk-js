@@ -26,6 +26,11 @@ type MarketplaceRuntimeOptions = {
   createStandardMarketplaceRuntime: (input: {
     baseUrl: string;
     subjectId: string;
+    getCustomerProfile?:
+      | ((input: {
+          xappId?: string | null;
+        }) => Promise<Record<string, unknown> | null> | Record<string, unknown> | null)
+      | undefined;
     locale?: string | null;
     installationPolicy?: {
       mode?: "manual" | "auto_available";
@@ -46,6 +51,11 @@ type MarketplaceRuntimeOptions = {
   }) => unknown;
   gatewayBaseUrl: string;
   currentSubjectId: string;
+  getCustomerProfile?:
+    | ((input: {
+        xappId?: string | null;
+      }) => Promise<Record<string, unknown> | null> | Record<string, unknown> | null)
+    | undefined;
   locale?: string | null;
   installationPolicy?: {
     mode?: "manual" | "auto_available";
@@ -83,6 +93,7 @@ export function createMarketplaceRuntime(options: MarketplaceRuntimeOptions): un
   return options.createStandardMarketplaceRuntime({
     baseUrl: options.gatewayBaseUrl,
     subjectId: options.currentSubjectId,
+    getCustomerProfile: options.getCustomerProfile,
     locale: options.locale || null,
     installationPolicy: options.installationPolicy || null,
     paymentResumeState: options.paymentResumeState,

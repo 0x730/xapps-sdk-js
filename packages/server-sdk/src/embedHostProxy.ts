@@ -8,6 +8,7 @@ import type {
   EmbedMyXappMonetizationInput,
   EmbedMyXappMonetizationResult,
   EmbedMyXappPreparePurchaseIntentInput,
+  EmbedMyXappSubscriptionContractInput,
   GatewaySubjectResolveInput,
   GatewaySubjectResolveResult,
   InstallXappInput,
@@ -21,6 +22,7 @@ import type {
   RunWidgetToolRequestInput,
   WidgetSessionInput,
   WidgetSessionResult,
+  XappSubscriptionContractLifecycleResult,
 } from "./gatewayApiClient.js";
 
 export type EmbedHostMode = {
@@ -79,6 +81,8 @@ export type EmbedHostCreateMyXappPurchasePaymentSessionInput =
 
 export type EmbedHostFinalizeMyXappPurchasePaymentSessionInput =
   EmbedMyXappFinalizePurchasePaymentSessionInput;
+
+export type EmbedHostMyXappSubscriptionContractInput = EmbedMyXappSubscriptionContractInput;
 
 export type EmbedHostBridgeTokenRefreshInput = Pick<
   EmbedHostCreateWidgetSessionInput,
@@ -156,6 +160,12 @@ export type EmbedHostProxyServiceOptions = {
       finalizeEmbedMyXappPurchasePaymentSession: (
         input: EmbedMyXappFinalizePurchasePaymentSessionInput,
       ) => Promise<Record<string, unknown>>;
+      cancelEmbedMyXappSubscriptionContract: (
+        input: EmbedMyXappSubscriptionContractInput,
+      ) => Promise<XappSubscriptionContractLifecycleResult>;
+      refreshEmbedMyXappSubscriptionContractState: (
+        input: EmbedMyXappSubscriptionContractInput,
+      ) => Promise<XappSubscriptionContractLifecycleResult>;
       runWidgetToolRequest: (input: RunWidgetToolRequestInput) => Promise<Record<string, unknown>>;
     },
     | "resolveSubject"
@@ -170,6 +180,8 @@ export type EmbedHostProxyServiceOptions = {
     | "prepareEmbedMyXappPurchaseIntent"
     | "createEmbedMyXappPurchasePaymentSession"
     | "finalizeEmbedMyXappPurchasePaymentSession"
+    | "cancelEmbedMyXappSubscriptionContract"
+    | "refreshEmbedMyXappSubscriptionContractState"
     | "runWidgetToolRequest"
   >;
   gatewayUrl?: string;
@@ -410,6 +422,10 @@ export function createEmbedHostProxyService(options: EmbedHostProxyServiceOption
         xappId: readOptionalString(input.xappId),
         publishers: Array.isArray(input.publishers) ? input.publishers : undefined,
         tags: Array.isArray(input.tags) ? input.tags : undefined,
+        customerProfile:
+          input.customerProfile && typeof input.customerProfile === "object"
+            ? input.customerProfile
+            : undefined,
       });
     },
 
@@ -498,6 +514,26 @@ export function createEmbedHostProxyService(options: EmbedHostProxyServiceOption
       return options.gatewayClient.finalizeEmbedMyXappPurchasePaymentSession({
         xappId: requireTrimmedString(input.xappId, "xappId"),
         intentId: requireTrimmedString(input.intentId, "intentId"),
+        token: requireTrimmedString(input.token, "token"),
+      }) as Promise<Record<string, unknown>>;
+    },
+
+    async cancelMyXappSubscriptionContract(
+      input: EmbedHostMyXappSubscriptionContractInput,
+    ): Promise<Record<string, unknown>> {
+      return options.gatewayClient.cancelEmbedMyXappSubscriptionContract({
+        xappId: requireTrimmedString(input.xappId, "xappId"),
+        contractId: requireTrimmedString(input.contractId, "contractId"),
+        token: requireTrimmedString(input.token, "token"),
+      }) as Promise<Record<string, unknown>>;
+    },
+
+    async refreshMyXappSubscriptionContractState(
+      input: EmbedHostMyXappSubscriptionContractInput,
+    ): Promise<Record<string, unknown>> {
+      return options.gatewayClient.refreshEmbedMyXappSubscriptionContractState({
+        xappId: requireTrimmedString(input.xappId, "xappId"),
+        contractId: requireTrimmedString(input.contractId, "contractId"),
         token: requireTrimmedString(input.token, "token"),
       }) as Promise<Record<string, unknown>>;
     },

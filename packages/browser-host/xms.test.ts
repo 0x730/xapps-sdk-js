@@ -198,6 +198,42 @@ describe("@xapps-platform/browser-host xms helpers", () => {
     expect(packages[0]?.offeringPlacement).toBe("paywall");
   });
 
+  it("prefers authored package and product titles over technical slugs in paywall views", () => {
+    const packages = flattenXappMonetizationPaywallPackages({
+      slug: "workspace_default",
+      packages: [
+        {
+          id: "pkg_unlock",
+          slug: "cert_single_unlock",
+          title: { en: "Single Certificate Unlock" },
+          package_kind: "one_time_unlock",
+          offering_id: "off_paywall",
+          offering_slug: "cert_default_paywall",
+          offering_title: { en: "Certificate Plans" },
+          offering_placement: "paywall",
+          product: {
+            id: "prod_unlock",
+            slug: "cert_single_unlock_access",
+            title: { en: "Certificate Access" },
+            product_family: "one_time_unlock",
+          },
+          prices: [
+            {
+              id: "price_unlock",
+              amount: "19",
+              currency: "RON",
+              billing_period: "one_time",
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(packages[0]?.packageTitle).toBe("Single Certificate Unlock");
+    expect(packages[0]?.productTitle).toBe("Certificate Access");
+    expect(packages[0]?.offeringTitle).toBe("Certificate Plans");
+  });
+
   it("matches placement families and builds a shared render model for paywall UIs", () => {
     const paywalls = listXappMonetizationPaywalls([
       {

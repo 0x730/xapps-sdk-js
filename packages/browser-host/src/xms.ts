@@ -1,4 +1,5 @@
 import { buildXmsPackageCopy, buildXmsSurfaceCopy } from "./xmsCopy.js";
+import { buildModalShellLayout, buildModalShellTheme } from "./modalShell.js";
 export { buildXmsSurfaceCopy } from "./xmsCopy.js";
 
 function readString(value: unknown): string {
@@ -43,6 +44,10 @@ function readVirtualCurrencyDefinition(value: unknown): Record<string, unknown> 
   const name = readString(record.name);
   if (!code && !name) return null;
   return record;
+}
+
+function hasNamedVirtualCurrency(value: unknown): boolean {
+  return Boolean(readVirtualCurrencyDefinition(value));
 }
 
 function formatVirtualCurrencyLabel(
@@ -158,6 +163,29 @@ function buildPaywallThemeStyle(options: {
   setVar("--xapps-paywall-action-text", theme.action_text);
   setVar("--xapps-paywall-money-bg", theme.money_bg);
   setVar("--xapps-paywall-money-text", theme.money_text);
+  setVar("--xapps-paywall-primary-bg", theme.primary_bg);
+  setVar("--xapps-paywall-primary-border", theme.primary_border);
+  setVar("--xapps-paywall-primary-text", theme.primary_text);
+  setVar("--xapps-paywall-selected-bg", theme.selected_bg);
+  setVar("--xapps-paywall-selected-border", theme.selected_border);
+  setVar("--xapps-paywall-selected-shadow", theme.selected_shadow);
+  setVar("--xapps-paywall-default-bg", theme.default_bg);
+  setVar("--xapps-paywall-default-border", theme.default_border);
+  setVar("--xapps-paywall-default-shadow", theme.default_shadow);
+  setVar("--xapps-paywall-signal-bg", theme.signal_bg);
+  setVar("--xapps-paywall-signal-text", theme.signal_text);
+  setVar("--xapps-paywall-notice-bg", theme.notice_bg);
+  setVar("--xapps-paywall-notice-border", theme.notice_border);
+  setVar("--xapps-paywall-notice-text", theme.notice_text);
+  setVar("--xapps-paywall-success-bg", theme.success_bg);
+  setVar("--xapps-paywall-success-border", theme.success_border);
+  setVar("--xapps-paywall-success-text", theme.success_text);
+  setVar("--xapps-paywall-warning-bg", theme.warning_bg);
+  setVar("--xapps-paywall-warning-border", theme.warning_border);
+  setVar("--xapps-paywall-warning-text", theme.warning_text);
+  setVar("--xapps-paywall-danger-bg", theme.danger_bg);
+  setVar("--xapps-paywall-danger-border", theme.danger_border);
+  setVar("--xapps-paywall-danger-text", theme.danger_text);
 
   if (compact) {
     vars.set("--xapps-paywall-gap", "10px");
@@ -526,15 +554,27 @@ export function flattenXappMonetizationPaywallPackages(
     out.push({
       offeringId: readString(packageRecord.offering_id),
       offeringSlug: readString(packageRecord.offering_slug),
-      offeringTitle:
+      offeringTitle: readLocalizedText(
+        packageRecord.offering_title,
         readString(packageRecord.offering_slug) || buildXmsSurfaceCopy().offeringFallbackLabel,
+      ),
       offeringPlacement: readString(packageRecord.offering_placement) || null,
       packageId: readString(packageRecord.id),
       packageSlug: readString(packageRecord.slug),
-      packageTitle: readString(packageRecord.slug) || buildXmsSurfaceCopy().packageFallbackLabel,
+      packageTitle: readLocalizedText(
+        packageRecord.title,
+        readLocalizedText(
+          (packageRecord.product as Record<string, unknown> | undefined)?.title,
+          readString(packageRecord.slug) || buildXmsSurfaceCopy().packageFallbackLabel,
+        ),
+      ),
       packageKind: readString(packageRecord.package_kind) || "standard",
       productId: readString((packageRecord.product as Record<string, unknown> | undefined)?.id),
       productSlug: readString((packageRecord.product as Record<string, unknown> | undefined)?.slug),
+      productTitle: readLocalizedText(
+        (packageRecord.product as Record<string, unknown> | undefined)?.title,
+        readString((packageRecord.product as Record<string, unknown> | undefined)?.slug),
+      ),
       productFamily: readString(
         (packageRecord.product as Record<string, unknown> | undefined)?.product_family,
       ),
@@ -749,7 +789,8 @@ export const monetizationPaywallRendererStyles = `
 }
 .xapps-paywall__title {
   margin: 0;
-  font: 700 1.15rem/1.15 "IBM Plex Serif", Georgia, serif;
+  font: 700 1.15rem/1.15
+    var(--xapps-display-font, var(--mx-display-font, var(--mx-font-family, "Inter", "Segoe UI", system-ui, -apple-system, sans-serif)));
 }
 .xapps-paywall__summary {
   color: var(--xapps-paywall-muted, #6c5d49);
@@ -785,12 +826,24 @@ export const monetizationPaywallRendererStyles = `
   box-shadow: var(--xapps-paywall-package-shadow, none);
 }
 .xapps-paywall__package.is-default {
-  border-color: rgba(15,118,110,0.28);
-  box-shadow: inset 0 0 0 1px rgba(15,118,110,0.08);
+  border-color: var(
+    --xapps-paywall-default-border,
+    color-mix(in srgb, var(--xapps-accent, #0f766e) 28%, var(--xapps-paywall-border, transparent))
+  );
+  box-shadow: var(
+    --xapps-paywall-default-shadow,
+    inset 0 0 0 1px color-mix(in srgb, var(--xapps-accent, #0f766e) 8%, transparent)
+  );
 }
 .xapps-paywall__package.is-selected {
-  border-color: rgba(21,94,117,0.32);
-  box-shadow: inset 0 0 0 1px rgba(21,94,117,0.1);
+  border-color: var(
+    --xapps-paywall-selected-border,
+    color-mix(in srgb, var(--xapps-accent-strong, var(--xapps-accent, #155e75)) 32%, var(--xapps-paywall-border, transparent))
+  );
+  box-shadow: var(
+    --xapps-paywall-selected-shadow,
+    inset 0 0 0 1px color-mix(in srgb, var(--xapps-accent-strong, var(--xapps-accent, #155e75)) 10%, transparent)
+  );
 }
 .xapps-paywall__package-head {
   display: flex;
@@ -800,7 +853,8 @@ export const monetizationPaywallRendererStyles = `
 }
 .xapps-paywall__package-title {
   margin: 0;
-  font: 700 1rem/1.15 "IBM Plex Serif", Georgia, serif;
+  font: 700 1rem/1.15
+    var(--xapps-display-font, var(--mx-display-font, var(--mx-font-family, "Inter", "Segoe UI", system-ui, -apple-system, sans-serif)));
 }
 .xapps-paywall__money {
   display: inline-flex;
@@ -857,7 +911,10 @@ export const monetizationPlansSurfaceStyles = `
   display: grid;
   gap: 16px;
   color: var(--xapps-text-primary, #0f172a);
-  font-family: var(--xapps-font-family, Inter, "Segoe UI", sans-serif);
+  font-family: var(
+    --xapps-font-family,
+    var(--mx-font-family, "Inter", "Segoe UI", system-ui, -apple-system, sans-serif)
+  );
 }
 .xapps-xms-plans__header {
   display: grid;
@@ -865,7 +922,8 @@ export const monetizationPlansSurfaceStyles = `
 }
 .xapps-xms-plans__title {
   margin: 0;
-  font: 700 1.05rem/1.15 var(--xapps-display-font, "IBM Plex Serif", Georgia, serif);
+  font: 700 1.05rem/1.15
+    var(--xapps-display-font, var(--mx-display-font, var(--mx-font-family, "Inter", "Segoe UI", system-ui, -apple-system, sans-serif)));
   letter-spacing: -0.01em;
 }
 .xapps-xms-plans__subtitle {
@@ -892,7 +950,8 @@ export const monetizationPlansSurfaceStyles = `
 }
 .xapps-xms-plans__section-title {
   margin: 0;
-  font: 700 0.98rem/1.1 var(--xapps-display-font, "IBM Plex Serif", Georgia, serif);
+  font: 700 0.98rem/1.1
+    var(--xapps-display-font, var(--mx-display-font, var(--mx-font-family, "Inter", "Segoe UI", system-ui, -apple-system, sans-serif)));
   letter-spacing: -0.01em;
 }
 .xapps-xms-plans__meta {
@@ -927,15 +986,34 @@ export const monetizationPlansSurfaceStyles = `
 .xapps-xms-plans__notice {
   padding: 10px 12px;
   border-radius: 12px;
-  background: color-mix(in srgb, var(--xapps-accent, #0f766e) 8%, var(--xapps-surface-bg, #ffffff));
-  color: color-mix(in srgb, var(--xapps-accent, #0f766e) 82%, var(--xapps-text-primary, #0f172a));
+  border: 1px solid
+    var(
+      --xapps-paywall-notice-border,
+      color-mix(in srgb, var(--xapps-accent, #0f766e) 18%, var(--xapps-border-color, transparent))
+    );
+  background: var(
+    --xapps-paywall-notice-bg,
+    color-mix(in srgb, var(--xapps-accent, #0f766e) 8%, var(--xapps-surface-bg, #ffffff))
+  );
+  color: var(
+    --xapps-paywall-notice-text,
+    color-mix(in srgb, var(--xapps-accent, #0f766e) 82%, var(--xapps-text-primary, #0f172a))
+  );
   font-size: 13px;
 }
 .xapps-xms-plans__error {
   padding: 10px 12px;
   border-radius: 12px;
-  background: color-mix(in srgb, var(--xapps-danger, #dc2626) 8%, var(--xapps-surface-bg, #ffffff));
-  color: var(--xapps-danger, #b91c1c);
+  border: 1px solid
+    var(
+      --xapps-paywall-danger-border,
+      color-mix(in srgb, var(--xapps-danger, #dc2626) 18%, var(--xapps-border-color, transparent))
+    );
+  background: var(
+    --xapps-paywall-danger-bg,
+    color-mix(in srgb, var(--xapps-danger, #dc2626) 8%, var(--xapps-surface-bg, #ffffff))
+  );
+  color: var(--xapps-paywall-danger-text, var(--xapps-danger, #b91c1c));
   font-size: 13px;
 }
 .xapps-xms-plans__packages {
@@ -951,12 +1029,24 @@ export const monetizationPlansSurfaceStyles = `
   background: color-mix(in srgb, var(--xapps-surface-bg, #ffffff) 94%, var(--xapps-surface-subtle, #f8fafc));
 }
 .xapps-xms-plans__package.is-selected {
-  border-color: color-mix(in srgb, var(--xapps-accent, #2563eb) 34%, var(--xapps-border-color, transparent));
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--xapps-accent, #2563eb) 12%, transparent);
+  border-color: var(
+    --xapps-paywall-selected-border,
+    color-mix(in srgb, var(--xapps-accent, #2563eb) 34%, var(--xapps-border-color, transparent))
+  );
+  box-shadow: var(
+    --xapps-paywall-selected-shadow,
+    inset 0 0 0 1px color-mix(in srgb, var(--xapps-accent, #2563eb) 12%, transparent)
+  );
 }
 .xapps-xms-plans__package.is-default {
-  border-color: color-mix(in srgb, var(--xapps-accent, #0f766e) 28%, var(--xapps-border-color, transparent));
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--xapps-accent, #0f766e) 10%, transparent);
+  border-color: var(
+    --xapps-paywall-default-border,
+    color-mix(in srgb, var(--xapps-accent, #0f766e) 28%, var(--xapps-border-color, transparent))
+  );
+  box-shadow: var(
+    --xapps-paywall-default-shadow,
+    inset 0 0 0 1px color-mix(in srgb, var(--xapps-accent, #0f766e) 10%, transparent)
+  );
 }
 .xapps-xms-plans__package-head {
   display: flex;
@@ -966,7 +1056,8 @@ export const monetizationPlansSurfaceStyles = `
 }
 .xapps-xms-plans__package-title {
   margin: 0;
-  font: 700 0.98rem/1.15 var(--xapps-display-font, "IBM Plex Serif", Georgia, serif);
+  font: 700 0.98rem/1.15
+    var(--xapps-display-font, var(--mx-display-font, var(--mx-font-family, "Inter", "Segoe UI", system-ui, -apple-system, sans-serif)));
   letter-spacing: -0.01em;
 }
 .xapps-xms-plans__package-description {
@@ -981,11 +1072,21 @@ export const monetizationPlansSurfaceStyles = `
   white-space: nowrap;
   padding: 6px 10px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--xapps-accent, #0f766e) 7%, var(--xapps-surface-bg, #ffffff));
-  color: color-mix(in srgb, var(--xapps-accent, #0f766e) 28%, var(--xapps-text-primary, #1e293b));
+  background: var(
+    --xapps-paywall-money-bg,
+    color-mix(in srgb, var(--xapps-accent, #0f766e) 7%, var(--xapps-surface-bg, #ffffff))
+  );
+  color: var(
+    --xapps-paywall-money-text,
+    color-mix(in srgb, var(--xapps-accent, #0f766e) 28%, var(--xapps-text-primary, #1e293b))
+  );
   font-size: 12px;
   font-weight: 700;
-  border: 1px solid color-mix(in srgb, var(--xapps-accent, #0f766e) 14%, var(--xapps-border-color, transparent));
+  border: 1px solid
+    var(
+      --xapps-paywall-primary-border,
+      color-mix(in srgb, var(--xapps-accent, #0f766e) 14%, var(--xapps-border-color, transparent))
+    );
 }
 .xapps-xms-plans__badges,
 .xapps-xms-plans__signals {
@@ -1003,13 +1104,25 @@ export const monetizationPlansSurfaceStyles = `
   font-size: 12px;
 }
 .xapps-xms-plans__badge {
-  background: color-mix(in srgb, var(--xapps-accent, #2563eb) 8%, var(--xapps-surface-bg, #ffffff));
-  color: color-mix(in srgb, var(--xapps-accent, #2563eb) 66%, var(--xapps-text-primary, #1d4ed8));
+  background: var(
+    --xapps-paywall-badge-bg,
+    color-mix(in srgb, var(--xapps-accent, #2563eb) 8%, var(--xapps-surface-bg, #ffffff))
+  );
+  color: var(
+    --xapps-paywall-badge-text,
+    color-mix(in srgb, var(--xapps-accent, #2563eb) 66%, var(--xapps-text-primary, #1d4ed8))
+  );
   font-weight: 700;
 }
 .xapps-xms-plans__signal {
-  background: color-mix(in srgb, var(--xapps-text-primary, #0f172a) 4%, var(--xapps-surface-bg, #ffffff));
-  color: color-mix(in srgb, var(--xapps-text-primary, #0f172a) 42%, var(--xapps-text-secondary, #64748b));
+  background: var(
+    --xapps-paywall-signal-bg,
+    color-mix(in srgb, var(--xapps-text-primary, #0f172a) 4%, var(--xapps-surface-bg, #ffffff))
+  );
+  color: var(
+    --xapps-paywall-signal-text,
+    color-mix(in srgb, var(--xapps-text-primary, #0f172a) 42%, var(--xapps-text-secondary, #64748b))
+  );
 }
 .xapps-xms-plans__action {
   justify-self: start;
@@ -1022,7 +1135,7 @@ export const monetizationPlansSurfaceStyles = `
     color-mix(in srgb, var(--xapps-accent, #0f766e) 94%, white),
     color-mix(in srgb, var(--xapps-accent-strong, var(--xapps-accent, #155e75)) 94%, black)
   );
-  color: #f8fafc;
+  color: var(--xapps-paywall-action-text, #f8fafc);
   font-weight: 700;
   cursor: pointer;
   box-shadow: 0 10px 22px color-mix(in srgb, var(--xapps-accent, #0f766e) 18%, transparent);
@@ -1033,7 +1146,7 @@ export const monetizationPlansSurfaceStyles = `
 }
 .xapps-xms-plans__action:hover,
 .xapps-xms-plans__action:focus-visible {
-  color: #f8fafc;
+  color: var(--xapps-paywall-action-text, #f8fafc);
   filter: saturate(1.04) brightness(1.01);
   box-shadow: 0 14px 28px color-mix(in srgb, var(--xapps-accent, #0f766e) 24%, transparent);
 }
@@ -1064,19 +1177,40 @@ export const monetizationPlansSurfaceStyles = `
 }
 .xapps-xms-plans__surface-action:hover,
 .xapps-xms-plans__surface-action:focus-visible {
-  border-color: color-mix(in srgb, var(--xapps-accent, #0f766e) 28%, var(--xapps-border-color, transparent));
-  background: color-mix(in srgb, var(--xapps-accent, #0f766e) 7%, var(--xapps-surface-bg, #ffffff));
-  color: color-mix(in srgb, var(--xapps-accent, #0f766e) 24%, var(--xapps-text-primary, #0f172a));
+  border-color: var(
+    --xapps-paywall-primary-border,
+    color-mix(in srgb, var(--xapps-accent, #0f766e) 28%, var(--xapps-border-color, transparent))
+  );
+  background: var(
+    --xapps-paywall-primary-bg,
+    color-mix(in srgb, var(--xapps-accent, #0f766e) 7%, var(--xapps-surface-bg, #ffffff))
+  );
+  color: var(
+    --xapps-paywall-primary-text,
+    color-mix(in srgb, var(--xapps-accent, #0f766e) 24%, var(--xapps-text-primary, #0f172a))
+  );
 }
 .xapps-xms-plans__surface-action[data-variant="danger"] {
-  border-color: color-mix(in srgb, var(--xapps-danger, #dc2626) 22%, var(--xapps-border-color, transparent));
-  color: var(--xapps-danger, #b91c1c);
+  border-color: var(
+    --xapps-paywall-danger-border,
+    color-mix(in srgb, var(--xapps-danger, #dc2626) 22%, var(--xapps-border-color, transparent))
+  );
+  color: var(--xapps-paywall-danger-text, var(--xapps-danger, #b91c1c));
 }
 .xapps-xms-plans__surface-action[data-variant="danger"]:hover,
 .xapps-xms-plans__surface-action[data-variant="danger"]:focus-visible {
-  border-color: color-mix(in srgb, var(--xapps-danger, #dc2626) 34%, var(--xapps-border-color, transparent));
-  background: color-mix(in srgb, var(--xapps-danger, #dc2626) 8%, var(--xapps-surface-bg, #ffffff));
-  color: var(--xapps-danger, #991b1b);
+  border-color: var(
+    --xapps-paywall-danger-border,
+    color-mix(in srgb, var(--xapps-danger, #dc2626) 34%, var(--xapps-border-color, transparent))
+  );
+  background: var(
+    --xapps-paywall-danger-bg,
+    color-mix(in srgb, var(--xapps-danger, #dc2626) 8%, var(--xapps-surface-bg, #ffffff))
+  );
+  color: var(
+    --xapps-paywall-danger-text,
+    color-mix(in srgb, var(--xapps-danger, #dc2626) 72%, var(--xapps-text-primary, #991b1b))
+  );
 }
 .xapps-xms-plans__surface-action[disabled] {
   cursor: not-allowed;
@@ -1140,7 +1274,8 @@ export const monetizationPlansSurfaceStyles = `
 }
 .xapps-xms-plans__history-title {
   margin: 0;
-  font: 700 0.92rem/1.1 "IBM Plex Serif", Georgia, serif;
+  font: 700 0.92rem/1.1
+    var(--xapps-display-font, var(--mx-display-font, var(--mx-font-family, "Inter", "Segoe UI", system-ui, -apple-system, sans-serif)));
 }
 .xapps-xms-plans__history-count {
   color: #64748b;
@@ -1352,10 +1487,43 @@ function readActiveAdditiveEntitlements(items: unknown): Array<Record<string, un
     .filter((item) => hasCurrentOwnedEntitlement(item));
 }
 
-function formatAdditiveEntitlementLabels(items: Array<Record<string, unknown>>): string[] {
+function buildMonetizationPackageLabelResolver(
+  items: Array<Record<string, unknown>>,
+): (value: unknown) => string {
   const labels = new Map<string, string>();
   for (const item of items) {
-    const label = readString(item.product_slug) || readString(item.tier);
+    const productMetadata =
+      item.productMetadata && typeof item.productMetadata === "object"
+        ? (item.productMetadata as Record<string, unknown>)
+        : {};
+    const label =
+      readString(item.packageTitle) || readString(item.productTitle) || readString(item.productSlug);
+    if (!label) continue;
+    for (const candidate of [
+      item.packageSlug,
+      item.productSlug,
+      productMetadata.access_tier,
+      item.packageId,
+      item.productId,
+    ]) {
+      const key = readLower(candidate);
+      if (key && !labels.has(key)) labels.set(key, label);
+    }
+  }
+  return (value: unknown) => labels.get(readLower(value)) || "";
+}
+
+function formatResolvedAdditiveEntitlementLabels(
+  items: Array<Record<string, unknown>>,
+  resolveLabel: (value: unknown) => string,
+): string[] {
+  const labels = new Map<string, string>();
+  for (const item of items) {
+    const label =
+      resolveLabel(item.product_slug) ||
+      resolveLabel(item.tier) ||
+      readString(item.product_slug) ||
+      readString(item.tier);
     if (!label) continue;
     const identity =
       readString(item.product_id) || readString(item.product_slug) || readString(item.id) || label;
@@ -1418,9 +1586,11 @@ export function summarizeVirtualCurrencyBalances(input: unknown): {
     amount: string;
     amountLabel: string;
     accountCount: number;
+    hasNamedCurrency: boolean;
   }>;
   totalAccounts: number;
   totalCurrencies: number;
+  totalNamedCurrencies: number;
 } {
   const record = readRecord(input) ?? {};
   const history = readRecord(record.history) ?? record;
@@ -1477,7 +1647,7 @@ export function summarizeVirtualCurrencyBalances(input: unknown): {
     upsertBalance({
       amount: item.balance_remaining,
       virtualCurrency: item.virtual_currency,
-      fallbackUnit: item.currency,
+      fallbackUnit: "credits",
       fallbackKey: item.product_slug || item.id,
     });
   }
@@ -1507,6 +1677,7 @@ export function summarizeVirtualCurrencyBalances(input: unknown): {
             fallbackUnit: item.fallbackUnit,
           }) || amount,
         accountCount: item.accountCount,
+        hasNamedCurrency: hasNamedVirtualCurrency(item.virtualCurrency),
       };
     })
     .sort((left, right) => {
@@ -1519,6 +1690,7 @@ export function summarizeVirtualCurrencyBalances(input: unknown): {
     balances,
     totalAccounts: walletAccounts.length,
     totalCurrencies: balances.length,
+    totalNamedCurrencies: balances.filter((item) => item.hasNamedCurrency).length,
   };
 }
 
@@ -1855,9 +2027,13 @@ function buildMonetizationHistoryBalanceSummaryHtml(input: {
   const copy = buildXmsSurfaceCopy({ locale });
   const summary = summarizeVirtualCurrencyBalances(history);
   if (!summary.balances.length) return "";
+  const summaryTitle =
+    summary.totalNamedCurrencies > 0
+      ? copy.historyBalanceSummaryTitle
+      : copy.historyCreditSummaryTitle;
   return `
     <section class="xapps-xms-plans__card">
-      <h4 class="xapps-xms-plans__section-title">${escapeHtml(copy.historyBalanceSummaryTitle)}</h4>
+      <h4 class="xapps-xms-plans__section-title">${escapeHtml(summaryTitle)}</h4>
       <div class="xapps-xms-plans__subtitle">${escapeHtml(copy.historyBalanceSummarySubtitle)}</div>
       <div class="xapps-xms-plans__badges">
         ${summary.balances
@@ -1892,33 +2068,83 @@ export function buildXmsSurfaceShellTheme(input?: { themeTokens?: unknown }): {
   closeText: string;
   bodyBg: string;
 } {
-  const theme = readRecord(input?.themeTokens) ?? {};
-  const card = readString(theme.card) || "#ffffff";
-  const bg = readString(theme.bg) || "#f8fafc";
-  const border = readString(theme.border) || "rgba(148, 163, 184, 0.28)";
-  const text = readString(theme.text) || "#0f172a";
-  const muted = readString(theme.muted) || "#64748b";
-  const shadow = readString(theme.shadow) || "0 28px 70px rgba(15, 23, 42, 0.28)";
-  const radius = readString(theme.radiusLg) || readString(theme.radius) || "18px";
+  const shell = buildModalShellTheme(input);
   return {
-    overlayBg: "rgba(2,6,23,0.56)",
-    panelBg: card,
-    panelBorder: border,
-    panelRadius: radius,
-    panelShadow: shadow,
-    headerBg: `linear-gradient(180deg, ${card} 0%, ${bg} 100%)`,
-    headerBorder: "1px solid rgba(226, 232, 240, 0.95)",
-    titleColor: text,
-    subtitleColor: muted,
+    overlayBg: shell.overlayBg,
+    panelBg: shell.panelBg,
+    panelBorder: shell.panelBorder,
+    panelRadius: shell.panelRadius,
+    panelShadow: shell.panelShadow,
+    headerBg: shell.headerBg,
+    headerBorder: shell.headerBorder,
+    titleColor: shell.titleColor,
+    subtitleColor: shell.subtitleColor,
     tabRailBg: "rgba(226, 232, 240, 0.72)",
     tabRailBorder: "1px solid rgba(203, 213, 225, 0.92)",
-    tabActiveBg: card,
-    tabActiveText: text,
-    tabInactiveText: muted,
-    closeBg: card,
-    closeBorder: border,
-    closeText: text,
-    bodyBg: `linear-gradient(180deg, ${bg} 0%, ${card} 22%)`,
+    tabActiveBg: shell.panelBg,
+    tabActiveText: shell.titleColor,
+    tabInactiveText: shell.subtitleColor,
+    closeBg: shell.closeBg,
+    closeBorder: shell.closeBorder,
+    closeText: shell.closeText,
+    bodyBg: shell.bodyBg,
+  };
+}
+
+export function buildXmsSurfaceShellLayout(): {
+  overlayPadding: string;
+  overlayBlur: string;
+  panelWidth: string;
+  panelMaxWidth: string;
+  panelMaxHeight: string;
+  panelGap: string;
+  headerGap: string;
+  headerPadding: string;
+  bodyPadding: string;
+  bodyMaxHeight: string;
+  tabsGap: string;
+  tabRailGap: string;
+  tabRailPadding: string;
+  tabPadding: string;
+  tabRadius: string;
+  titleFont: string;
+  titleLetterSpacing: string;
+  subtitleMarginTop: string;
+  subtitleFont: string;
+  tabFont: string;
+  closeButtonSize: string;
+  closeButtonRadius: string;
+  closeButtonFont: string;
+  closeButtonLineHeight: string;
+  closeButtonShadow: string;
+} {
+  const shell = buildModalShellLayout();
+  return {
+    overlayPadding: shell.overlayPadding,
+    overlayBlur: shell.overlayBlur,
+    panelWidth: shell.panelWidth,
+    panelMaxWidth: shell.panelMaxWidth,
+    panelMaxHeight: shell.panelMaxHeight,
+    panelGap: shell.panelGap,
+    headerGap: shell.headerGap,
+    headerPadding: shell.headerPadding,
+    bodyPadding: shell.bodyPadding,
+    bodyMaxHeight: shell.bodyMaxHeight,
+    tabsGap: "10px",
+    tabRailGap: "4px",
+    tabRailPadding: "4px",
+    tabPadding: "8px 12px",
+    tabRadius: "999px",
+    titleFont: shell.titleFont,
+    titleLetterSpacing: shell.titleLetterSpacing,
+    subtitleMarginTop: shell.subtitleMarginTop,
+    subtitleFont: shell.subtitleFont,
+    tabFont: "600 0.75rem system-ui,sans-serif",
+    closeButtonSize: shell.closeButtonSize,
+    closeButtonRadius: shell.closeButtonRadius,
+    closeButtonFont: shell.closeButtonFont,
+    closeButtonLineHeight: shell.closeButtonLineHeight,
+    closeButtonShadow: shell.closeButtonShadow,
   };
 }
 
@@ -1982,6 +2208,7 @@ export function buildMonetizationPlansSurfaceHtml(
     showHeader?: boolean;
     includeStyles?: boolean;
     interactive?: boolean;
+    subscriptionInteractive?: boolean;
     showOperatorManagement?: boolean;
     onRefreshSubscription?: (() => void) | null;
     onCancelSubscription?: (() => void) | null;
@@ -1997,6 +2224,7 @@ export function buildMonetizationPlansSurfaceHtml(
   const locale = readString(options.locale) || "en";
   const renderModel = buildMonetizationPaywallRenderModel(paywall);
   const packageRecords = flattenXappMonetizationPaywallPackages(paywall);
+  const resolvePackageLabel = buildMonetizationPackageLabelResolver(packageRecords);
   const packageRecordBySlug = new Map(
     packageRecords.map((item) => [readLower(item.packageSlug), item]),
   );
@@ -2011,7 +2239,10 @@ export function buildMonetizationPlansSurfaceHtml(
     currentSubscription,
     locale,
   });
-  const lifecycleInteractive = options.interactive !== false;
+  const lifecycleInteractive =
+    typeof options.subscriptionInteractive === "boolean"
+      ? options.subscriptionInteractive
+      : options.interactive !== false;
   const showOperatorManagement = options.showOperatorManagement === true;
   const operatorAuthority = showOperatorManagement
     ? resolveSubscriptionOperatorAuthorityLabel({
@@ -2054,12 +2285,17 @@ export function buildMonetizationPlansSurfaceHtml(
       fallback: true,
     });
   const currentTier = readString(currentSubscription?.tier) || readString(accessProjection?.tier);
+  const currentTierLabel = resolvePackageLabel(currentTier) || currentTier;
   const accessState = formatCoverageLabel({ accessProjection, currentSubscription, locale });
   const creditsRemaining = readString(accessProjection?.credits_remaining);
   const accessVirtualCurrency = readVirtualCurrencyDefinition(accessProjection?.virtual_currency);
-  const additiveUnlocks = formatAdditiveEntitlementLabels(additiveEntitlements);
+  const hasNamedAccessCurrency = Boolean(accessVirtualCurrency);
+  const additiveUnlocks = formatResolvedAdditiveEntitlementLabels(
+    additiveEntitlements,
+    resolvePackageLabel,
+  );
   const accessRows = [
-    currentTier ? [surfaceCopy.currentPlanLabel, currentTier] : null,
+    currentTierLabel ? [surfaceCopy.currentPlanLabel, currentTierLabel] : null,
     accessState ? [surfaceCopy.membershipAccessLabel, accessState] : null,
     lifecycle.statusLabel ? [surfaceCopy.subscriptionStatusLabel, lifecycle.statusLabel] : null,
     lifecycle.coverageLabel
@@ -2097,7 +2333,7 @@ export function buildMonetizationPlansSurfaceHtml(
       : null,
     creditsRemaining
       ? [
-          surfaceCopy.creditsRemainingLabel,
+          hasNamedAccessCurrency ? surfaceCopy.creditsRemainingLabel : surfaceCopy.creditBalanceLabel,
           formatVirtualCurrencyAmountLabel({
             amount: creditsRemaining,
             virtualCurrency: accessVirtualCurrency,
@@ -2332,6 +2568,7 @@ export function renderMonetizationPlansSurface(
     showHeader?: boolean;
     includeStyles?: boolean;
     interactive?: boolean;
+    subscriptionInteractive?: boolean;
     showOperatorManagement?: boolean;
     onCheckoutPackage?: ((input: { packageId: string; packageSlug: string }) => void) | null;
     onRefreshSubscription?: (() => void) | null;

@@ -230,6 +230,9 @@ async function requestJsonViaNode(input: {
   if (!headersObject.accept) {
     headersObject.accept = "application/json";
   }
+  if (!headersObject.connection) {
+    headersObject.connection = "close";
+  }
   const body = typeof input.body === "string" ? input.body : "";
   if (body) {
     if (!headersObject["content-type"]) {
@@ -245,6 +248,7 @@ async function requestJsonViaNode(input: {
     path: `${parsed.pathname}${parsed.search}`,
     headers: headersObject,
     timeout: input.timeoutMs,
+    agent: false,
   };
 
   return new Promise((resolve, reject) => {

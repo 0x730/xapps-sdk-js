@@ -34,6 +34,12 @@ export type SubjectProfileCapturePolicy = {
   dirtyHandling: SubjectProfileDirtyHandling;
 };
 
+export type SubjectProfileSelectionPolicy = {
+  allowedSources: SubjectProfileAllowedSource[] | null;
+  directSelectableSources: SubjectProfileAllowedSource[];
+  allowSubjectPrivateProfileCreation: boolean;
+};
+
 export type SubjectProfileRemediationHandoff = {
   contractVersion: "subject_profile_remediation_v1";
   preferredFlow: SubjectProfileRemediationFlow;
@@ -105,6 +111,12 @@ function normalizeAllowedSource(value: unknown): SubjectProfileAllowedSource | n
     return "subject_self_profile";
   }
   return null;
+}
+
+export function normalizeSubjectProfileAllowedSource(
+  value: unknown,
+): SubjectProfileAllowedSource | null {
+  return normalizeAllowedSource(value);
 }
 
 function isAllowedSource(value: unknown): value is SubjectProfileAllowedSource {
@@ -210,6 +222,17 @@ function normalizeDirtyHandling(value: unknown): SubjectProfileDirtyHandling | n
 function readString(value: unknown): string | null {
   const normalized = String(value ?? "").trim();
   return normalized || null;
+}
+
+function readBoolean(value: unknown): boolean | null {
+  if (typeof value === "boolean") return value;
+  const normalized = String(value ?? "")
+    .trim()
+    .toLowerCase();
+  if (!normalized) return null;
+  if (["true", "1", "yes", "on"].includes(normalized)) return true;
+  if (["false", "0", "no", "off"].includes(normalized)) return false;
+  return null;
 }
 
 export function normalizeRequiredSubjectProfileFamily(
@@ -337,6 +360,19 @@ export function resolveSubjectProfileRequirement(
 export function resolveSubjectProfileAllowedSources(
   config: Record<string, unknown>,
 ): SubjectProfileAllowedSource[] {
+  return (
+    resolveConfiguredSubjectProfileAllowedSources(config) ?? [
+      "request_payload",
+      "tenant_subject_profile",
+      "publisher_subject_profile",
+      "subject_self_profile",
+    ]
+  );
+}
+
+export function resolveConfiguredSubjectProfileAllowedSources(
+  config: Record<string, unknown>,
+): SubjectProfileAllowedSource[] | null {
   const remediation = asObjectRecord(
     config.subject_profile_remediation ?? config.subjectProfileRemediation ?? config.remediation,
   );
@@ -346,14 +382,58 @@ export function resolveSubjectProfileAllowedSources(
     config.allowed_sources ??
     config.allowedSources;
   const parsed = Array.isArray(raw) ? raw.map(normalizeAllowedSource).filter(isAllowedSource) : [];
-  return parsed.length > 0
-    ? Array.from(new Set(parsed))
-    : [
-        "request_payload",
-        "tenant_subject_profile",
-        "publisher_subject_profile",
-        "subject_self_profile",
-      ];
+  return parsed.length > 0 ? Array.from(new Set(parsed)) : null;
+}
+
+export function resolveSubjectProfileSelectionPolicy(
+  config: Record<string, unknown>,
+): SubjectProfileSelectionPolicy {
+  const remediation = asObjectRecord(
+    config.subject_profile_remediation ?? config.subjectProfileRemediation ?? config.remediation,
+  );
+  const allowedSources = resolveConfiguredSubjectProfileAllowedSources(config);
+  const rawDirectSelectableSources =
+    remediation.direct_selectable_sources ??
+    remediation.directSelectableSources ??
+    config.direct_selectable_sources ??
+    config.directSelectableSources;
+  const parsedDirectSelectableSources: SubjectProfileAllowedSource[] = Array.isArray(
+    rawDirectSelectableSources,
+  )
+    ? rawDirectSelectableSources
+        .map(normalizeAllowedSource)
+        .filter((source): source is SubjectProfileAllowedSource => isAllowedSource(source))
+    : [];
+  const normalizedDirectSelectableSources: SubjectProfileAllowedSource[] =
+    parsedDirectSelectableSources.length > 0
+      ? Array.from(new Set(parsedDirectSelectableSources))
+      : ["subject_self_profile"];
+  const directSelectableSources = (
+    allowedSources
+      ? normalizedDirectSelectableSources.filter((source) => allowedSources.includes(source))
+      : normalizedDirectSelectableSources
+  ) as SubjectProfileAllowedSource[];
+  const rawAllowSubjectPrivateProfileCreation =
+    remediation.allow_subject_private_profile_creation ??
+    remediation.allowSubjectPrivateProfileCreation ??
+    remediation.allow_private_profile_creation ??
+    remediation.allowPrivateProfileCreation ??
+    config.allow_subject_private_profile_creation ??
+    config.allowSubjectPrivateProfileCreation ??
+    config.allow_private_profile_creation ??
+    config.allowPrivateProfileCreation;
+  const configuredAllowSubjectPrivateProfileCreation = readBoolean(
+    rawAllowSubjectPrivateProfileCreation,
+  );
+  const allowSubjectPrivateProfileCreation =
+    allowedSources && !allowedSources.includes("subject_self_profile")
+      ? false
+      : (configuredAllowSubjectPrivateProfileCreation ?? true);
+  return {
+    allowedSources,
+    directSelectableSources,
+    allowSubjectPrivateProfileCreation,
+  };
 }
 
 export function resolveSubjectProfileCapturePolicy(

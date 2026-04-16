@@ -126,6 +126,55 @@ export default async function hostApiLifecycleRoutes(
     }
   });
 
+  fastify.post(
+    "/api/my-xapps/:xappId/monetization/subscription-contracts/:contractId/refresh-state",
+    async (request, reply) => {
+      if (!ensureHostApiOriginAllowed(request, reply, allowedOrigins)) return;
+      try {
+        const body = readBodyRecord(request.body);
+        const query = readBodyRecord(request.query);
+        const { xappId, contractId } = request.params || {};
+        applyHostApiCorsHeaders(reply, request, allowedOrigins);
+        return reply.send(
+          await service.refreshMyXappSubscriptionContractState({
+            xappId,
+            contractId,
+            token: query.token ?? body.token,
+          }),
+        );
+      } catch (err) {
+        return sendServiceError(
+          request,
+          reply,
+          err,
+          "refresh my-xapp subscription contract state failed",
+        );
+      }
+    },
+  );
+
+  fastify.post(
+    "/api/my-xapps/:xappId/monetization/subscription-contracts/:contractId/cancel",
+    async (request, reply) => {
+      if (!ensureHostApiOriginAllowed(request, reply, allowedOrigins)) return;
+      try {
+        const body = readBodyRecord(request.body);
+        const query = readBodyRecord(request.query);
+        const { xappId, contractId } = request.params || {};
+        applyHostApiCorsHeaders(reply, request, allowedOrigins);
+        return reply.send(
+          await service.cancelMyXappSubscriptionContract({
+            xappId,
+            contractId,
+            token: query.token ?? body.token,
+          }),
+        );
+      } catch (err) {
+        return sendServiceError(request, reply, err, "cancel my-xapp subscription failed");
+      }
+    },
+  );
+
   fastify.post("/api/widget-tool-request", async (request, reply) => {
     if (!ensureHostApiOriginAllowed(request, reply, allowedOrigins)) return;
     try {

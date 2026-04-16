@@ -22,6 +22,10 @@
       "types": "./subject-profile.d.ts",
       "default": "./dist/subjectProfile.js"
     },
+    "./modal-shell": {
+      "types": "./modal-shell.d.ts",
+      "default": "./dist/modalShell.js"
+    },
     "./xms": {
       "types": "./xms.d.ts",
       "default": "./dist/xms.js"
@@ -34,6 +38,7 @@
   "files": [
     "dist",
     "README.md",
+    "modal-shell.d.ts",
     "subject-profile.d.ts",
     "xms.d.ts",
     "xms-copy.d.ts"

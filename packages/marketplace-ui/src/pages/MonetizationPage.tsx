@@ -1,7 +1,4 @@
-import {
-  summarizeVirtualCurrencyBalances,
-  summarizeXappMonetizationSnapshot,
-} from "@xapps-platform/browser-host/xms";
+import { summarizeXappMonetizationSnapshot } from "@xapps-platform/browser-host/xms";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useMarketplace } from "../MarketplaceContext";
@@ -27,9 +24,9 @@ type MonetizationCard = {
   subscriptionCoverage: string;
   renewsAt: string;
   virtualCurrencyLabel: string;
+  balanceTitle: string;
   creditsRemaining: string;
   balanceState: string;
-  balanceSummary: string[];
   hasSubscription: boolean;
   hasNamedCurrency: boolean;
   hasBalance: boolean;
@@ -207,7 +204,7 @@ export function MonetizationPage() {
     try {
       const next = await Promise.all(
         deduped.map(async (item): Promise<MonetizationCard | null> => {
-          const [detail, state, history] = await Promise.all([
+          const [detail, state] = await Promise.all([
             client.getCatalogXapp(item.xappId, {
               installationId: item.installationId || null,
             }),
@@ -215,18 +212,9 @@ export function MonetizationPage() {
               installationId: item.installationId || null,
               locale,
             }),
-            typeof client.getMyXappMonetizationHistory === "function"
-              ? client.getMyXappMonetizationHistory(item.xappId, {
-                  installationId: item.installationId || null,
-                  limit: 20,
-                })
-              : Promise.resolve(null),
           ]);
           if (!xappIdFilter && !isMonetizationCandidate(detail)) return null;
           const summary = summarizeXappMonetizationSnapshot(state);
-          const balanceSummary = summarizeVirtualCurrencyBalances(history).balances.map(
-            (entry) => entry.amountLabel,
-          );
           const detailRecord = asRecord(detail);
           const accessProjection = asRecord(asRecord(state).access_projection);
           const virtualCurrencyLabel = formatVirtualCurrencyLabel(
@@ -242,6 +230,8 @@ export function MonetizationPage() {
             ) ||
             summary.wallet.creditsRemaining ||
             "0";
+          const hasLiveBalance = Boolean(readString(accessProjection.credits_remaining));
+          const hasNamedCurrency = Boolean(virtualCurrencyLabel);
           const title =
             resolveMarketplaceText(asRecord(detailRecord.manifest).title as any, locale) ||
             readFirstString(asRecord(detailRecord.xapp).name) ||
@@ -302,14 +292,16 @@ export function MonetizationPage() {
               summary.currentSubscription.renewsAt ||
               t("activity.monetization_not_scheduled", undefined, "Not scheduled"),
             virtualCurrencyLabel,
+            balanceTitle: hasNamedCurrency
+              ? t("activity.monetization_credits_label", undefined, "Balance")
+              : t("xapp.credit_balance_label", undefined, "Credits"),
             creditsRemaining: creditsRemainingLabel,
             balanceState:
               summary.wallet.balanceStateLabel ||
               t("activity.monetization_balance_unknown", undefined, "unknown"),
-            balanceSummary,
             hasSubscription: summary.currentSubscription.present,
-            hasNamedCurrency: Boolean(virtualCurrencyLabel),
-            hasBalance: Boolean(balanceSummary.length || creditsRemainingLabel),
+            hasNamedCurrency,
+            hasBalance: Boolean(hasLiveBalance || creditsRemainingLabel),
           };
         }),
       );
@@ -647,7 +639,7 @@ export function MonetizationPage() {
                       </span>
                       <span className="mx-tag">
                         {item.virtualCurrencyLabel ||
-                          t("activity.monetization_no_currency", undefined, "No named currency")}
+                          t("xapp.credit_balance_label", undefined, "Credits")}
                       </span>
                     </div>
                   </div>
@@ -710,7 +702,7 @@ export function MonetizationPage() {
                   </div>
                   <div className="mx-record-field">
                     <div className="mx-record-label">
-                      {t("activity.monetization_credits_label", undefined, "Balance")}
+                      {item.balanceTitle}
                     </div>
                     <div className="mx-record-value is-strong">{item.creditsRemaining}</div>
                   </div>
@@ -723,14 +715,16 @@ export function MonetizationPage() {
                 </div>
 
                 <div className="mx-monetization-card-secondary">
-                  <div className="mx-monetization-card-secondary-row">
-                    <span className="mx-monetization-card-secondary-label">
-                      {t("xapp.virtual_currency_label", undefined, "Currency")}
-                    </span>
-                    <span className="mx-monetization-card-secondary-value">
-                      {item.virtualCurrencyLabel || "—"}
-                    </span>
-                  </div>
+                  {item.hasNamedCurrency ? (
+                    <div className="mx-monetization-card-secondary-row">
+                      <span className="mx-monetization-card-secondary-label">
+                        {t("xapp.virtual_currency_label", undefined, "Currency")}
+                      </span>
+                      <span className="mx-monetization-card-secondary-value">
+                        {item.virtualCurrencyLabel}
+                      </span>
+                    </div>
+                  ) : null}
                   <div className="mx-monetization-card-secondary-row">
                     <span className="mx-monetization-card-secondary-label">
                       {t("activity.monetization_coverage_label", undefined, "Renewal state")}
@@ -754,21 +748,6 @@ export function MonetizationPage() {
                     <span className="mx-monetization-card-secondary-value">{item.sourceLabel}</span>
                   </div>
                 </div>
-
-                {item.balanceSummary.length > 0 ? (
-                  <div className="mx-monetization-card-balance-strip">
-                    <div className="mx-record-label">
-                      {t("activity.monetization_balances_label", undefined, "Balances")}
-                    </div>
-                    <div className="mx-tag-list">
-                      {item.balanceSummary.map((entry) => (
-                        <span key={`${item.xappId}:${entry}`} className="mx-tag">
-                          {entry}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
               </div>
             </section>
           ))}

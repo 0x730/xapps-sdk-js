@@ -6,6 +6,7 @@ import type { CatalogXapp } from "../types";
 import { ConfirmActionModal } from "../components/ConfirmActionModal";
 import { MarketplacePrimaryNav } from "../components/MarketplacePrimaryNav";
 import { buildTokenSearch } from "../utils/embedSearch";
+import { shouldHideMarketplaceVersions } from "../utils/installationPolicy";
 import { asRecord, readFirstString, readString } from "../utils/readers";
 import "../marketplace.css";
 
@@ -102,6 +103,11 @@ export function CatalogPage() {
     mutationControlsReady &&
     (env?.installationPolicy ?? host.installationPolicy)?.mode === "auto_available" &&
     Boolean(host.subjectId);
+  const hideVersions = shouldHideMarketplaceVersions({
+    installationPolicy: env?.installationPolicy ?? host.installationPolicy ?? null,
+    installationPolicyResolved,
+    subjectId: host.subjectId,
+  });
   const loc = useLocation();
   const token = useQueryToken();
   const tokenSearch = buildTokenSearch(token, loc.search);
@@ -483,7 +489,7 @@ export function CatalogPage() {
                                 {t("common.added", undefined, "Added")}
                               </span>
                             )}
-                            {x.latest_version?.version && (
+                            {!hideVersions && x.latest_version?.version && (
                               <div className="mx-card-version">v{x.latest_version.version}</div>
                             )}
                           </div>

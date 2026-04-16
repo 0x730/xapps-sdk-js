@@ -6,6 +6,7 @@ import {
 } from "./guardTakeover";
 import {
   buildXmsSurfaceCopy,
+  buildXmsSurfaceShellLayout,
   buildXmsSurfaceShellModel,
   buildXmsSurfaceShellTheme,
   renderMonetizationHistorySurface,
@@ -40,6 +41,11 @@ export type CatalogOptions = {
   theme?: Theme;
   locale?: string;
   subjectId?: string;
+  getCustomerProfile?:
+    | ((input: {
+        xappId?: string | null;
+      }) => Promise<Record<string, unknown> | null> | Record<string, unknown> | null)
+    | undefined;
   installationPolicy?: InstallationPolicy | null;
   onEvent?: (evt: CatalogEvent) => void;
   onError?: (err: Error) => void;
@@ -167,7 +173,10 @@ export type CatalogEvent =
         >;
       };
     }
-  | { type: "XAPPS_OPEN_WIDGET"; data: { installationId: string; widgetId: string } }
+  | {
+      type: "XAPPS_OPEN_WIDGET";
+      data: { installationId: string; widgetId: string; xappId?: string | null };
+    }
   | { type: "XAPPS_OPEN_OPERATIONAL_SURFACE"; data: OpenOperationalSurfaceInput }
   | { type: "XAPPS_IFRAME_NAVIGATED"; data: { path: string; page?: string; params?: any } }
   | { type: "XAPPS_TOKEN_REFRESH_REQUEST"; id?: string; data?: Record<string, unknown> }
@@ -387,6 +396,7 @@ export function createMarketplaceMutationEventHandler(options: MarketplaceMutati
         ) {
           await host.openWidget({
             installationId,
+            xappId,
             widgetId: String(evt.data.defaultWidgetId),
           });
         }
@@ -432,6 +442,7 @@ export function createMarketplaceMutationEventHandler(options: MarketplaceMutati
         if (evt.data.widgetId && openWidgetAfterUpdate) {
           await host.openWidget({
             installationId: evt.data.installationId,
+            xappId: evt.data.xappId,
             widgetId: String(evt.data.widgetId),
           });
         }
@@ -1176,6 +1187,10 @@ export class XappsHost {
       xappId,
       publishers: filters?.publishers || this.options.publishers,
       tags: filters?.tags || this.options.tags,
+      customerProfile:
+        typeof this.options.getCustomerProfile === "function"
+          ? (await this.options.getCustomerProfile({ xappId: xappId || null })) || undefined
+          : undefined,
     });
     this.currentCatalogToken = String(session.token || "").trim() || null;
 
@@ -1246,6 +1261,7 @@ export class XappsHost {
   async openWidget(input: {
     installationId: string;
     widgetId: string;
+    xappId?: string;
     hostReturnUrl?: string;
   }): Promise<void> {
     if (!this.options.widgetMount?.container) {
@@ -1265,13 +1281,19 @@ export class XappsHost {
     }
     const { baseUrl } = this.options;
     const hostReturnUrl = this.resolveHostReturnUrl(input.hostReturnUrl);
+    const customerProfile =
+      input.xappId && typeof this.options.getCustomerProfile === "function"
+        ? (await this.options.getCustomerProfile({ xappId: input.xappId })) || undefined
+        : undefined;
     let session: WidgetSession;
     try {
       session = await this.createWidgetSession({
         installationId: input.installationId,
         widgetId: input.widgetId,
+        xappId: input.xappId,
         origin: window.location.origin,
         hostReturnUrl,
+        customerProfile,
       });
     } catch (error) {
       const guardBlocked = readGuardBlockedPayload(error);
@@ -1288,8 +1310,10 @@ export class XappsHost {
         session = await this.createWidgetSession({
           installationId: input.installationId,
           widgetId: input.widgetId,
+          xappId: input.xappId,
           origin: window.location.origin,
           hostReturnUrl,
+          customerProfile,
           payload: resolution,
         });
       } else {
@@ -1344,6 +1368,7 @@ export class XappsHost {
 
     this.activePlansOverlayCleanup?.();
     const hasSubjectContext = Boolean(String(this.options.subjectId || "").trim());
+    const hasSubscriptionLifecycleContext = Boolean(String(this.currentCatalogToken || "").trim());
 
     const overlay = document.createElement("div");
     overlay.style.position = "fixed";
@@ -1351,6 +1376,7 @@ export class XappsHost {
     const shellCopy = buildXmsSurfaceCopy({
       locale: String(this.options.locale || "").trim() || "en",
     });
+    const shellLayout = buildXmsSurfaceShellLayout();
     const shellTheme = buildXmsSurfaceShellTheme({
       themeTokens:
         this.options.theme && typeof this.options.theme === "object" ? this.options.theme : null,
@@ -1359,39 +1385,44 @@ export class XappsHost {
     overlay.style.display = "flex";
     overlay.style.alignItems = "flex-start";
     overlay.style.justifyContent = "center";
-    overlay.style.padding = "16px";
+    overlay.style.padding = shellLayout.overlayPadding;
     overlay.style.overflow = "auto";
     overlay.style.zIndex = "2147483000";
-    overlay.style.backdropFilter = "blur(3px)";
-    (overlay.style as any).webkitBackdropFilter = "blur(3px)";
+    overlay.style.backdropFilter = `blur(${shellLayout.overlayBlur})`;
+    (overlay.style as any).webkitBackdropFilter = `blur(${shellLayout.overlayBlur})`;
 
     const panel = document.createElement("div");
-    panel.style.width = "min(1100px, 96vw)";
-    panel.style.maxWidth = "1100px";
+    panel.style.width = shellLayout.panelWidth;
+    panel.style.maxWidth = shellLayout.panelMaxWidth;
+    panel.style.maxHeight = shellLayout.panelMaxHeight;
     panel.style.background = shellTheme.panelBg;
     panel.style.border = `1px solid ${shellTheme.panelBorder}`;
     panel.style.borderRadius = shellTheme.panelRadius;
     panel.style.boxShadow = shellTheme.panelShadow;
     panel.style.overflow = "hidden";
+    panel.style.display = "flex";
+    panel.style.flexDirection = "column";
+    panel.style.gap = shellLayout.panelGap;
 
     const header = document.createElement("div");
     header.style.display = "flex";
     header.style.alignItems = "center";
     header.style.justifyContent = "space-between";
-    header.style.gap = "12px";
-    header.style.padding = "14px 16px";
+    header.style.gap = shellLayout.headerGap;
+    header.style.padding = shellLayout.headerPadding;
     header.style.borderBottom = shellTheme.headerBorder;
     header.style.background = shellTheme.headerBg;
 
     const titleWrap = document.createElement("div");
     const title = document.createElement("div");
     title.textContent = shellCopy.plansTitle;
-    title.style.font = '700 1rem "IBM Plex Serif", Georgia, serif';
+    title.style.font = shellLayout.titleFont;
+    title.style.letterSpacing = shellLayout.titleLetterSpacing;
     title.style.color = shellTheme.titleColor;
     const subtitle = document.createElement("div");
     subtitle.textContent = shellCopy.plansSubtitle;
-    subtitle.style.marginTop = "4px";
-    subtitle.style.font = "500 0.8125rem system-ui,sans-serif";
+    subtitle.style.marginTop = shellLayout.subtitleMarginTop;
+    subtitle.style.font = shellLayout.subtitleFont;
     subtitle.style.color = shellTheme.subtitleColor;
     titleWrap.appendChild(title);
     titleWrap.appendChild(subtitle);
@@ -1400,16 +1431,16 @@ export class XappsHost {
     actions.style.marginLeft = "auto";
     actions.style.display = "flex";
     actions.style.alignItems = "center";
-    actions.style.gap = "10px";
+    actions.style.gap = shellLayout.tabsGap;
 
     const tabs = document.createElement("div");
     tabs.setAttribute("role", "tablist");
     tabs.setAttribute("aria-label", shellCopy.tabsAriaLabel);
     tabs.style.display = "inline-flex";
     tabs.style.alignItems = "center";
-    tabs.style.gap = "4px";
-    tabs.style.padding = "4px";
-    tabs.style.borderRadius = "999px";
+    tabs.style.gap = shellLayout.tabRailGap;
+    tabs.style.padding = shellLayout.tabRailPadding;
+    tabs.style.borderRadius = shellLayout.tabRadius;
     tabs.style.background = shellTheme.tabRailBg;
     tabs.style.border = shellTheme.tabRailBorder;
 
@@ -1421,13 +1452,13 @@ export class XappsHost {
     historyTab.textContent = shellCopy.historyLabel;
 
     for (const tab of [plansTab, historyTab]) {
-      tab.style.padding = "8px 12px";
+      tab.style.padding = shellLayout.tabPadding;
       tab.style.border = "0";
-      tab.style.borderRadius = "999px";
+      tab.style.borderRadius = shellLayout.tabRadius;
       tab.style.background = "transparent";
       tab.style.color = shellTheme.tabInactiveText;
       tab.style.cursor = "pointer";
-      tab.style.font = "600 0.75rem system-ui,sans-serif";
+      tab.style.font = shellLayout.tabFont;
     }
 
     tabs.appendChild(plansTab);
@@ -1436,14 +1467,22 @@ export class XappsHost {
 
     const closeBtn = document.createElement("button");
     closeBtn.type = "button";
-    closeBtn.textContent = shellCopy.closeLabel;
-    closeBtn.style.padding = "8px 12px";
+    closeBtn.textContent = "×";
+    closeBtn.setAttribute("aria-label", shellCopy.closeLabel);
+    closeBtn.setAttribute("title", shellCopy.closeLabel);
+    closeBtn.style.width = shellLayout.closeButtonSize;
+    closeBtn.style.height = shellLayout.closeButtonSize;
+    closeBtn.style.display = "inline-grid";
+    closeBtn.style.placeItems = "center";
+    closeBtn.style.padding = "0";
     closeBtn.style.border = `1px solid ${shellTheme.closeBorder}`;
-    closeBtn.style.borderRadius = "999px";
+    closeBtn.style.borderRadius = shellLayout.closeButtonRadius;
     closeBtn.style.background = shellTheme.closeBg;
     closeBtn.style.cursor = "pointer";
-    closeBtn.style.font = "600 0.875rem system-ui,sans-serif";
+    closeBtn.style.font = shellLayout.closeButtonFont;
+    closeBtn.style.lineHeight = shellLayout.closeButtonLineHeight;
     closeBtn.style.color = shellTheme.closeText;
+    closeBtn.style.boxShadow = shellLayout.closeButtonShadow;
 
     let currentView: "plans" | "history" = resolveXmsSurfaceView(input.view);
     const syncHeader = () => {
@@ -1453,7 +1492,6 @@ export class XappsHost {
       });
       title.textContent = shell.title;
       subtitle.textContent = shell.subtitle;
-      closeBtn.textContent = shell.closeLabel;
       for (const [tab, item] of [
         [plansTab, shell.tabs[0]],
         [historyTab, shell.tabs[1]],
@@ -1469,8 +1507,8 @@ export class XappsHost {
     };
 
     const body = document.createElement("div");
-    body.style.padding = "16px";
-    body.style.maxHeight = "min(860px, calc(100vh - 104px))";
+    body.style.padding = shellLayout.bodyPadding;
+    body.style.maxHeight = shellLayout.bodyMaxHeight;
     body.style.overflow = "auto";
     body.style.background = shellTheme.bodyBg;
 
@@ -1605,6 +1643,7 @@ export class XappsHost {
                 error,
                 showHeader: false,
                 interactive: hasSubjectContext,
+                subscriptionInteractive: hasSubscriptionLifecycleContext,
                 onCheckoutPackage: hasSubjectContext
                   ? ({ packageSlug }) => {
                       void (async () => {
@@ -1704,7 +1743,7 @@ export class XappsHost {
                       })();
                     }
                   : null,
-                onRefreshSubscription: hasSubjectContext
+                onRefreshSubscription: hasSubscriptionLifecycleContext
                   ? () => {
                       void (async () => {
                         const contractId = String(
@@ -1740,7 +1779,7 @@ export class XappsHost {
                       })();
                     }
                   : null,
-                onCancelSubscription: hasSubjectContext
+                onCancelSubscription: hasSubscriptionLifecycleContext
                   ? () => {
                       void (async () => {
                         const contractId = String(
@@ -2052,6 +2091,7 @@ export class XappsHost {
     xappId?: string;
     publishers?: string[];
     tags?: string[];
+    customerProfile?: Record<string, unknown>;
   }): Promise<CatalogSession> {
     const url = this.options.hostApi?.createCatalogSessionUrl;
     if (!url) {
@@ -2078,6 +2118,7 @@ export class XappsHost {
     xappId?: string;
     origin: string;
     hostReturnUrl?: string;
+    customerProfile?: Record<string, unknown>;
     resultPresentation?: "runtime_default" | "inline" | "publisher_managed";
     guardUi?: Record<string, unknown>;
     payload?: Record<string, unknown>;
@@ -2096,6 +2137,7 @@ export class XappsHost {
         ...(input.xappId ? { xappId: input.xappId } : {}),
         origin: input.origin,
         ...(input.hostReturnUrl ? { hostReturnUrl: input.hostReturnUrl } : {}),
+        ...(input.customerProfile ? { customerProfile: input.customerProfile } : {}),
         ...(input.resultPresentation ? { resultPresentation: input.resultPresentation } : {}),
         ...(input.guardUi ? { guardUi: input.guardUi } : {}),
         ...(input.payload ? input.payload : {}),
@@ -2370,7 +2412,11 @@ export class XappsHost {
           openAfterInstall &&
           this.options.widgetMount?.container
         ) {
-          void this.openWidget({ installationId, widgetId: defaultWidgetId });
+          void this.openWidget({
+            installationId,
+            widgetId: defaultWidgetId,
+            xappId: readRecordString(payload, "xappId"),
+          });
         }
       }
       if (type === "XAPPS_OPEN_WIDGET") {
@@ -2378,7 +2424,11 @@ export class XappsHost {
         const installationId = readRecordString(payload, "installationId");
         const widgetId = readRecordString(payload, "widgetId");
         if (installationId && widgetId) {
-          void this.openWidget({ installationId, widgetId });
+          void this.openWidget({
+            installationId,
+            widgetId,
+            xappId: readRecordString(payload, "xappId"),
+          });
         }
       }
       if (type === "XAPPS_OPEN_OPERATIONAL_SURFACE") {

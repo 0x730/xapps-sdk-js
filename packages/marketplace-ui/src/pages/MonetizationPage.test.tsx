@@ -135,8 +135,8 @@ describe("MonetizationPage", () => {
     expect(text).toContain("Creator Credits (CREATOR_CREDITS)");
     expect(text).toContain("Balance");
     expect(text).toContain("12 Creator Credits");
-    expect(text).toContain("Balances");
-    expect(text).toContain("7 Bonus Tokens");
+    expect(text).not.toContain("Balances now");
+    expect(text).not.toContain("7 Bonus Tokens");
     expect(text).toContain("Balance status");
     expect(text).toContain("sufficient");
   });

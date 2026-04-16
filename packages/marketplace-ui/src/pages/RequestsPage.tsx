@@ -4,6 +4,7 @@ import { resolveMarketplaceText, useMarketplaceI18n } from "../i18n";
 import { useMarketplace } from "../MarketplaceContext";
 import { MarketplaceActivityTabs } from "../components/MarketplaceActivityTabs";
 import { MarketplacePrimaryNav } from "../components/MarketplacePrimaryNav";
+import { shouldHideMarketplaceVersions } from "../utils/installationPolicy";
 import { asRecord, formatDateTime, readFirstString, readString } from "../utils/readers";
 import { describeGuardCurrentAccess } from "../utils/guardMonetization";
 import "../marketplace.css";
@@ -53,6 +54,11 @@ export function RequestsPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(true);
   const [xappTitle, setXappTitle] = useState<string>("");
+  const hideVersions = shouldHideMarketplaceVersions({
+    installationPolicy: env?.installationPolicy ?? host.installationPolicy ?? null,
+    installationPolicyResolved: env?.installationPolicyResolved,
+    subjectId: host.subjectId,
+  });
 
   async function refresh(page: number = 1) {
     setError(null);
@@ -285,7 +291,7 @@ export function RequestsPage() {
             <tr>
               <th scope="col">{t("common.id", undefined, "ID")}</th>
               <th scope="col">{t("common.tool", undefined, "Tool")}</th>
-              <th scope="col">{t("common.version", undefined, "Version")}</th>
+              {!hideVersions && <th scope="col">{t("common.version", undefined, "Version")}</th>}
               <th scope="col">{t("common.status", undefined, "Status")}</th>
               <th scope="col">{t("common.created", undefined, "Created")}</th>
             </tr>
@@ -385,14 +391,16 @@ export function RequestsPage() {
                         </div>
                       )}
                     </td>
-                    <td
-                      className="mx-cell-muted"
-                      data-label={t("common.version", undefined, "Version")}
-                    >
-                      {readString(request.xapp_version)
-                        ? `v${readString(request.xapp_version)}`
-                        : "—"}
-                    </td>
+                    {!hideVersions && (
+                      <td
+                        className="mx-cell-muted"
+                        data-label={t("common.version", undefined, "Version")}
+                      >
+                        {readString(request.xapp_version)
+                          ? `v${readString(request.xapp_version)}`
+                          : "—"}
+                      </td>
+                    )}
                     <td data-label={t("common.status", undefined, "Status")}>
                       <StatusBadge status={readString(request.status)} />
                     </td>

@@ -5,6 +5,10 @@ Node.js helper SDK for publisher server/executor integrations.
 If you only need manifest schema/types/parsing, install `@xapps-platform/xapp-manifest` directly.
 `@xapps-platform/server-sdk` re-exports that manifest surface for backend consumers that already depend on the SDK.
 
+For the current XMS system reader path, including hosted purchase flow, lifecycle events, and virtual currencies, read:
+
+- [docs/specifications/xms/README.md](/home/dacrise/x/xapps/docs/specifications/xms/README.md)
+
 ## Install
 
 ```bash

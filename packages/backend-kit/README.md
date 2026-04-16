@@ -14,6 +14,10 @@ Use `@xapps-platform/backend-kit` when you want a higher-level backend assembly 
 
 Use `@xapps-platform/server-sdk` directly only when you need lower-level primitives that the backend kit intentionally does not own.
 
+For the current XMS system behavior and terminology, read:
+
+- [docs/specifications/xms/README.md](/home/dacrise/x/xapps/docs/specifications/xms/README.md)
+
 Current public surface:
 
 - backend composition for the shipped integrator contract

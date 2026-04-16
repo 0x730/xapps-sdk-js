@@ -81,8 +81,8 @@ export function useWidgetSession(input: {
 
   const missing = !installationId || !widgetId;
 
-  const refreshSession = useCallback(async () => {
-    if (missing || busy) return;
+  const refreshSession = useCallback(async (): Promise<WidgetSessionResult | null> => {
+    if (missing || busy) return null;
     setError(null);
     setErrorPayload(null);
     setBusy(true);
@@ -156,9 +156,11 @@ export function useWidgetSession(input: {
       } catch {
         // ignore (not all widgets will have latest request)
       }
+      return res;
     } catch (error: unknown) {
       setErrorPayload(error);
       setError(readFirstString(asRecord(error).message) || String(error));
+      return null;
     } finally {
       setBusy(false);
     }

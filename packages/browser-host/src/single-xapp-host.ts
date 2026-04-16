@@ -52,6 +52,31 @@ export async function bootSingleXappHost(config) {
     return bootstrapToken ? { "X-Xapps-Host-Bootstrap": bootstrapToken } : undefined;
   }
 
+  async function resolveCatalogCustomerProfile(input = {}) {
+    const xappId = String(input?.xappId || "").trim();
+    if (!xappId) return null;
+    const currentParams = new URLSearchParams(window.location.search || "");
+    const toolName = String(
+      currentParams.get("toolName") || currentParams.get("tool_name") || "",
+    ).trim();
+    try {
+      const response = await hostApiClient(
+        `${resolveHostApiBasePath(config)}/catalog-customer-profile`,
+        {
+          subjectId: String(currentIdentity?.subjectId || "").trim() || undefined,
+          xappId,
+          ...(toolName ? { toolName } : {}),
+        },
+        { method: "POST" },
+      );
+      const profile = response?.customerProfile;
+      return profile && typeof profile === "object" && !Array.isArray(profile) ? profile : null;
+    } catch (error) {
+      console.warn("[browser-host] catalog customer profile lookup failed", error);
+      return null;
+    }
+  }
+
   const identity = await ensureIdentity();
   if (!identity) return;
 
@@ -104,7 +129,9 @@ export async function bootSingleXappHost(config) {
       if (
         !response.ok &&
         response.status === 401 &&
-        (message.includes("host bootstrap token expired") || message.includes("missing bootstrap"))
+        (message === "invalid or expired token" ||
+          message.includes("host bootstrap token expired") ||
+          message.includes("missing bootstrap"))
       ) {
         const refreshed = await tryRefreshIdentity();
         if (refreshed) {
@@ -182,6 +209,7 @@ export async function bootSingleXappHost(config) {
       baseUrl: gatewayBaseUrl,
       catalogUrl: `${gatewayBaseUrl}/embed/catalog?embedMode=true`,
       subjectId: String(identity.subjectId || "").trim() || undefined,
+      getCustomerProfile: () => resolveCatalogCustomerProfile({ xappId: safeXappId }),
       locale: initialLocale || undefined,
       theme,
       apiBasePath: resolveHostApiBasePath(config),

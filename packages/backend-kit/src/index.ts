@@ -74,6 +74,7 @@ type BackendKitDeps = {
     gateway: BackendKitNormalizedOptions["gateway"];
     branding: BackendKitNormalizedOptions["branding"];
     reference: BackendKitNormalizedOptions["reference"];
+    subjectProfiles: BackendKitNormalizedOptions["subjectProfiles"];
     enableLifecycle: boolean;
     enableBridge: boolean;
     allowedOrigins: string[];
@@ -238,6 +239,7 @@ export async function createBackendKit(
     gateway: options.gateway,
     branding: options.branding,
     reference: options.reference,
+    subjectProfiles: options.subjectProfiles,
     enableLifecycle: options.host.enableLifecycle,
     enableBridge: options.host.enableBridge,
     allowedOrigins: options.host.allowedOrigins,

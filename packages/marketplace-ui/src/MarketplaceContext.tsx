@@ -29,7 +29,8 @@ function applyMarketplaceThemeToDocument(theme: Record<string, unknown> | null |
     ["radiusMd", ["--cx-radius-md", "--mx-radius-md"]],
     ["radius", ["--cx-radius", "--cx-radius-lg", "--mx-radius-md", "--mx-radius-lg"]],
     ["radiusLg", ["--cx-radius-lg", "--mx-radius-lg"]],
-    ["fontFamily", ["--mx-font-family"]],
+    ["fontFamily", ["--xapps-font-family", "--mx-font-family"]],
+    ["displayFont", ["--xapps-display-font", "--mx-display-font"]],
   ];
 
   for (const [key, cssVars] of map) {

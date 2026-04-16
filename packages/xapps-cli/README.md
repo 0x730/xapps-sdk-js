@@ -108,7 +108,7 @@ Note:
 - Managed logs resume baseline: `lease_id` + `checkpoint` are accepted from remote responses and replayed on next poll/run (via `--follow-cursor-file` or explicit `--lease-id`/`--checkpoint` flags).
 - `context export` emits deterministic JSON context (`schema_version=xapps.context.v1`) for automation/agent workflows.
   - Phase-1 internal preset: `--preset internal-v1` adds canonical refs/spec/test anchors for monorepo workflows.
-  - Useful with the first publisher path sample: `apps/publishers/xplace/xapps/xplace-certs/manifest.json`
+  - Useful with the first publisher path sample: `apps/publishers/xplace-example/xapps/xplace-certs/manifest.json`
 - Tunnel contract now includes explicit target-host allowlist enforcement and stable session identity (`--session-id` / `--session-file`) with runtime status endpoint `GET /__status`.
 - Tunnel session lifecycle baseline now supports `--session-policy` (`reuse|require|rotate`) with deterministic conflict/target-mismatch handling for reconnect safety.
 - `dev` v0 includes:

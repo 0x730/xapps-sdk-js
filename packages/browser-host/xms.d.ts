@@ -167,6 +167,33 @@ export function buildXmsSurfaceShellTheme(input?: { themeTokens?: unknown }): {
   closeText: string;
   bodyBg: string;
 };
+export function buildXmsSurfaceShellLayout(): {
+  overlayPadding: string;
+  overlayBlur: string;
+  panelWidth: string;
+  panelMaxWidth: string;
+  panelMaxHeight: string;
+  panelGap: string;
+  headerGap: string;
+  headerPadding: string;
+  bodyPadding: string;
+  bodyMaxHeight: string;
+  tabsGap: string;
+  tabRailGap: string;
+  tabRailPadding: string;
+  tabPadding: string;
+  tabRadius: string;
+  titleFont: string;
+  titleLetterSpacing: string;
+  subtitleMarginTop: string;
+  subtitleFont: string;
+  tabFont: string;
+  closeButtonSize: string;
+  closeButtonRadius: string;
+  closeButtonFont: string;
+  closeButtonLineHeight: string;
+  closeButtonShadow: string;
+};
 export type MonetizationPlansSurfaceInput = {
   accessProjection?: unknown;
   access_projection?: unknown;
@@ -221,6 +248,7 @@ export function buildMonetizationPlansSurfaceHtml(
     showHeader?: boolean;
     includeStyles?: boolean;
     interactive?: boolean;
+    subscriptionInteractive?: boolean;
     showOperatorManagement?: boolean;
     onRefreshSubscription?: (() => void) | null;
     onCancelSubscription?: (() => void) | null;
@@ -241,6 +269,7 @@ export function renderMonetizationPlansSurface(
     showHeader?: boolean;
     includeStyles?: boolean;
     interactive?: boolean;
+    subscriptionInteractive?: boolean;
     showOperatorManagement?: boolean;
     onCheckoutPackage?: ((input: { packageId: string; packageSlug: string }) => void) | null;
     onRefreshSubscription?: (() => void) | null;
@@ -324,9 +353,11 @@ export function summarizeVirtualCurrencyBalances(input: unknown): {
     amount: string;
     amountLabel: string;
     accountCount: number;
+    hasNamedCurrency: boolean;
   }>;
   totalAccounts: number;
   totalCurrencies: number;
+  totalNamedCurrencies: number;
 };
 export function resolveMonetizationPackagePurchasePolicy(input: {
   item: unknown;

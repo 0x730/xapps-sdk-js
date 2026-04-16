@@ -114,6 +114,12 @@ const BASE_ENDPOINT_GROUPS = [
       },
       {
         method: "POST",
+        path: "/api/catalog-customer-profile",
+        purpose:
+          "Resolves the default tenant billing profile used to prefill subject-bound catalog sessions.",
+      },
+      {
+        method: "POST",
         path: "/api/create-widget-session",
         purpose: "Proxies widget session creation for the host page.",
       },

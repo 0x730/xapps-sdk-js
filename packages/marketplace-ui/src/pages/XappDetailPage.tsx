@@ -25,6 +25,7 @@ import {
   getVisibleOperationalSurfaces,
   type OperationalSurfaceKey,
 } from "../utils/operationalSurfaces";
+import { shouldHideMarketplaceVersions } from "../utils/installationPolicy";
 import type {
   CatalogXappDetail,
   MarketplaceMonetizationAccessProjection,
@@ -464,6 +465,11 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
   const installationPolicyResolved = env?.installationPolicyResolved !== false;
   const mutationControlsReady = installationPolicyResolved || !hasSubject || !canMutate;
   const installationPolicy = env?.installationPolicy ?? host.installationPolicy ?? null;
+  const hideVersions = shouldHideMarketplaceVersions({
+    installationPolicy,
+    installationPolicyResolved,
+    subjectId: host.subjectId,
+  });
 
   const [data, setData] = useState<Record<string, unknown> | null>(null);
   const [monetization, setMonetization] = useState<MarketplaceXappMonetizationState | null>(null);
@@ -975,6 +981,29 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
       selectedPaywall ? flattenXappMonetizationPaywallPackages(selectedPaywall) : [],
     [selectedPaywall],
   );
+  const resolvePaywallPackageLabel = useMemo(() => {
+    const labels = new Map<string, string>();
+    for (const item of selectedPaywallPackageRecords) {
+      const productMetadata =
+        item.productMetadata && typeof item.productMetadata === "object"
+          ? (item.productMetadata as Record<string, unknown>)
+          : {};
+      const label =
+        readString(item.packageTitle) || readString(item.productTitle) || readString(item.productSlug);
+      if (!label) continue;
+      for (const candidate of [
+        item.packageSlug,
+        item.productSlug,
+        productMetadata.access_tier,
+        item.packageId,
+        item.productId,
+      ]) {
+        const key = readString(candidate).trim().toLowerCase();
+        if (key && !labels.has(key)) labels.set(key, label);
+      }
+    }
+    return (value: unknown) => labels.get(readString(value).trim().toLowerCase()) || "";
+  }, [selectedPaywallPackageRecords]);
 
   useEffect(() => {
     if (focusedSection !== "plans" || !plansSectionRef.current) return;
@@ -1318,7 +1347,13 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
     return status === "active" || status === "grace_period";
   });
   const additiveUnlockLabels = activeAdditiveEntitlements
-    .map((item) => readString(item.tier) || readString(item.product_slug))
+    .map(
+      (item) =>
+        resolvePaywallPackageLabel(item.tier) ||
+        resolvePaywallPackageLabel(item.product_slug) ||
+        readString(item.tier) ||
+        readString(item.product_slug),
+    )
     .filter(Boolean)
     .reduce<string[]>((labels, label) => {
       if (!labels.includes(label)) labels.push(label);
@@ -1340,6 +1375,7 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
   );
   const currentTier =
     readString(monetizationSubscription?.tier) || readString(monetizationAccess?.tier);
+  const currentTierLabel = resolvePaywallPackageLabel(currentTier) || currentTier;
   const balanceState = readString(monetizationAccess?.balance_state);
   const subscriptionStatus = subscriptionLifecycle.statusLabel;
   const subscriptionCoverage = subscriptionLifecycle.coverageLabel;
@@ -1351,7 +1387,13 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
   const cancelledAt = formatDateTime(subscriptionLifecycle.cancelledAt, locale);
   const expiresAt = formatDateTime(subscriptionLifecycle.expiresAt, locale);
   const lifecyclePreviewAt = lifecyclePreviewEnabled ? formatDateTime(routePreviewAt, locale) : "";
-  const creditsRemaining = readString(monetizationAccess?.credits_remaining);
+  const usageCreditAvailableCount = usageCreditSummary
+    ? Math.max(0, usageCreditSummary.available_count)
+    : null;
+  const creditsRemaining =
+    usageCreditAvailableCount != null
+      ? String(usageCreditAvailableCount)
+      : readString(monetizationAccess?.credits_remaining);
   const accessVirtualCurrencyLabel = formatVirtualCurrencyLabel(
     monetizationAccess?.virtual_currency,
     {
@@ -1359,29 +1401,21 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
     },
   );
   const creditsRemainingLabel = formatVirtualCurrencyAmount(
-    monetizationAccess?.credits_remaining,
+    creditsRemaining,
     monetizationAccess?.virtual_currency,
   );
-  const currentBalanceSummary = useMemo(() => {
-    const historySource =
-      (asRecord(monetizationHistory)?.history as Record<string, unknown> | null | undefined) ??
-      monetizationHistory;
-    const summarized = summarizeVirtualCurrencyBalances({
-      history: historySource,
-    }).balances;
-    if (summarized.length > 0) {
-      return summarized.map((item) => item.amountLabel).filter(Boolean);
-    }
-    if (creditsRemainingLabel) return [creditsRemainingLabel];
-    return [];
-  }, [creditsRemainingLabel, monetizationHistory]);
+  const hasNamedAccessCurrency = Boolean(accessVirtualCurrencyLabel);
+  const currentCreditBalanceLabel =
+    hasNamedAccessCurrency
+      ? t("xapp.credits_remaining_label", undefined, "Balance")
+      : t("xapp.credit_balance_label", undefined, "Credits");
   const accessState = resolveMarketplaceDefaultAccessState({
     projection: monetizationAccessProjection,
     hasCatalogMonetization,
     availableLabel: t("xapp.access_state_available", undefined, "available"),
   });
   const hasMonetizationState = Boolean(
-    currentTier ||
+    currentTierLabel ||
     accessState ||
     subscriptionStatus ||
     subscriptionCoverage ||
@@ -1394,7 +1428,6 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
     expiresAt ||
     lifecyclePreviewAt ||
     accessVirtualCurrencyLabel ||
-    currentBalanceSummary.length > 0 ||
     creditsRemaining ||
     additiveUnlockLabels.length > 0,
   );
@@ -1418,12 +1451,12 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
       <h3 className="mx-section-title mx-detail-sidebar-title">
         {t("xapp.current_access_title", undefined, "Current access")}
       </h3>
-      {currentTier ? (
+      {currentTierLabel ? (
         <div className="mx-meta-item">
           <span className="mx-meta-label">
             {t("xapp.current_plan_label", undefined, "Current plan")}
           </span>
-          <span className="mx-meta-value">{currentTier}</span>
+          <span className="mx-meta-value">{currentTierLabel}</span>
         </div>
       ) : null}
       {accessState ? (
@@ -1520,23 +1553,9 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
           <span className="mx-meta-value">{accessVirtualCurrencyLabel}</span>
         </div>
       ) : null}
-      {currentBalanceSummary.length > 0 ? (
-        <div className="mx-meta-item mx-meta-item-top">
-          <span className="mx-meta-label">
-            {t("xapp.current_balances_label", undefined, "Balances now")}
-          </span>
-          <div className="mx-meta-value mx-meta-stack-sm">
-            {currentBalanceSummary.map((label, index) => (
-              <div key={`${label}:${index}`}>{label}</div>
-            ))}
-          </div>
-        </div>
-      ) : null}
       {creditsRemaining ? (
         <div className="mx-meta-item">
-          <span className="mx-meta-label">
-            {t("xapp.credits_remaining_label", undefined, "Balance")}
-          </span>
+          <span className="mx-meta-label">{currentCreditBalanceLabel}</span>
           <span className="mx-meta-value">{creditsRemainingLabel || creditsRemaining}</span>
         </div>
       ) : null}
@@ -1885,7 +1904,11 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
                       <div className="mx-empty-catalog">
                         <div className="mx-empty-catalog-icon">◎</div>
                         <div className="mx-empty-catalog-title">
-                          {t("xapp.no_plans_available", undefined, "No plans are currently available.")}
+                          {t(
+                            "xapp.no_plans_available",
+                            undefined,
+                            "No plans are currently available.",
+                          )}
                         </div>
                         <div className="mx-empty-catalog-desc">
                           {t(
@@ -1995,7 +2018,7 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
               {description ? <p className="mx-detail-subtitle">{description}</p> : null}
               <div className="mx-detail-meta-row">
                 <div className="mx-card-slug">{xappId}</div>
-                {readString(versionRecord?.version) && (
+                {!hideVersions && readString(versionRecord?.version) && (
                   <div className="mx-card-version mx-detail-version-pill">
                     v{readString(versionRecord?.version)}
                   </div>

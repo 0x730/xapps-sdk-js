@@ -14,6 +14,8 @@ export type Theme = Partial<{
   radiusMd: string;
   radius: string;
   radiusLg: string;
+  fontFamily: string;
+  displayFont: string;
   tokens: Record<string, string>;
 }>;
 

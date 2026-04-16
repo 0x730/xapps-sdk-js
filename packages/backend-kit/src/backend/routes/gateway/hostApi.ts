@@ -12,12 +12,14 @@ export default async function hostGatewayApiRoutes(
     hostProxyService = null,
     allowedOrigins = [],
     bootstrap = {},
+    subjectProfiles = {},
   } = {},
 ) {
   const preflightPaths = [
     "/api/host-config",
     "/api/resolve-subject",
     "/api/create-catalog-session",
+    "/api/catalog-customer-profile",
     "/api/create-widget-session",
   ];
   if (enableLifecycle) {
@@ -29,6 +31,8 @@ export default async function hostGatewayApiRoutes(
       "/api/widget-tool-request",
       "/api/my-xapps/:xappId/monetization",
       "/api/my-xapps/:xappId/monetization/history",
+      "/api/my-xapps/:xappId/monetization/subscription-contracts/:contractId/refresh-state",
+      "/api/my-xapps/:xappId/monetization/subscription-contracts/:contractId/cancel",
       "/api/my-xapps/:xappId/monetization/purchase-intents/prepare",
       "/api/my-xapps/:xappId/monetization/purchase-intents/:intentId/payment-session",
       "/api/my-xapps/:xappId/monetization/purchase-intents/:intentId/payment-session/finalize",
@@ -48,7 +52,12 @@ export default async function hostGatewayApiRoutes(
     );
   }
 
-  await fastify.register(hostApiCoreRoutes, { hostProxyService, allowedOrigins, bootstrap });
+  await fastify.register(hostApiCoreRoutes, {
+    hostProxyService,
+    allowedOrigins,
+    bootstrap,
+    subjectProfiles,
+  });
 
   if (enableLifecycle) {
     await fastify.register(hostApiLifecycleRoutes, { hostProxyService, allowedOrigins, bootstrap });

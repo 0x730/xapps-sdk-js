@@ -46,13 +46,13 @@ export function buildBuiltInDevCheckFlows(
       description:
         "Validates and inspects the xplace-certs JSON Forms manifest using internal-repo CLI helpers.",
       commands: [
-        "npm run xapps -- validate --from apps/publishers/xplace/xapps/xplace-certs/manifest.json",
-        `npm run xapps -- ai plan --mode internal --from apps/publishers/xplace/xapps/xplace-certs/manifest.json --preset internal-v1 --flow xplace-certs --json --out ${shellEscapeArg(xplacePlanPath)}`,
-        `npm run xapps -- ai check --mode internal --plan ${shellEscapeArg(xplacePlanPath)} --policy apps/publishers/xplace/xapps/xplace-certs/ai/policy.readonly.internal-v1.json --json --out ${shellEscapeArg(xplaceCheckPath)}`,
+        "npm run xapps -- validate --from apps/publishers/xplace-example/xapps/xplace-certs/manifest.json",
+        `npm run xapps -- ai plan --mode internal --from apps/publishers/xplace-example/xapps/xplace-certs/manifest.json --preset internal-v1 --flow xplace-certs --json --out ${shellEscapeArg(xplacePlanPath)}`,
+        `npm run xapps -- ai check --mode internal --plan ${shellEscapeArg(xplacePlanPath)} --policy apps/publishers/xplace-example/xapps/xplace-certs/ai/policy.readonly.internal-v1.json --json --out ${shellEscapeArg(xplaceCheckPath)}`,
       ],
       refs: [
-        "apps/publishers/xplace/xapps/xplace-certs/manifest.json",
-        "apps/publishers/xplace/xapps/xplace-certs/ai/policy.readonly.internal-v1.json",
+        "apps/publishers/xplace-example/xapps/xplace-certs/manifest.json",
+        "apps/publishers/xplace-example/xapps/xplace-certs/ai/policy.readonly.internal-v1.json",
         "apps/publishers/xplace/backend/server.js",
         "dev/engineering/audits/OPEN_067_PHASE1_INTERNAL_REPO_PLAN.md",
       ],

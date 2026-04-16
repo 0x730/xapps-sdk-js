@@ -34,6 +34,10 @@ Package metadata:
 - Payment return/resume helper primitives for tenant checkout orchestration
 - Widget-driven operational surface opens for marketplace/embed flows
 
+For the current XMS plans, balances, paywalls, and hosted-purchase reader path, read:
+
+- [docs/specifications/xms/README.md](/home/dacrise/x/xapps/docs/specifications/xms/README.md)
+
 ## Relation To `@xapps-platform/browser-host`
 
 `@xapps-platform/embed-sdk` is the low-level browser SDK.

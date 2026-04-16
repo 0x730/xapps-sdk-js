@@ -143,10 +143,10 @@ describe("XappDetailPage monetization", () => {
     expect(text).toContain("active");
     expect(text).toContain("Currency");
     expect(text).toContain("Pro Credits (PRO_CREDITS)");
-    expect(text).toContain("Balances now");
     expect(text).toContain("25 Pro Credits");
     expect(text).toContain("Balance");
     expect(text).toContain("25 Pro Credits");
+    expect(text).not.toContain("Balances now");
     expect(text).toContain("Add-on unlocks");
     expect(text).toContain("starter");
   });
@@ -744,8 +744,9 @@ describe("XappDetailPage monetization", () => {
     expect(text).toContain("Current access");
     expect(text).toContain("Access state");
     expect(text).toContain("available");
-    expect(text).toContain("Balance");
+    expect(text).toContain("Credits");
     expect(text).toContain("1");
+    expect(text).not.toContain("Currency");
     expect(text).not.toContain("Access stateinactive");
   });
 
