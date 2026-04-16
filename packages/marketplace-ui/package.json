@@ -1,6 +1,6 @@
 {
   "name": "@xapps-platform/marketplace-ui",
-  "version": "0.1.16",
+  "version": "0.1.17",
   "license": "MIT",
   "author": "Daniel Vladescu <daniel.vladescu@gmail.com>",
   "type": "module",
