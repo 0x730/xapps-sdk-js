@@ -220,6 +220,17 @@ export function sendServiceError(request, reply, err, fallbackMessage) {
     return reply.code(err.status).send({ message: err.message });
   }
   if (err instanceof GatewayApiClientError) {
+    request.log.error(
+      {
+        gatewayError: {
+          code: err.code,
+          status: err.status,
+          message: err.message,
+          details: err.details,
+        },
+      },
+      fallbackMessage,
+    );
     return reply
       .code(err.status || 502)
       .send(
