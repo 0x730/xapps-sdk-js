@@ -25,7 +25,7 @@ export async function bootMarketplaceHost(config) {
         });
     }
     const refreshed = await refreshInFlight;
-    if (refreshed?.email && refreshed?.subjectId) {
+    if (refreshed?.subjectId) {
       currentIdentity = refreshed;
       try {
         config.renderIdentity?.(currentIdentity);
@@ -37,9 +37,9 @@ export async function bootMarketplaceHost(config) {
 
   async function ensureIdentity() {
     currentIdentity = config.readStoredJson(config.identityStorageKey);
-    if (currentIdentity?.email && currentIdentity?.subjectId) return currentIdentity;
+    if (currentIdentity?.subjectId) return currentIdentity;
     const refreshed = await tryRefreshIdentity();
-    if (refreshed?.email && refreshed?.subjectId) return refreshed;
+    if (refreshed?.subjectId) return refreshed;
     const entryUrl = new URL(config.entryHref || "/", window.location.href);
     entryUrl.searchParams.set("hostError", "missing_identity");
     entryUrl.searchParams.set("next", window.location.pathname + window.location.search);
