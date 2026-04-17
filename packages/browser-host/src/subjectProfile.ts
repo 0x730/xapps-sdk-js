@@ -1154,6 +1154,7 @@ export function createSubjectProfileOverlay(options?: {
   subtitle?: string;
   themeTokens?: unknown;
   onClose?: () => void;
+  container?: HTMLElement | null;
 }): {
   root: HTMLElement;
   overlay: HTMLElement;
@@ -1176,6 +1177,7 @@ export function createSubjectProfileOverlay(options?: {
     onClose,
     themeTokens: options?.themeTokens,
     bodyPadding: "16px",
+    container: options?.container,
   });
   const { overlay, body } = shell;
   body.style.scrollbarWidth = "thin";

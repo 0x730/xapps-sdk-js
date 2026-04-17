@@ -13,6 +13,7 @@ export function createSubjectProfileOverlay(options?: {
   subtitle?: string;
   themeTokens?: unknown;
   onClose?: () => void;
+  container?: HTMLElement | null;
 }): {
   root: HTMLElement;
   overlay: HTMLElement;

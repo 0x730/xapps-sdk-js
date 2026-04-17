@@ -372,6 +372,14 @@ export function buildXmsSubscriptionLifecycleSummary(input: {
   canCancel: boolean;
   canRefresh: boolean;
 } {
+  function timestampsMatch(left: string | null, right: string | null): boolean {
+    if (!left || !right) return false;
+    const leftMs = Date.parse(left);
+    const rightMs = Date.parse(right);
+    if (!Number.isNaN(leftMs) && !Number.isNaN(rightMs)) return leftMs === rightMs;
+    return left === right;
+  }
+
   const currentSubscription = readRecord(input.currentSubscription ?? input.current_subscription);
   const overduePolicy =
     currentSubscription?.overdue_policy &&
@@ -385,7 +393,23 @@ export function buildXmsSubscriptionLifecycleSummary(input: {
   const expiresAt = readString(currentSubscription?.expired_at) || null;
   const cancelledAt = readString(currentSubscription?.cancelled_at) || null;
   const overdueSince = readString(overduePolicy?.overdue_since) || null;
-  const expiryBoundaryAt = readString(overduePolicy?.expiry_boundary_at) || null;
+  let expiryBoundaryAt = readString(overduePolicy?.expiry_boundary_at) || null;
+
+  const normalizedRenewsAt = renewsAt;
+  let normalizedCurrentPeriodEndsAt = currentPeriodEndsAt;
+  if (
+    timestampsMatch(normalizedRenewsAt, normalizedCurrentPeriodEndsAt) ||
+    timestampsMatch(expiresAt, normalizedCurrentPeriodEndsAt)
+  ) {
+    normalizedCurrentPeriodEndsAt = null;
+  }
+  if (
+    timestampsMatch(normalizedRenewsAt, expiryBoundaryAt) ||
+    timestampsMatch(normalizedCurrentPeriodEndsAt, expiryBoundaryAt) ||
+    timestampsMatch(expiresAt, expiryBoundaryAt)
+  ) {
+    expiryBoundaryAt = null;
+  }
 
   return {
     present: Boolean(currentSubscription),
@@ -401,8 +425,8 @@ export function buildXmsSubscriptionLifecycleSummary(input: {
       overduePolicy,
       locale: input.locale,
     }),
-    renewsAt,
-    currentPeriodEndsAt,
+    renewsAt: normalizedRenewsAt,
+    currentPeriodEndsAt: normalizedCurrentPeriodEndsAt,
     expiresAt,
     cancelledAt,
     overdueSince,

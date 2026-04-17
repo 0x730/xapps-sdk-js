@@ -424,7 +424,8 @@ describe("@xapps-platform/browser-host xms helpers", () => {
 
     expect(html).toContain("Current coverage");
     expect(html).toContain("Workspace plans");
-    expect(html).toContain("Current period ends");
+    expect(html).toContain("Renews at");
+    expect(html).not.toContain("Current period ends");
     expect(html).not.toContain("Operator authority");
     expect(html).not.toContain("Manage in");
     expect(html).not.toContain("Advanced subscription management is handled in Gateway admin.");
@@ -1067,6 +1068,25 @@ describe("@xapps-platform/browser-host xms helpers", () => {
     expect(lifecycle.currentPeriodEndsAt).toBe("2026-05-02T19:45:00.000Z");
     expect(lifecycle.canRefresh).toBe(true);
     expect(lifecycle.canCancel).toBe(true);
+  });
+
+  it("deduplicates equivalent lifecycle timestamps before rendering paywall metadata", () => {
+    const lifecycle = buildXmsSubscriptionLifecycleSummary({
+      locale: "en",
+      current_subscription: {
+        id: "sub_2",
+        status: "active",
+        renews_at: "2026-05-16T09:11:00.000Z",
+        current_period_ends_at: "2026-05-16T09:11:00.000Z",
+        overdue_policy: {
+          expiry_boundary_at: "2026-05-16T09:11:00.000Z",
+        },
+      },
+    });
+
+    expect(lifecycle.renewsAt).toBe("2026-05-16T09:11:00.000Z");
+    expect(lifecycle.currentPeriodEndsAt).toBeNull();
+    expect(lifecycle.expiryBoundaryAt).toBeNull();
   });
 
   it("marks exhausted included-credit unlock coverage as consumed", () => {

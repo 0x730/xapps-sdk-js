@@ -98,6 +98,7 @@ export function createModalShell(options?: {
   closeLabel?: unknown;
   themeTokens?: unknown;
   onClose?: (() => void) | null;
+  container?: HTMLElement | null;
   panelWidth?: unknown;
   panelMaxWidth?: unknown;
   panelMaxHeight?: unknown;
@@ -116,8 +117,13 @@ export function createModalShell(options?: {
   body: HTMLElement;
   destroy: () => void;
 } {
-  if (typeof document === "undefined" || !document.body) {
+  if (typeof document === "undefined") {
     throw new Error("Modal shell requires a browser document");
+  }
+  const container =
+    options?.container instanceof HTMLElement ? options.container : document.body || null;
+  if (!container) {
+    throw new Error("Modal shell requires a host container");
   }
 
   const theme = buildModalShellTheme({ themeTokens: options?.themeTokens });
@@ -247,7 +253,7 @@ export function createModalShell(options?: {
   panel.appendChild(header);
   panel.appendChild(body);
   overlay.appendChild(panel);
-  document.body.appendChild(overlay);
+  container.appendChild(overlay);
 
   return {
     overlay,
