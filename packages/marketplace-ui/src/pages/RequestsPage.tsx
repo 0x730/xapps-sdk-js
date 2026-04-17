@@ -4,9 +4,12 @@ import { resolveMarketplaceText, useMarketplaceI18n } from "../i18n";
 import { useMarketplace } from "../MarketplaceContext";
 import { MarketplaceActivityTabs } from "../components/MarketplaceActivityTabs";
 import { MarketplacePrimaryNav } from "../components/MarketplacePrimaryNav";
+import { XappWorkspaceNav } from "../components/XappWorkspaceNav";
 import { shouldHideMarketplaceVersions } from "../utils/installationPolicy";
+import { buildMarketplaceHref } from "../utils/marketplaceRouting";
 import { asRecord, formatDateTime, readFirstString, readString } from "../utils/readers";
 import { describeGuardCurrentAccess } from "../utils/guardMonetization";
+import { readDefaultWidgetMeta } from "../utils/xappWorkspace";
 import "../marketplace.css";
 
 type RequestListPagination = {
@@ -44,21 +47,47 @@ export function RequestsPage() {
   const { client, host, env } = useMarketplace();
   const { locale, t } = useMarketplaceI18n();
   const token = useQueryToken();
+  const loc = useLocation();
   const query = useQuery();
 
   const xappIdFilter = query.get("xappId") ?? "";
   const pageParam = Math.max(1, parseInt(query.get("page") ?? "1", 10) || 1);
+  const isEmbedded = window.location.pathname.startsWith("/embed");
 
   const [items, setItems] = useState<unknown[]>([]);
   const [pagination, setPagination] = useState<RequestListPagination | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(true);
   const [xappTitle, setXappTitle] = useState<string>("");
+  const [xappDefaultWidgetId, setXappDefaultWidgetId] = useState("");
+  const [xappDefaultWidgetName, setXappDefaultWidgetName] = useState("");
+  const [xappDefaultToolName, setXappDefaultToolName] = useState("");
+  const [xappOpenAppStrategy, setXappOpenAppStrategy] = useState<"direct_widget" | "choose_widget">(
+    "direct_widget",
+  );
   const hideVersions = shouldHideMarketplaceVersions({
     installationPolicy: env?.installationPolicy ?? host.installationPolicy ?? null,
     installationPolicyResolved: env?.installationPolicyResolved,
     subjectId: host.subjectId,
   });
+  const xappInstallationId =
+    host.getInstallationsByXappId?.()?.[xappIdFilter]?.installationId || "";
+  const handleWorkspaceOpenApp =
+    !isEmbedded &&
+    xappOpenAppStrategy === "direct_widget" &&
+    xappInstallationId &&
+    xappDefaultWidgetId
+      ? () => {
+          host.openWidget({
+            installationId: xappInstallationId,
+            widgetId: xappDefaultWidgetId,
+            xappId: xappIdFilter,
+            xappTitle: xappTitle || xappIdFilter,
+            widgetName: xappDefaultWidgetName,
+            toolName: xappDefaultToolName || undefined,
+          });
+        }
+      : undefined;
 
   async function refresh(page: number = 1) {
     setError(null);
@@ -100,6 +129,10 @@ export function RequestsPage() {
   useEffect(() => {
     if (!xappIdFilter) {
       setXappTitle("");
+      setXappDefaultWidgetId("");
+      setXappDefaultWidgetName("");
+      setXappDefaultToolName("");
+      setXappOpenAppStrategy("direct_widget");
       return;
     }
 
@@ -111,11 +144,26 @@ export function RequestsPage() {
         const name =
           resolveMarketplaceText(asRecord(detail.manifest).title as any, locale) ||
           readFirstString(asRecord(detail.xapp).name);
+        const widgetMeta = readDefaultWidgetMeta(
+          detail,
+          locale,
+          t("common.widget", undefined, "Widget"),
+        );
         if (!alive) return;
         setXappTitle(name);
+        setXappDefaultWidgetId(widgetMeta?.widgetId || "");
+        setXappDefaultWidgetName(widgetMeta?.widgetName || "");
+        setXappDefaultToolName(widgetMeta?.toolName || "");
+        setXappOpenAppStrategy(
+          widgetMeta && widgetMeta.widgetCount > 1 ? "choose_widget" : "direct_widget",
+        );
       } catch {
         if (!alive) return;
         setXappTitle("");
+        setXappDefaultWidgetId("");
+        setXappDefaultWidgetName("");
+        setXappDefaultToolName("");
+        setXappOpenAppStrategy("direct_widget");
       }
     })();
 
@@ -125,31 +173,18 @@ export function RequestsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [locale, xappIdFilter]);
 
-  const isEmbedded = window.location.pathname.startsWith("/embed");
-
   const xappLink = xappIdFilter
-    ? ({
-        pathname: isEmbedded
-          ? `/xapps/${encodeURIComponent(String(xappIdFilter))}`
-          : `/marketplace/xapps/${encodeURIComponent(String(xappIdFilter))}`,
-        search: token ? `?token=${encodeURIComponent(token)}` : "",
-      } as any)
+    ? (buildMarketplaceHref(loc.pathname, `xapps/${encodeURIComponent(String(xappIdFilter))}`, {
+        token,
+      }) as any)
     : null;
 
   const backToContext =
-    xappIdFilter && xappLink
-      ? xappLink
-      : {
-          pathname: isEmbedded ? "" : "/marketplace",
-          search: token ? `?token=${encodeURIComponent(token)}` : "",
-        };
+    xappIdFilter && xappLink ? xappLink : buildMarketplaceHref(loc.pathname, "", { token });
 
   const emptyState = error === "Subject required" || error === "Session token required";
 
-  const clearHref = {
-    pathname: isEmbedded ? "/requests" : "/marketplace/requests",
-    search: token ? `?token=${encodeURIComponent(token)}` : "",
-  };
+  const clearHref = buildMarketplaceHref(loc.pathname, "requests", { token });
 
   function StatusBadge({ status }: { status: string }) {
     const s = String(status || "");
@@ -193,12 +228,12 @@ export function RequestsPage() {
     <div className={`mx-catalog-container ${isEmbedded ? "is-embedded" : ""}`}>
       <div className="mx-breadcrumb">
         {!env?.singleXappMode && (
-          <Link to={isEmbedded ? "/" : "/marketplace"}>
+          <Link to={buildMarketplaceHref(loc.pathname, "", { token }) as any}>
             {t("common.marketplace", undefined, "Marketplace")}
           </Link>
         )}
         {env?.singleXappMode && !isEmbedded && (
-          <Link to={isEmbedded ? "/" : "/marketplace"}>
+          <Link to={buildMarketplaceHref(loc.pathname, "", { token }) as any}>
             {t("common.marketplace", undefined, "Marketplace")}
           </Link>
         )}
@@ -247,12 +282,28 @@ export function RequestsPage() {
         </div>
       </header>
 
-      <MarketplaceActivityTabs
-        active="requests"
-        isEmbedded={isEmbedded}
-        token={token}
-        xappId={xappIdFilter || undefined}
-      />
+      {xappIdFilter ? (
+        <XappWorkspaceNav
+          xappId={xappIdFilter}
+          xappTitle={xappTitle || xappIdFilter}
+          isEmbedded={isEmbedded}
+          token={token}
+          installationId={xappInstallationId || undefined}
+          active="requests"
+          openWidgetId={xappDefaultWidgetId}
+          openWidgetName={xappDefaultWidgetName}
+          openToolName={xappDefaultToolName}
+          openAppStrategy={xappOpenAppStrategy}
+          onOpenApp={handleWorkspaceOpenApp}
+        />
+      ) : (
+        <MarketplaceActivityTabs
+          active="requests"
+          isEmbedded={isEmbedded}
+          token={token}
+          xappId={xappIdFilter || undefined}
+        />
+      )}
 
       {emptyState ? (
         <div className="mx-table-container mx-alert mx-alert-info">

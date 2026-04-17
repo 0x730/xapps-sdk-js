@@ -7,6 +7,7 @@ import { ConfirmActionModal } from "../components/ConfirmActionModal";
 import { MarketplacePrimaryNav } from "../components/MarketplacePrimaryNav";
 import { buildTokenSearch } from "../utils/embedSearch";
 import { shouldHideMarketplaceVersions } from "../utils/installationPolicy";
+import { buildMarketplaceHref } from "../utils/marketplaceRouting";
 import { asRecord, readFirstString, readString } from "../utils/readers";
 import "../marketplace.css";
 
@@ -237,9 +238,12 @@ export function CatalogPage() {
       if (!qq) return true;
       const manifest = asRecord(x.manifest);
       const title =
-        resolveMarketplaceText(manifest.title as any, locale) || readFirstString(x.name);
+        resolveMarketplaceText(manifest.title as any, locale) ||
+        resolveMarketplaceText(x.name as any, locale) ||
+        readFirstString(x.name);
       const description =
         resolveMarketplaceText(manifest.description as any, locale) ||
+        resolveMarketplaceText(x.description as any, locale) ||
         readFirstString(x.description);
       const hay = `${title} ${description} ${x.slug}`.toLowerCase();
       return hay.includes(qq);
@@ -421,10 +425,12 @@ export function CatalogPage() {
                 const manifest = asRecord(x.manifest);
                 const title =
                   resolveMarketplaceText(manifest.title as any, locale) ||
+                  resolveMarketplaceText(x.name as any, locale) ||
                   readFirstString(x.name, x.slug) ||
                   "App";
                 const desc =
                   resolveMarketplaceText(manifest.description as any, locale) ||
+                  resolveMarketplaceText(x.description as any, locale) ||
                   readFirstString(x.description);
                 const image =
                   typeof manifest.image === "string"
@@ -446,10 +452,11 @@ export function CatalogPage() {
                 const needsInstallDetails = !x.manifest || !("terms" in manifest) || requiresTerms;
 
                 const detailTo = {
-                  pathname: isEmbedded
-                    ? `/xapps/${encodeURIComponent(String(x.id))}`
-                    : `/marketplace/xapps/${encodeURIComponent(String(x.id))}`,
-                  search: tokenSearch,
+                  ...buildMarketplaceHref(
+                    loc.pathname,
+                    `xapps/${encodeURIComponent(String(x.id))}`,
+                    token ? { token } : {},
+                  ),
                 };
 
                 return (
@@ -465,12 +472,11 @@ export function CatalogPage() {
                               {t("common.by", undefined, "by")}{" "}
                               <Link
                                 to={{
-                                  pathname: isEmbedded
-                                    ? `/publishers/${encodeURIComponent(String(x.publisher.slug))}`
-                                    : `/marketplace/publishers/${encodeURIComponent(
-                                        String(x.publisher.slug),
-                                      )}`,
-                                  search: tokenSearch,
+                                  ...buildMarketplaceHref(
+                                    loc.pathname,
+                                    `publishers/${encodeURIComponent(String(x.publisher.slug))}`,
+                                    token ? { token } : {},
+                                  ),
                                 }}
                                 className="mx-inline-link"
                               >

@@ -1,5 +1,6 @@
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { useMarketplaceI18n } from "../i18n";
+import { buildMarketplaceHref } from "../utils/marketplaceRouting";
 
 type MarketplacePrimaryNavProps = {
   active: "xapps" | "publishers" | "activity";
@@ -9,13 +10,13 @@ type MarketplacePrimaryNavProps = {
 
 export function MarketplacePrimaryNav(props: MarketplacePrimaryNavProps) {
   const { t } = useMarketplaceI18n();
-  const xappsTo = props.isEmbedded ? `/${props.tokenSearch}` : `/marketplace${props.tokenSearch}`;
-  const publishersTo = props.isEmbedded
-    ? `/publishers${props.tokenSearch}`
-    : `/marketplace/publishers${props.tokenSearch}`;
-  const activityTo = props.isEmbedded
-    ? `/requests${props.tokenSearch}`
-    : `/marketplace/requests${props.tokenSearch}`;
+  const loc = useLocation();
+  const token = props.tokenSearch.startsWith("?")
+    ? new URLSearchParams(props.tokenSearch.slice(1)).get("token") || ""
+    : "";
+  const xappsTo = buildMarketplaceHref(loc.pathname, "", { token });
+  const publishersTo = buildMarketplaceHref(loc.pathname, "publishers", { token });
+  const activityTo = buildMarketplaceHref(loc.pathname, "requests", { token });
 
   return (
     <nav

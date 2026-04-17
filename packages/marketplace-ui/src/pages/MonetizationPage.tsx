@@ -5,8 +5,11 @@ import { useMarketplace } from "../MarketplaceContext";
 import { resolveMarketplaceText, useMarketplaceI18n } from "../i18n";
 import { MarketplaceActivityTabs } from "../components/MarketplaceActivityTabs";
 import { MarketplacePrimaryNav } from "../components/MarketplacePrimaryNav";
+import { XappWorkspaceNav } from "../components/XappWorkspaceNav";
 import type { CatalogXappDetail, InstallationInfo } from "../types";
+import { buildMarketplaceHref } from "../utils/marketplaceRouting";
 import { asRecord, readFirstString, readString } from "../utils/readers";
+import { readDefaultWidgetMeta } from "../utils/xappWorkspace";
 import "../marketplace.css";
 
 type MonetizationCard = {
@@ -112,18 +115,43 @@ export function MonetizationPage() {
   const { client, host, env } = useMarketplace();
   const { locale, t } = useMarketplaceI18n();
   const token = useQueryToken();
+  const loc = useLocation();
   const query = useQuery();
   const xappIdFilter = query.get("xappId") ?? "";
   const installationIdFilter = query.get("installationId") ?? "";
   const showPast = query.get("showPast") === "1";
+  const isEmbedded = typeof window !== "undefined" && window.location.pathname.startsWith("/embed");
+  const xappInstallationId =
+    installationIdFilter || host.getInstallationsByXappId?.()?.[xappIdFilter]?.installationId || "";
   const subjectResolutionPending = env?.subjectResolved === false;
   const [items, setItems] = useState<MonetizationCard[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(true);
   const [xappTitle, setXappTitle] = useState("");
+  const [xappDefaultWidgetId, setXappDefaultWidgetId] = useState("");
+  const [xappDefaultWidgetName, setXappDefaultWidgetName] = useState("");
+  const [xappDefaultToolName, setXappDefaultToolName] = useState("");
+  const [xappOpenAppStrategy, setXappOpenAppStrategy] = useState<"direct_widget" | "choose_widget">(
+    "direct_widget",
+  );
   const visibilityRefreshRef = useRef<number>(0);
+  const handleWorkspaceOpenApp =
+    !isEmbedded &&
+    xappOpenAppStrategy === "direct_widget" &&
+    xappInstallationId &&
+    xappDefaultWidgetId
+      ? () => {
+          host.openWidget({
+            installationId: xappInstallationId,
+            widgetId: xappDefaultWidgetId,
+            xappId: xappIdFilter,
+            xappTitle: xappTitle || xappIdFilter,
+            widgetName: xappDefaultWidgetName,
+            toolName: xappDefaultToolName || undefined,
+          });
+        }
+      : undefined;
 
-  const isEmbedded = typeof window !== "undefined" && window.location.pathname.startsWith("/embed");
   const overview = useMemo(
     () => ({
       apps: items.length,
@@ -354,6 +382,10 @@ export function MonetizationPage() {
   useEffect(() => {
     if (!xappIdFilter) {
       setXappTitle("");
+      setXappDefaultWidgetId("");
+      setXappDefaultWidgetName("");
+      setXappDefaultToolName("");
+      setXappOpenAppStrategy("direct_widget");
       return;
     }
     let alive = true;
@@ -366,12 +398,27 @@ export function MonetizationPage() {
         const detail = asRecord(res);
         const manifest = asRecord(detail.manifest);
         const xapp = asRecord(detail.xapp);
+        const widgetMeta = readDefaultWidgetMeta(
+          detail,
+          locale,
+          t("common.widget", undefined, "Widget"),
+        );
         setXappTitle(
           resolveMarketplaceText(manifest.title as any, locale) || readFirstString(xapp.name),
+        );
+        setXappDefaultWidgetId(widgetMeta?.widgetId || "");
+        setXappDefaultWidgetName(widgetMeta?.widgetName || "");
+        setXappDefaultToolName(widgetMeta?.toolName || "");
+        setXappOpenAppStrategy(
+          widgetMeta && widgetMeta.widgetCount > 1 ? "choose_widget" : "direct_widget",
         );
       } catch {
         if (!alive) return;
         setXappTitle("");
+        setXappDefaultWidgetId("");
+        setXappDefaultWidgetName("");
+        setXappDefaultToolName("");
+        setXappOpenAppStrategy("direct_widget");
       }
     })();
     return () => {
@@ -379,42 +426,25 @@ export function MonetizationPage() {
     };
   }, [client, installationIdFilter, locale, xappIdFilter]);
 
-  const clearHref = {
-    pathname: isEmbedded ? "/monetization" : "/marketplace/monetization",
-    search: token ? `?token=${encodeURIComponent(token)}` : "",
-  };
+  const clearHref = buildMarketplaceHref(loc.pathname, "monetization", { token });
   const togglePastHref = !xappIdFilter
-    ? ({
-        pathname: isEmbedded ? "/monetization" : "/marketplace/monetization",
-        search: (() => {
-          const qs = new URLSearchParams();
-          if (token) qs.set("token", token);
-          if (!showPast) qs.set("showPast", "1");
-          const suffix = qs.toString();
-          return suffix ? `?${suffix}` : "";
-        })(),
-      } as const)
+    ? buildMarketplaceHref(loc.pathname, "monetization", {
+        token,
+        showPast: !showPast ? "1" : undefined,
+      })
     : null;
 
   const xappLink = xappIdFilter
-    ? ({
-        pathname: isEmbedded
-          ? `/xapps/${encodeURIComponent(String(xappIdFilter))}`
-          : `/marketplace/xapps/${encodeURIComponent(String(xappIdFilter))}`,
-        search: (() => {
-          const qs = new URLSearchParams();
-          if (token) qs.set("token", token);
-          if (installationIdFilter) qs.set("installationId", installationIdFilter);
-          const suffix = qs.toString();
-          return suffix ? `?${suffix}` : "";
-        })(),
-      } as any)
+    ? (buildMarketplaceHref(loc.pathname, `xapps/${encodeURIComponent(String(xappIdFilter))}`, {
+        token,
+        installationId: installationIdFilter,
+      }) as any)
     : null;
 
   return (
     <div className={`mx-catalog-container mx-monetization-page ${isEmbedded ? "is-embedded" : ""}`}>
       <div className="mx-breadcrumb">
-        <Link to={isEmbedded ? "/" : "/marketplace"}>
+        <Link to={buildMarketplaceHref(loc.pathname, "", { token }) as any}>
           {t("common.marketplace", undefined, "Marketplace")}
         </Link>
         {xappLink && (
@@ -467,13 +497,30 @@ export function MonetizationPage() {
         </div>
       </header>
 
-      <MarketplaceActivityTabs
-        active="monetization"
-        isEmbedded={isEmbedded}
-        token={token}
-        xappId={xappIdFilter || undefined}
-        installationId={installationIdFilter || undefined}
-      />
+      {xappIdFilter ? (
+        <XappWorkspaceNav
+          xappId={xappIdFilter}
+          xappTitle={xappTitle || xappIdFilter}
+          isEmbedded={isEmbedded}
+          token={token}
+          installationId={xappInstallationId || undefined}
+          active="billing"
+          billingActive="monetization"
+          openWidgetId={xappDefaultWidgetId}
+          openWidgetName={xappDefaultWidgetName}
+          openToolName={xappDefaultToolName}
+          openAppStrategy={xappOpenAppStrategy}
+          onOpenApp={handleWorkspaceOpenApp}
+        />
+      ) : (
+        <MarketplaceActivityTabs
+          active="monetization"
+          isEmbedded={isEmbedded}
+          token={token}
+          xappId={xappIdFilter || undefined}
+          installationId={installationIdFilter || undefined}
+        />
+      )}
 
       {error === "Subject required" || error === "Session token required" ? (
         <div className="mx-table-container mx-alert mx-alert-info">
@@ -754,3 +801,5 @@ export function MonetizationPage() {
     </div>
   );
 }
+
+export default MonetizationPage;

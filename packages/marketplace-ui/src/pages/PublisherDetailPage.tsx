@@ -6,6 +6,7 @@ import { MarketplacePrimaryNav } from "../components/MarketplacePrimaryNav";
 import type { CatalogXapp } from "../types";
 import { buildTokenSearch } from "../utils/embedSearch";
 import { shouldHideMarketplaceVersions } from "../utils/installationPolicy";
+import { buildMarketplaceHref } from "../utils/marketplaceRouting";
 import { asRecord, readFirstString, readString } from "../utils/readers";
 import "../marketplace.css";
 
@@ -66,10 +67,10 @@ export function PublisherDetailPage() {
     return String(items[0]?.publisher?.name || "").trim() || String(publisherSlug);
   }, [items, publisherSlug]);
 
-  const backToPublishers = isEmbedded
-    ? `/publishers${tokenSearch}`
-    : `/marketplace/publishers${tokenSearch}`;
-  const backToXapps = isEmbedded ? `/${tokenSearch}` : `/marketplace${tokenSearch}`;
+  const backToPublishers = buildMarketplaceHref(loc.pathname, "publishers", {
+    token,
+  });
+  const backToXapps = buildMarketplaceHref(loc.pathname, "", { token });
 
   const filteredItems = useMemo(() => {
     const query = q.trim().toLowerCase();
@@ -77,9 +78,12 @@ export function PublisherDetailPage() {
     return items.filter((x) => {
       const manifest = asRecord(x.manifest);
       const title =
-        resolveMarketplaceText(manifest.title as any, locale) || readFirstString(x.name);
+        resolveMarketplaceText(manifest.title as any, locale) ||
+        resolveMarketplaceText(x.name as any, locale) ||
+        readFirstString(x.name);
       const desc =
         resolveMarketplaceText(manifest.description as any, locale) ||
+        resolveMarketplaceText(x.description as any, locale) ||
         readFirstString(x.description);
       const hay = `${title} ${desc} ${x.slug}`.toLowerCase();
       return hay.includes(query);
@@ -89,9 +93,9 @@ export function PublisherDetailPage() {
   return (
     <div className={`mx-catalog-container ${isEmbedded ? "is-embedded" : ""}`}>
       <div className="mx-breadcrumb">
-        <Link to={backToXapps}>{t("common.marketplace", undefined, "Marketplace")}</Link>
+        <Link to={backToXapps as any}>{t("common.marketplace", undefined, "Marketplace")}</Link>
         <span className="mx-breadcrumb-sep">/</span>
-        <Link to={backToPublishers}>
+        <Link to={backToPublishers as any}>
           {t("publisher.publishers_title", undefined, "Publishers")}
         </Link>
         <span className="mx-breadcrumb-sep">/</span>
@@ -204,9 +208,11 @@ export function PublisherDetailPage() {
                 const manifest = asRecord(x.manifest);
                 const title =
                   resolveMarketplaceText(manifest.title as any, locale) ||
+                  resolveMarketplaceText(x.name as any, locale) ||
                   readFirstString(x.name, x.slug, "App");
                 const desc =
                   resolveMarketplaceText(manifest.description as any, locale) ||
+                  resolveMarketplaceText(x.description as any, locale) ||
                   readFirstString(x.description);
                 const image =
                   readString(manifest.image) || "https://picsum.photos/seed/" + x.slug + "/560/320";
@@ -219,10 +225,11 @@ export function PublisherDetailPage() {
                 const inst = installationsByXappId[String(x.id)];
                 const installed = Boolean(inst);
                 const detailTo = {
-                  pathname: isEmbedded
-                    ? `/xapps/${encodeURIComponent(String(x.id))}`
-                    : `/marketplace/xapps/${encodeURIComponent(String(x.id))}`,
-                  search: tokenSearch,
+                  ...buildMarketplaceHref(
+                    loc.pathname,
+                    `xapps/${encodeURIComponent(String(x.id))}`,
+                    token ? { token } : {},
+                  ),
                 };
                 return (
                   <div key={x.id} className="mx-card">

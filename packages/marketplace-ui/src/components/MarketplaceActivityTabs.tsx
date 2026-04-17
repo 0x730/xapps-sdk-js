@@ -1,5 +1,6 @@
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { useMarketplaceI18n } from "../i18n";
+import { buildMarketplaceHref } from "../utils/marketplaceRouting";
 
 type ActivityTabKey = "requests" | "monetization" | "payments" | "invoices" | "notifications";
 
@@ -13,26 +14,21 @@ type MarketplaceActivityTabsProps = {
 
 function buildActivityHref(input: {
   surface: ActivityTabKey;
-  isEmbedded: boolean;
+  pathname: string;
   token?: string;
   xappId?: string;
   installationId?: string;
 }) {
-  const qs = new URLSearchParams();
-  if (input.token) qs.set("token", input.token);
-  if (input.xappId) qs.set("xappId", input.xappId);
-  if (input.installationId && input.surface !== "requests") {
-    qs.set("installationId", input.installationId);
-  }
-  const suffix = qs.toString();
-  return {
-    pathname: input.isEmbedded ? `/${input.surface}` : `/marketplace/${input.surface}`,
-    search: suffix ? `?${suffix}` : "",
-  };
+  return buildMarketplaceHref(input.pathname, input.surface, {
+    token: input.token,
+    xappId: input.xappId,
+    installationId: input.surface !== "requests" ? input.installationId : undefined,
+  });
 }
 
 export function MarketplaceActivityTabs(props: MarketplaceActivityTabsProps) {
   const { t } = useMarketplaceI18n();
+  const loc = useLocation();
   const tabs: Array<{ key: ActivityTabKey; label: string }> = [
     { key: "requests", label: t("activity.requests", undefined, "Requests") },
     { key: "monetization", label: t("activity.monetization", undefined, "Monetization") },
@@ -52,7 +48,7 @@ export function MarketplaceActivityTabs(props: MarketplaceActivityTabsProps) {
           to={
             buildActivityHref({
               surface: tab.key,
-              isEmbedded: props.isEmbedded,
+              pathname: loc.pathname,
               token: props.token,
               xappId: props.xappId,
               installationId: props.installationId,

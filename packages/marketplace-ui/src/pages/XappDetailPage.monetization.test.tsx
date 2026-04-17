@@ -11,14 +11,76 @@ const cleanupFns: Array<() => void> = [];
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
 (globalThis as any).React = React;
 
-afterEach(() => {
+afterEach(async () => {
   while (cleanupFns.length > 0) {
-    cleanupFns.pop()?.();
+    const cleanup = cleanupFns.pop();
+    if (cleanup) {
+      await act(async () => {
+        cleanup();
+      });
+    }
   }
   document.body.innerHTML = "";
 });
 
 describe("XappDetailPage monetization", () => {
+  it("resolves stringified localized xapp descriptions in public detail view", async () => {
+    const client: any = {
+      listCatalogXapps: async () => ({ items: [] }),
+      getCatalogXapp: async () => ({
+        xapp: {
+          id: "xapp_public_1",
+          publisher: { slug: "xplace-example", name: "Xplace Example Publisher" },
+          publisher_id: "pub_1",
+          name: "xplace-example • Creator Club (Publisher-Rendered)",
+          description: JSON.stringify({
+            en: "Publisher-rendered React playground in English.",
+            ro: "Playground React publisher-rendered în română.",
+          }),
+        },
+        version: {
+          id: "ver_1",
+          version: "1.0.167",
+        },
+        manifest: {
+          title: { en: "xplace-example • Creator Club (Publisher-Rendered)" },
+        },
+        tools: [],
+        widgets: [],
+      }),
+    };
+
+    const hostAdapter: any = {
+      subjectId: null,
+      getInstallationsByXappId: () => ({}),
+      refreshInstallations: () => {},
+      openWidget: () => {},
+    };
+
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+    const root = createRoot(host);
+
+    await act(async () => {
+      root.render(
+        <MemoryRouter initialEntries={["/marketplace/xapps/xapp_public_1"]}>
+          <MarketplaceProvider client={client} host={hostAdapter}>
+            <Routes>
+              <Route path="/marketplace/xapps/:xappId" element={<XappDetailPage />} />
+            </Routes>
+          </MarketplaceProvider>
+        </MemoryRouter>,
+      );
+    });
+
+    cleanupFns.push(() => root.unmount());
+
+    expect(document.body.textContent).toContain("Publisher-rendered React playground in English.");
+    expect(document.body.textContent).not.toContain(
+      '{"en":"Publisher-rendered React playground in English."',
+    );
+  });
+
   it("renders current access details when the host client exposes monetization reads", async () => {
     const client: any = {
       listCatalogXapps: async () => ({ items: [] }),
@@ -261,7 +323,7 @@ describe("XappDetailPage monetization", () => {
 
     const text = host.textContent || "";
     expect(text).toContain("Renews at");
-    expect(text).toContain("Current period ends");
+    expect(text).not.toContain("Current period ends");
     expect(text).toContain("Refresh status");
     expect(text).toContain("Cancel subscription");
 

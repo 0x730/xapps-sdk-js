@@ -4,7 +4,10 @@ import { resolveMarketplaceText, useMarketplaceI18n } from "../i18n";
 import { useMarketplace } from "../MarketplaceContext";
 import { MarketplaceActivityTabs } from "../components/MarketplaceActivityTabs";
 import { MarketplacePrimaryNav } from "../components/MarketplacePrimaryNav";
+import { XappWorkspaceNav } from "../components/XappWorkspaceNav";
+import { buildMarketplaceHref } from "../utils/marketplaceRouting";
 import { asRecord, formatDateTime, readFirstString, readString } from "../utils/readers";
+import { readDefaultWidgetMeta } from "../utils/xappWorkspace";
 import "../marketplace.css";
 
 function useQueryToken(): string {
@@ -43,6 +46,7 @@ export function InvoicesPage() {
   const { client, host } = useMarketplace();
   const { locale, t } = useMarketplaceI18n();
   const token = useQueryToken();
+  const loc = useLocation();
   const query = useQuery();
 
   const xappIdFilter = query.get("xappId") ?? "";
@@ -50,6 +54,7 @@ export function InvoicesPage() {
   const focusedInvoiceId = query.get("invoiceId") ?? "";
   const paymentSessionIdFilter = query.get("paymentSessionId") ?? "";
   const pageParam = Math.max(1, parseInt(query.get("page") ?? "1", 10) || 1);
+  const isEmbedded = typeof window !== "undefined" && window.location.pathname.startsWith("/embed");
   const [items, setItems] = useState<InvoiceRecord[]>([]);
   const [focusedInvoice, setFocusedInvoice] = useState<InvoiceRecord | null>(null);
   const [focusedHistory, setFocusedHistory] = useState<InvoiceRecord[]>([]);
@@ -58,9 +63,30 @@ export function InvoicesPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(true);
   const [xappTitle, setXappTitle] = useState("");
-
-  const isEmbedded = typeof window !== "undefined" && window.location.pathname.startsWith("/embed");
-
+  const [xappDefaultWidgetId, setXappDefaultWidgetId] = useState("");
+  const [xappDefaultWidgetName, setXappDefaultWidgetName] = useState("");
+  const [xappDefaultToolName, setXappDefaultToolName] = useState("");
+  const [xappOpenAppStrategy, setXappOpenAppStrategy] = useState<"direct_widget" | "choose_widget">(
+    "direct_widget",
+  );
+  const xappInstallationId =
+    installationIdFilter || host.getInstallationsByXappId?.()?.[xappIdFilter]?.installationId || "";
+  const handleWorkspaceOpenApp =
+    !isEmbedded &&
+    xappOpenAppStrategy === "direct_widget" &&
+    xappInstallationId &&
+    xappDefaultWidgetId
+      ? () => {
+          host.openWidget({
+            installationId: xappInstallationId,
+            widgetId: xappDefaultWidgetId,
+            xappId: xappIdFilter,
+            xappTitle: xappTitle || xappIdFilter,
+            widgetName: xappDefaultWidgetName,
+            toolName: xappDefaultToolName || undefined,
+          });
+        }
+      : undefined;
   async function refresh(page: number = 1) {
     if (!client.listMyInvoices) {
       setError(
@@ -147,6 +173,10 @@ export function InvoicesPage() {
   useEffect(() => {
     if (!xappIdFilter) {
       setXappTitle("");
+      setXappDefaultWidgetId("");
+      setXappDefaultWidgetName("");
+      setXappDefaultToolName("");
+      setXappOpenAppStrategy("direct_widget");
       return;
     }
     let alive = true;
@@ -156,12 +186,27 @@ export function InvoicesPage() {
         if (!alive) return;
         const manifest = asRecord(res?.manifest);
         const xapp = asRecord(res?.xapp);
+        const widgetMeta = readDefaultWidgetMeta(
+          res,
+          locale,
+          t("common.widget", undefined, "Widget"),
+        );
         setXappTitle(
           resolveMarketplaceText(manifest.title as any, locale) || readFirstString(xapp.name),
+        );
+        setXappDefaultWidgetId(widgetMeta?.widgetId || "");
+        setXappDefaultWidgetName(widgetMeta?.widgetName || "");
+        setXappDefaultToolName(widgetMeta?.toolName || "");
+        setXappOpenAppStrategy(
+          widgetMeta && widgetMeta.widgetCount > 1 ? "choose_widget" : "direct_widget",
         );
       } catch {
         if (!alive) return;
         setXappTitle("");
+        setXappDefaultWidgetId("");
+        setXappDefaultWidgetName("");
+        setXappDefaultToolName("");
+        setXappOpenAppStrategy("direct_widget");
       }
     })();
     return () => {
@@ -170,37 +215,25 @@ export function InvoicesPage() {
   }, [client, locale, xappIdFilter]);
 
   const xappLink = xappIdFilter
-    ? ({
-        pathname: isEmbedded
-          ? `/xapps/${encodeURIComponent(String(xappIdFilter))}`
-          : `/marketplace/xapps/${encodeURIComponent(String(xappIdFilter))}`,
-        search: token ? `?token=${encodeURIComponent(token)}` : "",
-      } as any)
+    ? (buildMarketplaceHref(loc.pathname, `xapps/${encodeURIComponent(String(xappIdFilter))}`, {
+        token,
+      }) as any)
     : null;
 
-  const clearHref = {
-    pathname: isEmbedded ? "/invoices" : "/marketplace/invoices",
-    search: token ? `?token=${encodeURIComponent(token)}` : "",
-  };
-  const listHref = {
-    pathname: isEmbedded ? "/invoices" : "/marketplace/invoices",
-    search: (() => {
-      const qs = new URLSearchParams();
-      if (token) qs.set("token", token);
-      if (xappIdFilter) qs.set("xappId", xappIdFilter);
-      if (installationIdFilter) qs.set("installationId", installationIdFilter);
-      if (paymentSessionIdFilter) qs.set("paymentSessionId", paymentSessionIdFilter);
-      const suffix = qs.toString();
-      return suffix ? `?${suffix}` : "";
-    })(),
-  };
+  const clearHref = buildMarketplaceHref(loc.pathname, "invoices", { token });
+  const listHref = buildMarketplaceHref(loc.pathname, "invoices", {
+    token,
+    xappId: xappIdFilter,
+    installationId: installationIdFilter,
+    paymentSessionId: paymentSessionIdFilter,
+  });
 
   const emptyState = error === "Subject required" || error === "Session token required";
 
   return (
     <div className={`mx-catalog-container ${isEmbedded ? "is-embedded" : ""}`}>
       <div className="mx-breadcrumb">
-        <Link to={isEmbedded ? "/" : "/marketplace"}>
+        <Link to={buildMarketplaceHref(loc.pathname, "", { token }) as any}>
           {t("common.marketplace", undefined, "Marketplace")}
         </Link>
         {xappLink && (
@@ -246,13 +279,30 @@ export function InvoicesPage() {
         </div>
       </header>
 
-      <MarketplaceActivityTabs
-        active="invoices"
-        isEmbedded={isEmbedded}
-        token={token}
-        xappId={xappIdFilter || undefined}
-        installationId={installationIdFilter || undefined}
-      />
+      {xappIdFilter ? (
+        <XappWorkspaceNav
+          xappId={xappIdFilter}
+          xappTitle={xappTitle || xappIdFilter}
+          isEmbedded={isEmbedded}
+          token={token}
+          installationId={xappInstallationId || undefined}
+          active="billing"
+          billingActive="invoices"
+          openWidgetId={xappDefaultWidgetId}
+          openWidgetName={xappDefaultWidgetName}
+          openToolName={xappDefaultToolName}
+          openAppStrategy={xappOpenAppStrategy}
+          onOpenApp={handleWorkspaceOpenApp}
+        />
+      ) : (
+        <MarketplaceActivityTabs
+          active="invoices"
+          isEmbedded={isEmbedded}
+          token={token}
+          xappId={xappIdFilter || undefined}
+          installationId={installationIdFilter || undefined}
+        />
+      )}
 
       {emptyState ? (
         <div className="mx-table-container mx-alert mx-alert-info">

@@ -3,8 +3,10 @@ import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import type { TranslationParams } from "@xapps-platform/platform-i18n";
 import { resolveMarketplaceText, useMarketplaceI18n } from "../i18n";
 import { useMarketplace } from "../MarketplaceContext";
+import { XappWorkspaceNav } from "../components/XappWorkspaceNav";
 import type { CatalogXappDetail } from "../types";
 import { buildTokenSearch, readHostReturnUrl } from "../utils/embedSearch";
+import { buildMarketplaceHref } from "../utils/marketplaceRouting";
 import { asRecord, normalizeExpandStage, readFirstString, readString } from "../utils/readers";
 import {
   buildOperationalSurfaceHref,
@@ -30,6 +32,27 @@ type NestedPendingExpand = {
 type SessionExpiredUi = {
   title: string;
   message: string;
+};
+
+type WidgetThemePayload = {
+  primary?: string;
+  primaryDark?: string;
+  bg?: string;
+  bgSubtle?: string;
+  card?: string;
+  border?: string;
+  text?: string;
+  muted?: string;
+  shadowSm?: string;
+  shadow?: string;
+  shadowLg?: string;
+  radiusSm?: string;
+  radiusMd?: string;
+  radius?: string;
+  radiusLg?: string;
+  fontFamily?: string;
+  displayFont?: string;
+  tokens?: Record<string, string>;
 };
 
 function useQueryToken(): string {
@@ -104,6 +127,131 @@ function toSessionExpiredUi(
   };
 }
 
+function readThemeCssValue(names: string[], fallback = ""): string {
+  if (typeof window === "undefined" || typeof document === "undefined") return fallback;
+  const nodes = [document.documentElement, document.body].filter((node): node is HTMLElement =>
+    Boolean(node),
+  );
+  for (const node of nodes) {
+    const styles = window.getComputedStyle(node);
+    for (const name of names) {
+      const value = styles.getPropertyValue(name).trim();
+      if (value) return value;
+    }
+  }
+  return fallback;
+}
+
+function buildWidgetThemeFromDocument(
+  hostTheme: Record<string, unknown> | null | undefined,
+): WidgetThemePayload | null {
+  const hostThemePayload =
+    hostTheme && typeof hostTheme === "object" ? (hostTheme as WidgetThemePayload) : null;
+  const theme: WidgetThemePayload = {
+    primary: readThemeCssValue(["--cx-primary", "--xapps-accent", "--mx-primary"]),
+    primaryDark: readThemeCssValue([
+      "--cx-primary-dark",
+      "--xapps-accent-strong",
+      "--mx-primary-hover",
+    ]),
+    bg: readThemeCssValue(["--cx-bg", "--mx-bg"]),
+    bgSubtle: readThemeCssValue(["--cx-bg-subtle", "--xapps-surface-subtle", "--mx-bg-subtle"]),
+    card: readThemeCssValue(["--cx-card", "--xapps-surface-bg", "--mx-card-bg"]),
+    border: readThemeCssValue(["--cx-border", "--xapps-border-color", "--mx-border"]),
+    text: readThemeCssValue(["--cx-text", "--xapps-text-primary", "--mx-text-main"]),
+    muted: readThemeCssValue(["--cx-muted", "--xapps-text-secondary", "--mx-text-muted"]),
+    shadowSm: readThemeCssValue(["--cx-shadow-sm", "--mx-shadow-sm"]),
+    shadow: readThemeCssValue(["--cx-shadow", "--mx-shadow"]),
+    shadowLg: readThemeCssValue(["--cx-shadow-lg", "--mx-shadow-lg"]),
+    radiusSm: readThemeCssValue(["--cx-radius-sm", "--mx-radius-sm"]),
+    radiusMd: readThemeCssValue(["--cx-radius-md", "--mx-radius-md"]),
+    radius: readThemeCssValue(["--cx-radius", "--mx-radius-md"]),
+    radiusLg: readThemeCssValue(["--cx-radius-lg", "--mx-radius-lg"]),
+    fontFamily: readThemeCssValue(["--xapps-font-family", "--mx-font-family"]),
+    displayFont: readThemeCssValue(["--xapps-display-font", "--mx-display-font"]),
+    tokens: {
+      "--xapps-accent": readThemeCssValue(["--xapps-accent", "--cx-primary", "--mx-primary"]),
+      "--xapps-accent-strong": readThemeCssValue([
+        "--xapps-accent-strong",
+        "--cx-primary-dark",
+        "--mx-primary-hover",
+      ]),
+      "--xapps-surface-bg": readThemeCssValue(["--xapps-surface-bg", "--cx-card", "--mx-card-bg"]),
+      "--xapps-surface-subtle": readThemeCssValue([
+        "--xapps-surface-subtle",
+        "--cx-bg-subtle",
+        "--mx-bg-subtle",
+      ]),
+      "--xapps-border-color": readThemeCssValue([
+        "--xapps-border-color",
+        "--cx-border",
+        "--mx-border",
+      ]),
+      "--xapps-text-primary": readThemeCssValue([
+        "--xapps-text-primary",
+        "--cx-text",
+        "--mx-text-main",
+      ]),
+      "--xapps-text-secondary": readThemeCssValue([
+        "--xapps-text-secondary",
+        "--cx-muted",
+        "--mx-text-muted",
+      ]),
+    },
+  };
+  const seededTokens = Object.fromEntries(
+    Object.entries(theme.tokens || {}).filter(
+      ([, value]) => typeof value === "string" && value.trim().length > 0,
+    ),
+  ) as Record<string, string>;
+  const hostTokens =
+    hostThemePayload?.tokens && typeof hostThemePayload.tokens === "object"
+      ? hostThemePayload.tokens
+      : undefined;
+  const mergedTokens =
+    Object.keys(seededTokens).length > 0 || hostTokens
+      ? {
+          ...(hostTokens || {}),
+          ...seededTokens,
+        }
+      : undefined;
+  const merged: WidgetThemePayload = {
+    ...(hostThemePayload || {}),
+    ...Object.fromEntries(
+      Object.entries(theme).filter(([key, value]) => {
+        if (key === "tokens") return false;
+        if (value == null) return false;
+        if (typeof value === "string") return value.trim().length > 0;
+        if (typeof value === "object") return true;
+        return false;
+      }),
+    ),
+    ...(mergedTokens ? { tokens: mergedTokens } : {}),
+  };
+  if (
+    !merged.primary &&
+    !merged.primaryDark &&
+    !merged.bg &&
+    !merged.bgSubtle &&
+    !merged.card &&
+    !merged.border &&
+    !merged.text &&
+    !merged.muted
+  ) {
+    return hostThemePayload;
+  }
+  return merged;
+}
+
+function encodeWidgetThemeForQuery(theme: WidgetThemePayload | null | undefined): string {
+  if (!theme || typeof theme !== "object") return "";
+  try {
+    return JSON.stringify(theme);
+  } catch {
+    return "";
+  }
+}
+
 export function WidgetView() {
   const { client, host, env } = useMarketplace();
   const { t, locale } = useMarketplaceI18n();
@@ -138,18 +286,18 @@ export function WidgetView() {
   const tokenSearch = buildTokenSearch(token, loc.search);
   const navigate = useNavigate();
 
-  const marketplaceTo = {
-    pathname: isEmbedded ? "/" : "/marketplace",
-    search: tokenSearch,
+  const marketplaceTo = buildMarketplaceHref(loc.pathname, "", { token });
+
+  const postCurrentWidgetContext = () => {
+    const payload = buildWidgetBridgeContext();
+    if (!payload) return;
+    try {
+      iframeRef.current?.contentWindow?.postMessage(payload, "*");
+    } catch {}
   };
 
   const xappTo = xappId
-    ? {
-        pathname: isEmbedded
-          ? `/xapps/${encodeURIComponent(xappId)}`
-          : `/marketplace/xapps/${encodeURIComponent(xappId)}`,
-        search: tokenSearch,
-      }
+    ? buildMarketplaceHref(loc.pathname, `xapps/${encodeURIComponent(xappId)}`, { token })
     : null;
   const visibleOperationalSurfaces = getVisibleOperationalSurfaces({
     detail: xappDetail,
@@ -238,12 +386,11 @@ export function WidgetView() {
         const resolvedWidgetId = readString(asRecord(widgetTokenResponse).widgetId);
         if (resolvedWidgetId && resolvedWidgetId !== widgetId) {
           navigate(
-            {
-              pathname: isEmbedded
-                ? `/widget/${encodeURIComponent(installationId)}/${encodeURIComponent(resolvedWidgetId)}`
-                : `/marketplace/widget/${encodeURIComponent(installationId)}/${encodeURIComponent(resolvedWidgetId)}`,
-              search: tokenSearch,
-            },
+            buildMarketplaceHref(
+              loc.pathname,
+              `widget/${encodeURIComponent(installationId)}/${encodeURIComponent(resolvedWidgetId)}`,
+              { token },
+            ),
             { replace: true },
           );
           return;
@@ -307,7 +454,11 @@ export function WidgetView() {
           asRecord(matchingWidget).bind_tool_name,
           asRecord(matchingWidget).bindToolName,
         ) || null,
-      theme: host.theme || null,
+      theme: buildWidgetThemeFromDocument(
+        host.theme && typeof host.theme === "object"
+          ? (host.theme as Record<string, unknown>)
+          : null,
+      ),
       locale: context.locale || env?.locale || host.locale || null,
     };
   }
@@ -676,10 +827,11 @@ export function WidgetView() {
 
         if (targetWidgetId && env?.embedMode) {
           navigate({
-            pathname: isEmbedded
-              ? `/widget/${encodeURIComponent(targetInstId)}/${encodeURIComponent(targetWidgetId)}`
-              : `/marketplace/widget/${encodeURIComponent(targetInstId)}/${encodeURIComponent(targetWidgetId)}`,
-            search: tokenSearch,
+            ...buildMarketplaceHref(
+              loc.pathname,
+              `widget/${encodeURIComponent(targetInstId)}/${encodeURIComponent(targetWidgetId)}`,
+              { token },
+            ),
           });
           return;
         }
@@ -724,6 +876,7 @@ export function WidgetView() {
               notificationId: String(data.notificationId || ""),
               token: token || undefined,
               isEmbedded,
+              currentPathname: loc.pathname,
             }),
           );
           return;
@@ -776,6 +929,21 @@ export function WidgetView() {
     } catch {}
   }, [env?.locale, widgetToken]);
 
+  useEffect(() => {
+    if (!widgetToken) return;
+    postCurrentWidgetContext();
+  }, [
+    widgetToken,
+    widgetSessionContext,
+    installationId,
+    widgetId,
+    xappDetail,
+    xappId,
+    host.theme,
+    host.locale,
+    env?.locale,
+  ]);
+
   const widgetUrl = (() => {
     if (!widgetToken) return "";
     const params = new URLSearchParams({ token: widgetToken });
@@ -789,6 +957,16 @@ export function WidgetView() {
     const paymentParams = readPaymentEvidenceParams(loc.search);
     for (const [k, v] of paymentParams.entries()) {
       params.set(k, v);
+    }
+    const seededTheme = encodeWidgetThemeForQuery(
+      buildWidgetThemeFromDocument(
+        host.theme && typeof host.theme === "object"
+          ? (host.theme as Record<string, unknown>)
+          : null,
+      ),
+    );
+    if (seededTheme) {
+      params.set("xapps_theme", seededTheme);
     }
     return `/embed/widgets/${widgetId}?${params.toString()}`;
   })();
@@ -951,24 +1129,18 @@ export function WidgetView() {
         </div>
       )}
 
-      {!isEmbedded && xappId && linkedOperationalSurfaces.length > 0 && (
-        <div className="mx-widget-surface-nav">
-          {linkedOperationalSurfaces.map((surface: OperationalSurfaceKey) => (
-            <Link
-              key={surface}
-              to={buildOperationalSurfaceHref({
-                surface,
-                xappId,
-                token,
-                isEmbedded,
-              })}
-              className="mx-btn mx-btn-ghost mx-btn-sm"
-            >
-              {getOperationalSurfaceLabel(surface)}
-            </Link>
-          ))}
-        </div>
-      )}
+      {xappId ? (
+        <XappWorkspaceNav
+          xappId={xappId}
+          xappTitle={xappTitle || xappId}
+          isEmbedded={isEmbedded}
+          token={token}
+          installationId={installationId}
+          active="open_app"
+          openWidgetId={widgetId}
+          openWidgetName={t("common.widget", undefined, "Widget")}
+        />
+      ) : null}
 
       <div
         className="mx-widget-view-content"
@@ -977,6 +1149,11 @@ export function WidgetView() {
         <iframe
           ref={iframeRef}
           src={widgetUrl}
+          onLoad={() => {
+            window.setTimeout(() => {
+              postCurrentWidgetContext();
+            }, 0);
+          }}
           allow="publickey-credentials-get; publickey-credentials-create"
           style={{
             width: "100%",

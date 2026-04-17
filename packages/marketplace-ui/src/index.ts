@@ -12,6 +12,7 @@ export { NotificationsPage } from "./pages/NotificationsPage";
 export { CatalogPage } from "./pages/CatalogPage";
 export { default as XappDetailPage, XappPlansPage } from "./pages/XappDetailPage";
 export { WidgetView } from "./pages/WidgetView";
+export { XappWorkspaceNav } from "./components/XappWorkspaceNav";
 export { createHttpMarketplaceClient } from "./httpMarketplaceClient";
 export {
   resolvePaymentLockStateFromGuardSummary,

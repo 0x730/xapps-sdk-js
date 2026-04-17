@@ -1,7 +1,7 @@
 import { Route, Routes } from "react-router-dom";
 import { CatalogPage } from "./pages/CatalogPage";
 import { InvoicesPage } from "./pages/InvoicesPage";
-import { MonetizationPage } from "./pages/MonetizationPage";
+import MonetizationPage from "./pages/MonetizationPage";
 import { NotificationsPage } from "./pages/NotificationsPage";
 import { PaymentsPage } from "./pages/PaymentsPage";
 import { RequestDetailPage } from "./pages/RequestDetailPage";

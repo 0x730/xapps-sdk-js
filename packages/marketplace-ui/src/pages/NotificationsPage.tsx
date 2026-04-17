@@ -4,7 +4,10 @@ import { resolveMarketplaceText, useMarketplaceI18n } from "../i18n";
 import { useMarketplace } from "../MarketplaceContext";
 import { MarketplaceActivityTabs } from "../components/MarketplaceActivityTabs";
 import { MarketplacePrimaryNav } from "../components/MarketplacePrimaryNav";
+import { XappWorkspaceNav } from "../components/XappWorkspaceNav";
+import { buildMarketplaceHref } from "../utils/marketplaceRouting";
 import { asRecord, formatDateTime, readFirstString, readString } from "../utils/readers";
+import { readDefaultWidgetMeta } from "../utils/xappWorkspace";
 import "../marketplace.css";
 
 function useQueryToken(): string {
@@ -42,11 +45,13 @@ export function NotificationsPage() {
   const { client, host } = useMarketplace();
   const { locale, t } = useMarketplaceI18n();
   const token = useQueryToken();
+  const loc = useLocation();
   const query = useQuery();
 
   const xappIdFilter = query.get("xappId") ?? "";
   const installationIdFilter = query.get("installationId") ?? "";
   const focusedNotificationId = query.get("notificationId") ?? "";
+  const isEmbedded = typeof window !== "undefined" && window.location.pathname.startsWith("/embed");
   const [items, setItems] = useState<NotificationRecord[]>([]);
   const [focusedNotification, setFocusedNotification] = useState<NotificationRecord | null>(null);
   const [focusedError, setFocusedError] = useState<string | null>(null);
@@ -54,9 +59,30 @@ export function NotificationsPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(true);
   const [xappTitle, setXappTitle] = useState("");
-
-  const isEmbedded = typeof window !== "undefined" && window.location.pathname.startsWith("/embed");
-
+  const [xappDefaultWidgetId, setXappDefaultWidgetId] = useState("");
+  const [xappDefaultWidgetName, setXappDefaultWidgetName] = useState("");
+  const [xappDefaultToolName, setXappDefaultToolName] = useState("");
+  const [xappOpenAppStrategy, setXappOpenAppStrategy] = useState<"direct_widget" | "choose_widget">(
+    "direct_widget",
+  );
+  const xappInstallationId =
+    installationIdFilter || host.getInstallationsByXappId?.()?.[xappIdFilter]?.installationId || "";
+  const handleWorkspaceOpenApp =
+    !isEmbedded &&
+    xappOpenAppStrategy === "direct_widget" &&
+    xappInstallationId &&
+    xappDefaultWidgetId
+      ? () => {
+          host.openWidget({
+            installationId: xappInstallationId,
+            widgetId: xappDefaultWidgetId,
+            xappId: xappIdFilter,
+            xappTitle: xappTitle || xappIdFilter,
+            widgetName: xappDefaultWidgetName,
+            toolName: xappDefaultToolName || undefined,
+          });
+        }
+      : undefined;
   async function refresh() {
     if (!client.listMyNotifications) {
       setError(
@@ -188,6 +214,10 @@ export function NotificationsPage() {
   useEffect(() => {
     if (!xappIdFilter) {
       setXappTitle("");
+      setXappDefaultWidgetId("");
+      setXappDefaultWidgetName("");
+      setXappDefaultToolName("");
+      setXappOpenAppStrategy("direct_widget");
       return;
     }
     let alive = true;
@@ -197,12 +227,27 @@ export function NotificationsPage() {
         if (!alive) return;
         const manifest = asRecord(res?.manifest);
         const xapp = asRecord(res?.xapp);
+        const widgetMeta = readDefaultWidgetMeta(
+          res,
+          locale,
+          t("common.widget", undefined, "Widget"),
+        );
         setXappTitle(
           resolveMarketplaceText(manifest.title as any, locale) || readFirstString(xapp.name),
+        );
+        setXappDefaultWidgetId(widgetMeta?.widgetId || "");
+        setXappDefaultWidgetName(widgetMeta?.widgetName || "");
+        setXappDefaultToolName(widgetMeta?.toolName || "");
+        setXappOpenAppStrategy(
+          widgetMeta && widgetMeta.widgetCount > 1 ? "choose_widget" : "direct_widget",
         );
       } catch {
         if (!alive) return;
         setXappTitle("");
+        setXappDefaultWidgetId("");
+        setXappDefaultWidgetName("");
+        setXappDefaultToolName("");
+        setXappOpenAppStrategy("direct_widget");
       }
     })();
     return () => {
@@ -211,36 +256,24 @@ export function NotificationsPage() {
   }, [client, locale, xappIdFilter]);
 
   const xappLink = xappIdFilter
-    ? ({
-        pathname: isEmbedded
-          ? `/xapps/${encodeURIComponent(String(xappIdFilter))}`
-          : `/marketplace/xapps/${encodeURIComponent(String(xappIdFilter))}`,
-        search: token ? `?token=${encodeURIComponent(token)}` : "",
-      } as any)
+    ? (buildMarketplaceHref(loc.pathname, `xapps/${encodeURIComponent(String(xappIdFilter))}`, {
+        token,
+      }) as any)
     : null;
 
-  const clearHref = {
-    pathname: isEmbedded ? "/notifications" : "/marketplace/notifications",
-    search: token ? `?token=${encodeURIComponent(token)}` : "",
-  };
-  const listHref = {
-    pathname: isEmbedded ? "/notifications" : "/marketplace/notifications",
-    search: (() => {
-      const qs = new URLSearchParams();
-      if (token) qs.set("token", token);
-      if (xappIdFilter) qs.set("xappId", xappIdFilter);
-      if (installationIdFilter) qs.set("installationId", installationIdFilter);
-      const suffix = qs.toString();
-      return suffix ? `?${suffix}` : "";
-    })(),
-  };
+  const clearHref = buildMarketplaceHref(loc.pathname, "notifications", { token });
+  const listHref = buildMarketplaceHref(loc.pathname, "notifications", {
+    token,
+    xappId: xappIdFilter,
+    installationId: installationIdFilter,
+  });
 
   const emptyState = error === "Subject required" || error === "Session token required";
 
   return (
     <div className={`mx-catalog-container ${isEmbedded ? "is-embedded" : ""}`}>
       <div className="mx-breadcrumb">
-        <Link to={isEmbedded ? "/" : "/marketplace"}>
+        <Link to={buildMarketplaceHref(loc.pathname, "", { token }) as any}>
           {t("common.marketplace", undefined, "Marketplace")}
         </Link>
         {xappLink && (
@@ -258,17 +291,19 @@ export function NotificationsPage() {
           <h1 className="mx-title">
             {t("activity.notifications_title", undefined, "Notifications")}
           </h1>
-          <div className="mx-subtle-note mx-subtle-note-compact">
-            {t(
-              "activity.unread_count",
-              {
-                count: unreadCount,
-                suffix: unreadCount === 1 ? "" : "s",
-                suffix2: unreadCount === 1 ? "" : "e",
-              },
-              `${unreadCount} unread item${unreadCount === 1 ? "" : "s"}`,
-            )}
-          </div>
+          {unreadCount > 0 ? (
+            <div className="mx-subtle-note mx-subtle-note-compact">
+              {t(
+                "activity.unread_count",
+                {
+                  count: unreadCount,
+                  suffix: unreadCount === 1 ? "" : "s",
+                  suffix2: unreadCount === 1 ? "" : "e",
+                },
+                `${unreadCount} unread item${unreadCount === 1 ? "" : "s"}`,
+              )}
+            </div>
+          ) : null}
         </div>
         <div className="mx-header-actions">
           <MarketplacePrimaryNav
@@ -306,13 +341,29 @@ export function NotificationsPage() {
         </div>
       </header>
 
-      <MarketplaceActivityTabs
-        active="notifications"
-        isEmbedded={isEmbedded}
-        token={token}
-        xappId={xappIdFilter || undefined}
-        installationId={installationIdFilter || undefined}
-      />
+      {xappIdFilter ? (
+        <XappWorkspaceNav
+          xappId={xappIdFilter}
+          xappTitle={xappTitle || xappIdFilter}
+          isEmbedded={isEmbedded}
+          token={token}
+          installationId={xappInstallationId || undefined}
+          active="notifications"
+          openWidgetId={xappDefaultWidgetId}
+          openWidgetName={xappDefaultWidgetName}
+          openToolName={xappDefaultToolName}
+          openAppStrategy={xappOpenAppStrategy}
+          onOpenApp={handleWorkspaceOpenApp}
+        />
+      ) : (
+        <MarketplaceActivityTabs
+          active="notifications"
+          isEmbedded={isEmbedded}
+          token={token}
+          xappId={xappIdFilter || undefined}
+          installationId={installationIdFilter || undefined}
+        />
+      )}
 
       {emptyState ? (
         <div className="mx-table-container mx-alert mx-alert-info">

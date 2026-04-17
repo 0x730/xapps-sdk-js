@@ -32,6 +32,15 @@ function applyMarketplaceThemeToDocument(theme: Record<string, unknown> | null |
     ["fontFamily", ["--xapps-font-family", "--mx-font-family"]],
     ["displayFont", ["--xapps-display-font", "--mx-display-font"]],
   ];
+  const derivedTokenMap: Array<[string, string]> = [
+    ["primary", "--xapps-accent"],
+    ["primaryDark", "--xapps-accent-strong"],
+    ["card", "--xapps-surface-bg"],
+    ["bgSubtle", "--xapps-surface-subtle"],
+    ["border", "--xapps-border-color"],
+    ["text", "--xapps-text-primary"],
+    ["muted", "--xapps-text-secondary"],
+  ];
 
   for (const [key, cssVars] of map) {
     const rawValue = theme[key];
@@ -70,6 +79,12 @@ function applyMarketplaceThemeToDocument(theme: Record<string, unknown> | null |
       }
       root.style.setProperty(cssVar, value);
     }
+  }
+  for (const [key, cssVar] of derivedTokenMap) {
+    const rawValue = theme[key];
+    const value = typeof rawValue === "string" ? rawValue.trim() : "";
+    if (!value) continue;
+    root.style.setProperty(cssVar, value);
   }
 
   const themeMode =

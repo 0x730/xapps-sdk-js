@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { resolveMarketplaceText, useMarketplaceI18n } from "../i18n";
 import { useMarketplace } from "../MarketplaceContext";
 import { SchemaOutputView } from "../components/SchemaOutputView";
+import { XappWorkspaceNav } from "../components/XappWorkspaceNav";
 import {
   resolvePaymentLockStateFromGuardSummary,
   type PaymentReconcileState,
@@ -10,6 +11,7 @@ import {
 import { describeGuardCurrentAccess } from "../utils/guardMonetization";
 import { buildTokenSearch, readHostReturnUrl } from "../utils/embedSearch";
 import { shouldHideMarketplaceVersions } from "../utils/installationPolicy";
+import { buildMarketplaceHref } from "../utils/marketplaceRouting";
 import { buildOperationalSurfaceHref } from "../utils/operationalSurfaces";
 import {
   asRecord,
@@ -75,6 +77,19 @@ export function RequestDetailPage() {
   const effectiveXappTitle =
     resolveMarketplaceText(manifestRecord.title as any, locale) ||
     readFirstString(requestRecord.xapp_name);
+  const requestInstallationId = readFirstString(requestRecord.installation_id) || "";
+  const widgets = Array.isArray(dataRecord.widgets) ? dataRecord.widgets.map(asRecord) : [];
+  const defaultWidget = widgets.find((widget) => widget.default === true) || widgets[0] || null;
+  const defaultWidgetId = readFirstString(defaultWidget?.id) || "";
+  const defaultWidgetName =
+    resolveMarketplaceText(defaultWidget?.title as any, locale) ||
+    readFirstString(defaultWidget?.widget_name) ||
+    readFirstString(defaultWidget?.name) ||
+    t("common.widget", undefined, "Widget");
+  const defaultWidgetToolName =
+    readFirstString(defaultWidget?.bind_tool_name, requestRecord.tool_name) || "";
+  const openAppStrategy =
+    widgets.length > 1 ? "choose_widget" : defaultWidgetId ? "direct_widget" : "choose_widget";
   const hideVersions = shouldHideMarketplaceVersions({
     installationPolicy: env?.installationPolicy ?? host.installationPolicy ?? null,
     installationPolicyResolved: env?.installationPolicyResolved,
@@ -82,31 +97,35 @@ export function RequestDetailPage() {
   });
   const xappCrumbLabel = effectiveXappTitle || effectiveXappId;
   const isEmbedded = typeof window !== "undefined" && window.location.pathname.startsWith("/embed");
+  const handleWorkspaceOpenApp =
+    !isEmbedded && openAppStrategy === "direct_widget" && requestInstallationId && defaultWidgetId
+      ? () => {
+          host.openWidget({
+            installationId: requestInstallationId,
+            widgetId: defaultWidgetId,
+            xappId: effectiveXappId,
+            xappTitle: effectiveXappTitle,
+            widgetName: defaultWidgetName,
+            toolName: defaultWidgetToolName || undefined,
+          });
+        }
+      : undefined;
 
-  const marketplaceTo = {
-    pathname: isEmbedded ? "/" : "/marketplace",
-    search: tokenSearch,
-  };
+  const marketplaceTo = buildMarketplaceHref(loc.pathname, "", { token });
 
   const xappTo = effectiveXappId
-    ? ({
-        pathname: isEmbedded
-          ? `/xapps/${encodeURIComponent(effectiveXappId)}`
-          : `/marketplace/xapps/${encodeURIComponent(effectiveXappId)}`,
-        search: tokenSearch,
-      } as any)
+    ? (buildMarketplaceHref(loc.pathname, `xapps/${encodeURIComponent(effectiveXappId)}`, {
+        token,
+      }) as any)
     : null;
 
-  const backToRequests = {
-    pathname: isEmbedded ? "/requests" : "/marketplace/requests",
-    search: `?${new URLSearchParams({
-      ...(xappIdFilter ? { xappId: xappIdFilter } : {}),
-      ...(token ? { token } : {}),
-      ...(readHostReturnUrl(loc.search)
-        ? { xapps_host_return_url: readHostReturnUrl(loc.search) }
-        : {}),
-    }).toString()}`,
-  };
+  const backToRequests = buildMarketplaceHref(loc.pathname, "requests", {
+    ...(xappIdFilter ? { xappId: xappIdFilter } : {}),
+    ...(token ? { token } : {}),
+    ...(readHostReturnUrl(loc.search)
+      ? { xapps_host_return_url: readHostReturnUrl(loc.search) }
+      : {}),
+  });
 
   async function refreshOnce() {
     if (!id) return;
@@ -309,6 +328,7 @@ export function RequestDetailPage() {
         paymentSessionId: effectivePaymentSessionId,
         token: token || undefined,
         isEmbedded,
+        currentPathname: loc.pathname,
       });
     }
     const params = new URLSearchParams({
@@ -587,11 +607,16 @@ export function RequestDetailPage() {
         <span className="mx-cell-mono">{id?.slice(0, 8)}</span>
       </div>
 
-      <header className="mx-header">
-        <h1 className="mx-title">
-          {t("activity.request_detail_title", undefined, "Request Details")}
-        </h1>
-        <div className="mx-header-actions">
+      <div className="mx-detail-topbar">
+        <div className="mx-detail-topbar-left">
+          <Link to={backToRequests as any} relative="path" className="mx-btn mx-btn-ghost">
+            ← {t("activity.back_to_requests", undefined, "Back to Requests")}
+          </Link>
+          <div className="mx-detail-topbar-title">
+            {xappCrumbLabel || t("activity.request_detail_title", undefined, "Request Details")}
+          </div>
+        </div>
+        <div className="mx-detail-topbar-right">
           <button
             className={`mx-btn-icon ${busy ? "is-spinning" : ""}`}
             onClick={() => void refreshOnce()}
@@ -610,7 +635,23 @@ export function RequestDetailPage() {
             </svg>
           </button>
         </div>
-      </header>
+      </div>
+
+      {effectiveXappId ? (
+        <XappWorkspaceNav
+          xappId={effectiveXappId}
+          xappTitle={effectiveXappTitle || effectiveXappId}
+          isEmbedded={isEmbedded}
+          token={token}
+          installationId={requestInstallationId || undefined}
+          active="requests"
+          openWidgetId={defaultWidgetId || undefined}
+          openWidgetName={defaultWidgetName || undefined}
+          openToolName={defaultWidgetToolName || undefined}
+          openAppStrategy={openAppStrategy}
+          onOpenApp={handleWorkspaceOpenApp}
+        />
+      ) : null}
 
       {emptyState ? (
         <div className="mx-table-container mx-alert mx-alert-info">

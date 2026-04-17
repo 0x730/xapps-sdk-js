@@ -5,6 +5,7 @@ import type {
   OperationalSurfacePlacement,
   OperationalSurfacesDescriptor,
 } from "../types";
+import { buildMarketplaceHref } from "./marketplaceRouting";
 
 export type OperationalSurfaceKey = keyof OperationalSurfacesDescriptor;
 
@@ -62,22 +63,29 @@ export function buildOperationalSurfaceHref(input: {
   notificationId?: string;
   token?: string;
   isEmbedded?: boolean;
+  currentPathname?: string;
 }): string {
   const isEmbedded = input.isEmbedded ?? readPathEmbedded();
-  const params = new URLSearchParams({
-    xappId: input.xappId,
-    ...(input.installationId ? { installationId: input.installationId } : {}),
-    ...(input.paymentSessionId ? { paymentSessionId: input.paymentSessionId } : {}),
-    ...(input.invoiceId ? { invoiceId: input.invoiceId } : {}),
-    ...(input.notificationId ? { notificationId: input.notificationId } : {}),
-    ...(input.token ? { token: input.token } : {}),
-  });
-  const base = isEmbedded ? `/${input.surface}` : `/marketplace/${input.surface}`;
   const detailSegment =
     input.surface === "requests" && input.requestId
       ? `/${encodeURIComponent(input.requestId)}`
       : "";
-  return `${base}${detailSegment}?${params.toString()}`;
+  const currentPathname =
+    input.currentPathname ||
+    (typeof window !== "undefined" && window.location.pathname && window.location.pathname !== "/"
+      ? window.location.pathname
+      : isEmbedded
+        ? "/embed/catalog"
+        : "/marketplace");
+  const href = buildMarketplaceHref(currentPathname, `${input.surface}${detailSegment}`, {
+    xappId: input.xappId,
+    installationId: input.installationId,
+    paymentSessionId: input.paymentSessionId,
+    invoiceId: input.invoiceId,
+    notificationId: input.notificationId,
+    token: input.token,
+  });
+  return `${href.pathname}${href.search}`;
 }
 
 export function getVisibleOperationalSurfaces(input: {

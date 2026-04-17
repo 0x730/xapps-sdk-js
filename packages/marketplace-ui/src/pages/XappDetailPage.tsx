@@ -14,18 +14,15 @@ import {
 } from "@xapps-platform/browser-host/xms";
 import { useMarketplace } from "../MarketplaceContext";
 import { ConfirmActionModal } from "../components/ConfirmActionModal";
+import { MarketplacePrimaryNav } from "../components/MarketplacePrimaryNav";
+import { XappWorkspaceNav } from "../components/XappWorkspaceNav";
 import { buildTokenSearch } from "../utils/embedSearch";
 import {
   hasMarketplaceCatalogMonetization,
   resolveMarketplaceDefaultAccessState,
 } from "../utils/monetizationAccess";
-import {
-  buildOperationalSurfaceHref,
-  discoverOperationalSurfaceData,
-  getVisibleOperationalSurfaces,
-  type OperationalSurfaceKey,
-} from "../utils/operationalSurfaces";
 import { shouldHideMarketplaceVersions } from "../utils/installationPolicy";
+import { buildMarketplaceHref } from "../utils/marketplaceRouting";
 import type {
   CatalogXappDetail,
   MarketplaceMonetizationAccessProjection,
@@ -88,19 +85,6 @@ function useQueryToolName(): string {
   const loc = useLocation();
   const qs = new URLSearchParams(loc.search);
   return qs.get("toolName") ?? qs.get("tool_name") ?? "";
-}
-
-function buildRequestsHref(input: { xappId: string; token?: string; isEmbedded: boolean }): string {
-  const params = new URLSearchParams({
-    xappId: input.xappId,
-    ...(input.token ? { token: input.token } : {}),
-  });
-  const s = params.toString();
-
-  // IMPORTANT: Navigate from `xapps/:xappId` to the sibling `requests` route.
-  // In Portal, this is sibling. In Embed, we want absolute path to be safe.
-  if (input.isEmbedded) return `/requests?${s}`;
-  return `/marketplace/requests?${s}`;
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -448,6 +432,7 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
   const navigate = useNavigate();
   const autoOpenedWidgetKeyRef = useRef<string>("");
   const plansSectionRef = useRef<HTMLDivElement | null>(null);
+  const widgetSectionRef = useRef<HTMLElement | null>(null);
   const visibilityRefreshRef = useRef<number>(0);
 
   const canMutate = host.canMutate ? host.canMutate() : true;
@@ -478,9 +463,6 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
   );
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(true);
-  const [discoveredOperationalSurfaces, setDiscoveredOperationalSurfaces] = useState<
-    OperationalSurfaceKey[]
-  >([]);
 
   const [termsOpen, setTermsOpen] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
@@ -611,28 +593,6 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
   }, [refresh, xappId]);
 
   useEffect(() => {
-    const currentXappId = String(xappId ?? "").trim();
-    if (!currentXappId) {
-      setDiscoveredOperationalSurfaces([]);
-      return;
-    }
-    let cancelled = false;
-    void (async () => {
-      const discovered = await discoverOperationalSurfaceData({
-        client,
-        xappId: currentXappId,
-        installationId: installation?.installationId ?? null,
-      });
-      if (!cancelled) {
-        setDiscoveredOperationalSurfaces(discovered);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [client, installation?.installationId, xappId]);
-
-  useEffect(() => {
     void refreshMonetization();
   }, [refreshMonetization]);
 
@@ -662,10 +622,12 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
   const publisherRecord = asRecord(xappRecord?.publisher);
   const title =
     resolveMarketplaceText(manifest?.title as any, locale) ||
+    resolveMarketplaceText(xappRecord?.name as any, locale) ||
     readString(xappRecord?.name) ||
     t("xapp.kicker_default", undefined, "Xapp");
   const description =
     resolveMarketplaceText(manifest?.description as any, locale) ||
+    resolveMarketplaceText(xappRecord?.description as any, locale) ||
     readString(xappRecord?.description) ||
     "";
   const imageUrl = readString(manifest?.image) || "https://picsum.photos/seed/xapps-detail/840/360";
@@ -685,27 +647,35 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
       defaultWidget
     );
   }, [defaultWidget, queryToolName, widgets]);
+  const defaultWidgetId = readString(defaultWidget?.id);
+  const defaultWidgetName =
+    resolveMarketplaceText(defaultWidget?.title as any, locale) ||
+    readString(defaultWidget?.widget_name) ||
+    readString(defaultWidget?.name) ||
+    "";
+  const defaultWidgetToolName = readString(defaultWidget?.bind_tool_name);
+  const openAppStrategy = widgets.length > 1 ? "choose_widget" : "direct_widget";
+  const handleWorkspaceOpenApp =
+    openAppStrategy === "direct_widget" && defaultWidgetId
+      ? () => {
+          launchWidgetForSubject(
+            defaultWidgetId,
+            defaultWidgetName,
+            defaultWidgetToolName || undefined,
+          );
+        }
+      : undefined;
 
-  const backTo = {
-    pathname: isEmbedded ? "/embed/catalog" : "..",
-    search: tokenSearch,
-  };
-  const marketplaceRootHref = {
-    pathname: isEmbedded ? "/" : "/marketplace",
-    search: token ? `?token=${encodeURIComponent(token)}` : "",
-  };
-  const detailHref = {
-    pathname: isEmbedded
-      ? `/xapps/${encodeURIComponent(String(xappId ?? ""))}`
-      : `/marketplace/xapps/${encodeURIComponent(String(xappId ?? ""))}`,
-    search: (() => {
-      const qs = new URLSearchParams();
-      if (token) qs.set("token", token);
-      if (installation?.installationId) qs.set("installationId", installation.installationId);
-      const suffix = qs.toString();
-      return suffix ? `?${suffix}` : "";
-    })(),
-  };
+  const backTo = buildMarketplaceHref(loc.pathname, "", { token });
+  const marketplaceRootHref = buildMarketplaceHref(loc.pathname, "", { token });
+  const detailHref = buildMarketplaceHref(
+    loc.pathname,
+    `xapps/${encodeURIComponent(String(xappId ?? ""))}`,
+    {
+      token,
+      installationId: installation?.installationId,
+    },
+  );
 
   const terms = asRecord(manifest?.terms);
   const termsTitle =
@@ -860,49 +830,12 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
     xappId,
   ]);
 
-  const requestsTo = buildRequestsHref({
-    xappId: String(xappId ?? ""),
-    isEmbedded,
-    ...(token ? { token } : {}),
-  });
-  const detailForOperationalSurfaces = data as unknown as CatalogXappDetail | null;
-  const visibleOperationalSurfaces = useMemo(
-    () =>
-      getVisibleOperationalSurfaces({
-        detail: detailForOperationalSurfaces,
-        client,
-        env,
-        isEmbedded,
-      }),
-    [client, detailForOperationalSurfaces, env, isEmbedded],
-  );
-  const secondarySurfaceLinks = Array.from(
-    new Set([...visibleOperationalSurfaces, ...discoveredOperationalSurfaces]),
-  ).filter((surface) => surface !== "requests");
-  function getLocalizedOperationalSurfaceLabel(surface: OperationalSurfaceKey): string {
-    if (surface === "monetization") {
-      return t("activity.monetization_title", undefined, "Monetization");
-    }
-    if (surface === "payments") {
-      return t("activity.payments_title", undefined, "Payments");
-    }
-    if (surface === "invoices") {
-      return t("activity.invoices_title", undefined, "Invoices");
-    }
-    if (surface === "notifications") {
-      return t("activity.notifications_title", undefined, "Notifications");
-    }
-    return t("activity.requests_title", undefined, "Requests");
-  }
   const publisherSlug = readString(publisherRecord?.slug);
   const publisherName = readString(publisherRecord?.name) || publisherSlug;
   const publisherTo = publisherSlug
-    ? {
-        pathname: isEmbedded
-          ? `/publishers/${encodeURIComponent(publisherSlug)}`
-          : `/marketplace/publishers/${encodeURIComponent(publisherSlug)}`,
-        search: tokenSearch,
-      }
+    ? buildMarketplaceHref(loc.pathname, `publishers/${encodeURIComponent(publisherSlug)}`, {
+        token,
+      })
     : null;
   const guardSummary = useMemo(() => {
     const guardsRaw = Array.isArray(manifest?.guards) ? manifest.guards : [];
@@ -1011,6 +944,18 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
     if (focusedSection !== "plans" || !plansSectionRef.current) return;
     if (typeof plansSectionRef.current.scrollIntoView === "function") {
       plansSectionRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [focusedSection]);
+
+  useEffect(() => {
+    if (
+      (focusedSection !== "views" && focusedSection !== "open-app") ||
+      !widgetSectionRef.current
+    ) {
+      return;
+    }
+    if (typeof widgetSectionRef.current.scrollIntoView === "function") {
+      widgetSectionRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
     }
   }, [focusedSection]);
 
@@ -1791,6 +1736,63 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
       {checkoutError ? <div className="mx-payment-lock-error">{checkoutError}</div> : null}
     </div>
   ) : null;
+  const detailsCard = (
+    <div className="mx-sidebar-card">
+      <h3 className="mx-section-title mx-detail-sidebar-title">
+        {t("xapp.details_title", undefined, "Details")}
+      </h3>
+
+      <div className="mx-meta-item">
+        <span className="mx-meta-label">{t("xapp.app_id_label", undefined, "App ID")}</span>
+        <code className="mx-meta-value mx-meta-code">{xappId}</code>
+      </div>
+
+      <div className="mx-meta-item">
+        <span className="mx-meta-label">{t("common.status", undefined, "Status")}</span>
+        <span className="mx-meta-value">
+          {installation
+            ? t("xapp.status_added", undefined, "Added")
+            : t("xapp.status_available", undefined, "Available")}
+        </span>
+      </div>
+
+      {publisherTo ? (
+        <div className="mx-meta-item">
+          <span className="mx-meta-label">{t("xapp.publisher_label", undefined, "Publisher")}</span>
+          <Link to={publisherTo as any} className="mx-meta-value">
+            {publisherName}
+          </Link>
+        </div>
+      ) : null}
+
+      {manifestTags.length > 0 && (
+        <div className="mx-meta-item">
+          <span className="mx-meta-label">{t("xapp.tags_label", undefined, "Tags")}</span>
+          <div className="mx-tag-list">
+            {manifestTags.map((tag) => (
+              <span key={tag} className="mx-tag">
+                {tag}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {requiresTerms && (
+        <div className="mx-detail-terms-link-wrap">
+          <button
+            className="mx-btn mx-btn-ghost mx-detail-terms-link"
+            onClick={() => {
+              setTermsAction("none");
+              setTermsOpen(true);
+            }}
+          >
+            {t("xapp.view_terms", undefined, "View Terms & Conditions")} →
+          </button>
+        </div>
+      )}
+    </div>
+  );
   const historySurfaceHtml = useMemo(
     () =>
       buildMonetizationHistorySurfaceHtml(
@@ -1822,7 +1824,11 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
   );
   if (plansOnlyMode) {
     return (
-      <div className={`mx-detail-container ${isEmbedded ? "is-embedded" : ""}`}>
+      <div
+        className={`mx-detail-container mx-detail-container-section-shell ${
+          isEmbedded ? "is-embedded" : ""
+        }`}
+      >
         {error && <div className="mx-detail-error">{error}</div>}
         {busy && !data ? (
           <div className="mx-sidebar-card mx-detail-empty mx-plans-route-empty" aria-busy="true">
@@ -1843,57 +1849,74 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
         ) : (
           <div className={`mx-plans-route ${widgetHostedPlansMode ? "is-widget-hosted" : ""}`}>
             {!widgetHostedPlansMode ? (
-              <div className="mx-breadcrumb">
-                <Link to={marketplaceRootHref as any}>
-                  {t("common.marketplace", undefined, "Marketplace")}
-                </Link>
-                <span className="mx-breadcrumb-sep">/</span>
-                <Link to={detailHref as any}>{title}</Link>
-                <span className="mx-breadcrumb-sep">/</span>
-                <span>
-                  {routeSurfaceView === "history"
-                    ? t("xapp.history_title", undefined, "History")
-                    : t("xapp.plan_options_title", undefined, "Plans")}
-                </span>
-              </div>
-            ) : null}
-            {!widgetHostedPlansMode ? (
-              <div className="mx-plans-route-header">
-                <div className="mx-plans-route-title">
-                  {routeSurfaceView === "history"
-                    ? t("xapp.history_title", undefined, "History")
-                    : t("xapp.plan_options_title", undefined, "Plans")}
+              <>
+                <div className="mx-breadcrumb">
+                  <Link to={marketplaceRootHref as any}>
+                    {t("common.marketplace", undefined, "Marketplace")}
+                  </Link>
+                  <span className="mx-breadcrumb-sep">/</span>
+                  <Link to={detailHref as any}>{title}</Link>
+                  <span className="mx-breadcrumb-sep">/</span>
+                  <span>
+                    {routeSurfaceView === "history"
+                      ? t("xapp.history_title", undefined, "History")
+                      : t("xapp.plan_options_title", undefined, "Plans")}
+                  </span>
                 </div>
-                <div className="mx-plans-route-subtitle">
-                  {routeSurfaceView === "history"
-                    ? title
-                      ? t(
-                          "xapp.history_route_subtitle",
-                          { title },
-                          `Balances, recent activity, and purchases for ${title}.`,
-                        )
-                      : t(
-                          "xapp.history_route_subtitle_default",
-                          undefined,
-                          "Balances, recent activity, and purchases for this app.",
-                        )
-                    : title
-                      ? t(
-                          "xapp.plans_route_subtitle",
-                          { title },
-                          `Access, plans, and balances for ${title}.`,
-                        )
-                      : t(
-                          "xapp.plans_route_subtitle_default",
-                          undefined,
-                          "Access, plans, and balances for this app.",
-                        )}
-                </div>
-              </div>
+                <header className="mx-header">
+                  <h1 className="mx-title">
+                    {routeSurfaceView === "history"
+                      ? t("xapp.history_title", undefined, "History")
+                      : t("xapp.plan_options_title", undefined, "Plans")}
+                  </h1>
+                  <div className="mx-header-actions">
+                    <MarketplacePrimaryNav
+                      active="xapps"
+                      isEmbedded={isEmbedded}
+                      tokenSearch={token ? `?token=${encodeURIComponent(token)}` : ""}
+                    />
+                    {!singleXappMode && (
+                      <Link to={marketplaceRootHref as any} className="mx-btn mx-btn-ghost">
+                        {t("common.clear_filter", undefined, "Clear Filter")}
+                      </Link>
+                    )}
+                    <button
+                      className={`mx-btn-icon ${busy ? "is-spinning" : ""}`}
+                      onClick={() => void refresh()}
+                      disabled={busy}
+                      title={t("common.refresh", undefined, "Refresh")}
+                    >
+                      <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+                      </svg>
+                    </button>
+                  </div>
+                </header>
+              </>
             ) : null}
+            <XappWorkspaceNav
+              xappId={String(xappId ?? "")}
+              xappTitle={title}
+              isEmbedded={isEmbedded}
+              token={token}
+              installationId={installation?.installationId}
+              active="billing"
+              billingActive="plans"
+              openWidgetId={defaultWidgetId}
+              openWidgetName={defaultWidgetName}
+              openToolName={defaultWidgetToolName}
+              openAppStrategy={openAppStrategy}
+              onOpenApp={handleWorkspaceOpenApp}
+            />
             <div className="mx-plans-route-grid">
               <div className="mx-plans-route-main">
-                {currentAccessCard}
                 {routeSurfaceView === "history" ? (
                   <div
                     className="mx-history-route-surface"
@@ -1923,6 +1946,10 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
                   )
                 )}
               </div>
+              <aside className="mx-detail-sidebar">
+                {currentAccessCard}
+                {detailsCard}
+              </aside>
             </div>
           </div>
         )}
@@ -1960,6 +1987,20 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
           </button>
         </div>
       </div>
+
+      <XappWorkspaceNav
+        xappId={String(xappId ?? "")}
+        xappTitle={title}
+        isEmbedded={isEmbedded}
+        token={token}
+        installationId={installation?.installationId}
+        active="overview"
+        openWidgetId={defaultWidgetId}
+        openWidgetName={defaultWidgetName}
+        openToolName={defaultWidgetToolName}
+        openAppStrategy={openAppStrategy}
+        onOpenApp={handleWorkspaceOpenApp}
+      />
 
       {error && <div className="mx-detail-error">{error}</div>}
 
@@ -2108,7 +2149,10 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
                 <div className="mx-detail-desc">{description}</div>
               </section>
 
-              <section className="mx-detail-section mx-detail-section-widgets">
+              <section
+                className="mx-detail-section mx-detail-section-widgets"
+                ref={widgetSectionRef}
+              >
                 <h2 className="mx-section-title">
                   {t("xapp.available_views_title", undefined, "Available Views")}
                 </h2>
@@ -2248,6 +2292,11 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
                   </div>
                 )}
               </section>
+
+              {plansCard ? (
+                <section className="mx-detail-section mx-detail-section-plans">{plansCard}</section>
+              ) : null}
+
               <section className="mx-detail-section mx-detail-section-guards">
                 <div className="mx-detail-guard-header">
                   <h2 className="mx-section-title mx-section-title-tight">
@@ -2280,13 +2329,13 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
                         <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
                           <path
                             d="M10 2l7 4v4c0 4.42-2.98 8.28-7 9.5C5.98 18.28 3 14.42 3 10V6l7-4z"
-                            stroke="#126bf1"
+                            stroke="currentColor"
                             strokeWidth="1.5"
                             strokeLinejoin="round"
                           />
                           <path
                             d="M7 10l2 2 4-4"
-                            stroke="#126bf1"
+                            stroke="currentColor"
                             strokeWidth="1.5"
                             strokeLinecap="round"
                             strokeLinejoin="round"
@@ -2469,6 +2518,8 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
             <aside className="mx-detail-sidebar">
               {currentAccessCard}
 
+              {detailsCard}
+
               {usageCreditSummary ? (
                 <div className="mx-sidebar-card">
                   <h3 className="mx-section-title mx-detail-sidebar-title">
@@ -2577,8 +2628,6 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
                 </div>
               ) : null}
 
-              {plansCard}
-
               {defaultWidget && hasSubject && (installation || autoAvailableMode) && (
                 <button
                   className="mx-btn mx-btn-primary mx-detail-primary-cta"
@@ -2598,190 +2647,6 @@ function XappDetailPageContent(props?: { renderMode?: "full" | "plans_only" }) {
                   {openAppLabel}
                 </button>
               )}
-
-              {(env?.requestsEnabled !== false || secondarySurfaceLinks.length > 0) && (
-                <div className="mx-sidebar-card mx-activity-card">
-                  <h3 className="mx-section-title mx-detail-sidebar-title">
-                    {t("xapp.activity_title", undefined, "Activity")}
-                  </h3>
-                  {env?.requestsEnabled !== false && (
-                    <Link to={requestsTo} relative="path" className="mx-activity-link">
-                      <div className="mx-activity-link-icon mx-activity-link-icon-requests">
-                        <svg
-                          width="16"
-                          height="16"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                          <polyline points="14 2 14 8 20 8" />
-                          <line x1="16" y1="13" x2="8" y2="13" />
-                          <line x1="16" y1="17" x2="8" y2="17" />
-                        </svg>
-                      </div>
-                      <span className="mx-activity-link-label">
-                        {t("activity.requests_title", undefined, "Requests")}
-                      </span>
-                      <span className="mx-activity-link-arrow">→</span>
-                    </Link>
-                  )}
-                  {secondarySurfaceLinks.map((surface: OperationalSurfaceKey) => {
-                    const iconClass =
-                      surface === "monetization"
-                        ? "mx-activity-link-icon-monetization"
-                        : surface === "payments"
-                          ? "mx-activity-link-icon-payments"
-                          : surface === "invoices"
-                            ? "mx-activity-link-icon-invoices"
-                            : "mx-activity-link-icon-notifications";
-                    return (
-                      <Link
-                        key={surface}
-                        to={buildOperationalSurfaceHref({
-                          surface,
-                          xappId: String(xappId ?? ""),
-                          token,
-                          isEmbedded,
-                        })}
-                        className="mx-activity-link"
-                      >
-                        <div className={`mx-activity-link-icon ${iconClass}`}>
-                          {surface === "monetization" ? (
-                            <svg
-                              width="16"
-                              height="16"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            >
-                              <path d="M4 19h16" />
-                              <path d="M6 15V9" />
-                              <path d="M12 15V5" />
-                              <path d="M18 15v-3" />
-                            </svg>
-                          ) : surface === "payments" ? (
-                            <svg
-                              width="16"
-                              height="16"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            >
-                              <rect x="1" y="4" width="22" height="16" rx="2" ry="2" />
-                              <line x1="1" y1="10" x2="23" y2="10" />
-                            </svg>
-                          ) : surface === "invoices" ? (
-                            <svg
-                              width="16"
-                              height="16"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            >
-                              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                              <polyline points="14 2 14 8 20 8" />
-                              <line x1="16" y1="13" x2="8" y2="13" />
-                              <line x1="16" y1="17" x2="8" y2="17" />
-                              <polyline points="10 9 9 9 8 9" />
-                            </svg>
-                          ) : (
-                            <svg
-                              width="16"
-                              height="16"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            >
-                              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-                              <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-                            </svg>
-                          )}
-                        </div>
-                        <span className="mx-activity-link-label">
-                          {getLocalizedOperationalSurfaceLabel(surface)}
-                        </span>
-                        <span className="mx-activity-link-arrow">→</span>
-                      </Link>
-                    );
-                  })}
-                </div>
-              )}
-
-              <div className="mx-sidebar-card">
-                <h3 className="mx-section-title mx-detail-sidebar-title">
-                  {t("xapp.details_title", undefined, "Details")}
-                </h3>
-
-                <div className="mx-meta-item">
-                  <span className="mx-meta-label">
-                    {t("xapp.app_id_label", undefined, "App ID")}
-                  </span>
-                  <code className="mx-meta-value mx-meta-code">{xappId}</code>
-                </div>
-
-                <div className="mx-meta-item">
-                  <span className="mx-meta-label">{t("common.status", undefined, "Status")}</span>
-                  <span className="mx-meta-value">
-                    {installation
-                      ? t("xapp.status_added", undefined, "Added")
-                      : t("xapp.status_available", undefined, "Available")}
-                  </span>
-                </div>
-
-                {publisherTo ? (
-                  <div className="mx-meta-item">
-                    <span className="mx-meta-label">
-                      {t("xapp.publisher_label", undefined, "Publisher")}
-                    </span>
-                    <Link to={publisherTo as any} className="mx-meta-value">
-                      {publisherName}
-                    </Link>
-                  </div>
-                ) : null}
-
-                {manifestTags.length > 0 && (
-                  <div className="mx-meta-item">
-                    <span className="mx-meta-label">{t("xapp.tags_label", undefined, "Tags")}</span>
-                    <div className="mx-tag-list">
-                      {manifestTags.map((t) => (
-                        <span key={t} className="mx-tag">
-                          {t}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {requiresTerms && (
-                  <div className="mx-detail-terms-link-wrap">
-                    <button
-                      className="mx-btn mx-btn-ghost mx-detail-terms-link"
-                      onClick={() => {
-                        setTermsAction("none");
-                        setTermsOpen(true);
-                      }}
-                    >
-                      {t("xapp.view_terms", undefined, "View Terms & Conditions")} →
-                    </button>
-                  </div>
-                )}
-              </div>
             </aside>
           </div>
 
