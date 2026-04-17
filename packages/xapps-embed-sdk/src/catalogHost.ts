@@ -893,6 +893,10 @@ export class XappsHost {
     if (typeof document === "undefined" || !document.body) {
       return typeof window.confirm === "function" ? window.confirm(input.message) : false;
     }
+    const overlayContainer =
+      document.fullscreenElement instanceof HTMLElement
+        ? document.fullscreenElement
+        : document.body;
 
     return new Promise<boolean>((resolve) => {
       let settled = false;
@@ -977,7 +981,7 @@ export class XappsHost {
       card.addEventListener("click", (event) => event.stopPropagation());
 
       document.addEventListener("keydown", onKeyDown);
-      document.body.appendChild(overlay);
+      overlayContainer.appendChild(overlay);
       confirm.focus();
     });
   }
@@ -1365,6 +1369,10 @@ export class XappsHost {
       }
       return;
     }
+    const overlayContainer =
+      document.fullscreenElement instanceof HTMLElement
+        ? document.fullscreenElement
+        : document.body;
 
     this.activePlansOverlayCleanup?.();
     const hasSubjectContext = Boolean(String(this.options.subjectId || "").trim());
@@ -1866,7 +1874,7 @@ export class XappsHost {
     overlay.appendChild(panel);
 
     document.addEventListener("keydown", onKeyDown);
-    document.body.appendChild(overlay);
+    overlayContainer.appendChild(overlay);
     syncHeader();
     void renderState();
   }
@@ -1883,6 +1891,10 @@ export class XappsHost {
         ? (input.guardUi as Record<string, unknown>)
         : null;
     if (!guardUi || typeof document === "undefined" || !document.body) return null;
+    const overlayContainer =
+      document.fullscreenElement instanceof HTMLElement
+        ? document.fullscreenElement
+        : document.body;
 
     this.activeSubjectProfileOverlayCleanup?.();
 
@@ -1908,6 +1920,7 @@ export class XappsHost {
       const shell = createSubjectProfileOverlay({
         locale: String(this.options.locale || "").trim() || "en",
         onClose: () => finish(null),
+        container: overlayContainer,
       });
 
       const ensureExecutionSession = async () => {

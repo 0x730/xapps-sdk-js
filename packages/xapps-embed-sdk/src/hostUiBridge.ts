@@ -161,6 +161,8 @@ export function createHostConfirmDialog(options?: {
     const target = options?.target || (typeof window !== "undefined" ? window : undefined);
     if (!target || !target.document || !target.document.body) return false;
     const doc = target.document;
+    const overlayContainer =
+      doc.fullscreenElement instanceof HTMLElement ? doc.fullscreenElement : doc.body;
     return new Promise<boolean>((resolve) => {
       const overlay = doc.createElement("div");
       overlay.style.position = "fixed";
@@ -234,7 +236,7 @@ export function createHostConfirmDialog(options?: {
         }
       });
       card.addEventListener("click", (event) => event.stopPropagation());
-      doc.body.appendChild(overlay);
+      overlayContainer.appendChild(overlay);
       confirmBtn.focus();
     });
   };
