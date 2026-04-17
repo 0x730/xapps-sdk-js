@@ -337,6 +337,15 @@ function applyThemeToDocument(theme: CatalogOptions["theme"] | null | undefined)
     ["fontFamily", ["--xapps-font-family", "--mx-font-family"]],
     ["displayFont", ["--xapps-display-font", "--mx-display-font"]],
   ];
+  const derivedTokenMap: Array<[string, string]> = [
+    ["primary", "--xapps-accent"],
+    ["primaryDark", "--xapps-accent-strong"],
+    ["card", "--xapps-surface-bg"],
+    ["bgSubtle", "--xapps-surface-subtle"],
+    ["border", "--xapps-border-color"],
+    ["text", "--xapps-text-primary"],
+    ["muted", "--xapps-text-secondary"],
+  ];
   for (const [key, cssVars] of map) {
     const value =
       typeof theme[key as keyof typeof theme] === "string" ? theme[key as keyof typeof theme] : "";
@@ -345,6 +354,13 @@ function applyThemeToDocument(theme: CatalogOptions["theme"] | null | undefined)
     for (const cssVar of cssVars) {
       root.style.setProperty(cssVar, normalized);
     }
+  }
+  for (const [key, cssVar] of derivedTokenMap) {
+    const value =
+      typeof theme[key as keyof typeof theme] === "string" ? theme[key as keyof typeof theme] : "";
+    const normalized = typeof value === "string" ? value.trim() : "";
+    if (!normalized) continue;
+    root.style.setProperty(cssVar, normalized);
   }
   if (
     typeof theme.radius === "string" &&

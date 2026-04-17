@@ -148,6 +148,57 @@ function showHostDomModal(backdrop: HTMLElement | null, open: boolean) {
   backdrop.style.display = open ? "flex" : "none";
 }
 
+function readThemeCssValue(target: Window | undefined, names: string[], fallback: string): string {
+  const doc = target?.document;
+  if (!target || !doc) return fallback;
+  const nodes = [doc.documentElement, doc.body].filter((node): node is HTMLElement =>
+    Boolean(node),
+  );
+  for (const node of nodes) {
+    const styles = target.getComputedStyle(node);
+    for (const name of names) {
+      const value = styles.getPropertyValue(name).trim();
+      if (value) return value;
+    }
+  }
+  return fallback;
+}
+
+function readHostDialogTheme(target: Window | undefined) {
+  return {
+    cardBg: readThemeCssValue(
+      target,
+      ["--xapps-surface-bg", "--cx-card", "--mx-card-bg"],
+      "#ffffff",
+    ),
+    cardBorder: readThemeCssValue(
+      target,
+      ["--xapps-border-color", "--cx-border", "--mx-border"],
+      "#e5e7eb",
+    ),
+    text: readThemeCssValue(
+      target,
+      ["--xapps-text-primary", "--cx-text", "--mx-text-main"],
+      "#0f172a",
+    ),
+    muted: readThemeCssValue(
+      target,
+      ["--xapps-text-secondary", "--cx-muted", "--mx-text-muted"],
+      "#334155",
+    ),
+    primary: readThemeCssValue(
+      target,
+      ["--xapps-accent", "--cx-primary", "--mx-primary"],
+      "#5b6b82",
+    ),
+    primaryDark: readThemeCssValue(
+      target,
+      ["--xapps-accent-strong", "--cx-primary-dark", "--mx-primary-hover"],
+      "#46566c",
+    ),
+  };
+}
+
 export function createHostConfirmDialog(options?: {
   target?: Window;
   overlayZIndex?: number;
@@ -161,6 +212,7 @@ export function createHostConfirmDialog(options?: {
     const target = options?.target || (typeof window !== "undefined" ? window : undefined);
     if (!target || !target.document || !target.document.body) return false;
     const doc = target.document;
+    const theme = readHostDialogTheme(target);
     const overlayContainer =
       doc.fullscreenElement instanceof HTMLElement ? doc.fullscreenElement : doc.body;
     return new Promise<boolean>((resolve) => {
@@ -176,8 +228,8 @@ export function createHostConfirmDialog(options?: {
 
       const card = doc.createElement("div");
       card.style.width = "min(560px, 92vw)";
-      card.style.background = "#fff";
-      card.style.border = "1px solid #e5e7eb";
+      card.style.background = theme.cardBg;
+      card.style.border = `1px solid ${theme.cardBorder}`;
       card.style.borderRadius = "14px";
       card.style.padding = "16px";
       card.style.boxShadow = "0 18px 45px rgba(15, 23, 42, 0.22)";
@@ -187,7 +239,7 @@ export function createHostConfirmDialog(options?: {
       heading.textContent = String(input.title || "Confirmation");
 
       const body = doc.createElement("div");
-      body.style.color = "#334155";
+      body.style.color = theme.muted;
       body.style.whiteSpace = "pre-wrap";
       body.textContent = String(input.message || "This action requires confirmation.");
 
@@ -201,10 +253,10 @@ export function createHostConfirmDialog(options?: {
       cancelBtn.type = "button";
       cancelBtn.textContent = String(input.cancelLabel || "Cancel");
       cancelBtn.style.padding = "8px 12px";
-      cancelBtn.style.border = "1px solid #cbd5e1";
+      cancelBtn.style.border = `1px solid ${theme.cardBorder}`;
       cancelBtn.style.borderRadius = "8px";
-      cancelBtn.style.background = "#fff";
-      cancelBtn.style.color = "#0f172a";
+      cancelBtn.style.background = theme.cardBg;
+      cancelBtn.style.color = theme.text;
       cancelBtn.onclick = () => {
         overlay.remove();
         resolve(false);
@@ -214,9 +266,9 @@ export function createHostConfirmDialog(options?: {
       confirmBtn.type = "button";
       confirmBtn.textContent = String(input.confirmLabel || "Continue");
       confirmBtn.style.padding = "8px 12px";
-      confirmBtn.style.border = "1px solid #0f5be0";
+      confirmBtn.style.border = `1px solid ${theme.primaryDark}`;
       confirmBtn.style.borderRadius = "8px";
-      confirmBtn.style.background = "#126bf1";
+      confirmBtn.style.background = theme.primary;
       confirmBtn.style.color = "#fff";
       confirmBtn.onclick = () => {
         overlay.remove();

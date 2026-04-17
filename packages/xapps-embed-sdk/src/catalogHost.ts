@@ -271,6 +271,41 @@ function toErrorMessage(value: unknown, fallback: string) {
   return fallback;
 }
 
+function readThemeCssValue(names: string[], fallback: string): string {
+  if (typeof window === "undefined" || typeof document === "undefined") return fallback;
+  const nodes = [document.documentElement, document.body].filter((node): node is HTMLElement =>
+    Boolean(node),
+  );
+  for (const node of nodes) {
+    const styles = window.getComputedStyle(node);
+    for (const name of names) {
+      const value = styles.getPropertyValue(name).trim();
+      if (value) return value;
+    }
+  }
+  return fallback;
+}
+
+function readHostDialogTheme() {
+  return {
+    cardBg: readThemeCssValue(["--xapps-surface-bg", "--cx-card", "--mx-card-bg"], "#ffffff"),
+    cardBorder: readThemeCssValue(
+      ["--xapps-border-color", "--cx-border", "--mx-border"],
+      "#e5e7eb",
+    ),
+    text: readThemeCssValue(["--xapps-text-primary", "--cx-text", "--mx-text-main"], "#0f172a"),
+    muted: readThemeCssValue(
+      ["--xapps-text-secondary", "--cx-muted", "--mx-text-muted"],
+      "#334155",
+    ),
+    primary: readThemeCssValue(["--xapps-accent", "--cx-primary", "--mx-primary"], "#5b6b82"),
+    primaryDark: readThemeCssValue(
+      ["--xapps-accent-strong", "--cx-primary-dark", "--mx-primary-hover"],
+      "#46566c",
+    ),
+  };
+}
+
 async function defaultMarketplaceMutationCall(path: string, payload?: Record<string, unknown>) {
   const response = await fetch(path, {
     method: "POST",
@@ -893,6 +928,7 @@ export class XappsHost {
     if (typeof document === "undefined" || !document.body) {
       return typeof window.confirm === "function" ? window.confirm(input.message) : false;
     }
+    const theme = readHostDialogTheme();
     const overlayContainer =
       document.fullscreenElement instanceof HTMLElement
         ? document.fullscreenElement
@@ -926,8 +962,8 @@ export class XappsHost {
 
       const card = document.createElement("div");
       card.style.width = "min(560px, 92vw)";
-      card.style.background = "#fff";
-      card.style.border = "1px solid #e5e7eb";
+      card.style.background = theme.cardBg;
+      card.style.border = `1px solid ${theme.cardBorder}`;
       card.style.borderRadius = "14px";
       card.style.padding = "16px";
       card.style.boxShadow = "0 18px 45px rgba(15,23,42,0.22)";
@@ -937,7 +973,7 @@ export class XappsHost {
       title.textContent = String(input.title || "Confirmation");
 
       const message = document.createElement("div");
-      message.style.color = "#334155";
+      message.style.color = theme.muted;
       message.style.whiteSpace = "pre-wrap";
       message.textContent = String(input.message || "This action requires confirmation.");
 
@@ -951,9 +987,10 @@ export class XappsHost {
       cancel.type = "button";
       cancel.textContent = String(input.cancelLabel || "Cancel");
       cancel.style.padding = "8px 12px";
-      cancel.style.border = "1px solid #cbd5e1";
+      cancel.style.border = `1px solid ${theme.cardBorder}`;
       cancel.style.borderRadius = "8px";
-      cancel.style.background = "#fff";
+      cancel.style.background = theme.cardBg;
+      cancel.style.color = theme.text;
       cancel.style.cursor = "pointer";
       cancel.addEventListener("click", () => finish(false));
 
@@ -961,9 +998,9 @@ export class XappsHost {
       confirm.type = "button";
       confirm.textContent = String(input.confirmLabel || "Continue");
       confirm.style.padding = "8px 12px";
-      confirm.style.border = "1px solid #0f5be0";
+      confirm.style.border = `1px solid ${theme.primaryDark}`;
       confirm.style.borderRadius = "8px";
-      confirm.style.background = "#126bf1";
+      confirm.style.background = theme.primary;
       confirm.style.color = "#fff";
       confirm.style.cursor = "pointer";
       confirm.addEventListener("click", () => finish(true));

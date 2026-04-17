@@ -37,9 +37,9 @@ describe("createHostConfirmDialog", () => {
     expect(overlay).toBeTruthy();
     expect(overlay?.parentElement).toBe(fullscreenRoot);
 
-    const confirmButton = Array.from(
-      overlay?.querySelectorAll("button") || [],
-    ).find((el) => el.textContent === "Continue") as HTMLButtonElement | undefined;
+    const confirmButton = Array.from(overlay?.querySelectorAll("button") || []).find(
+      (el) => el.textContent === "Continue",
+    ) as HTMLButtonElement | undefined;
     expect(confirmButton).toBeTruthy();
     confirmButton?.click();
 

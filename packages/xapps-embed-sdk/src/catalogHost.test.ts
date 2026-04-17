@@ -97,8 +97,7 @@ vi.mock("@xapps-platform/browser-host/xms", () => ({
   }),
   renderMonetizationHistorySurface: () => ({ destroy: () => {} }),
   renderMonetizationPlansSurface: () => ({ destroy: () => {} }),
-  resolveXmsSurfaceView: (view?: "plans" | "history") =>
-    view === "history" ? "history" : "plans",
+  resolveXmsSurfaceView: (view?: "plans" | "history") => (view === "history" ? "history" : "plans"),
   selectXappMonetizationPaywall: () => null,
 }));
 
@@ -139,10 +138,12 @@ describe("XappsHost fullscreen overlays", () => {
       container,
       baseUrl: "https://example.test",
     });
-    vi.spyOn(host as any, "fetchMyXappHostApiJson").mockImplementation(async (...args: unknown[]) => {
-      const suffix = String(args[1] ?? "");
-      return suffix.includes("/history") ? { history: {} } : { paywalls: [] };
-    });
+    vi.spyOn(host as any, "fetchMyXappHostApiJson").mockImplementation(
+      async (...args: unknown[]) => {
+        const suffix = String(args[1] ?? "");
+        return suffix.includes("/history") ? { history: {} } : { paywalls: [] };
+      },
+    );
 
     host.openMonetizationPlans({ xappId: "xapp_123" });
 
@@ -196,9 +197,9 @@ describe("XappsHost fullscreen overlays", () => {
     expect(overlay).toBeTruthy();
     expect(overlay?.parentElement).toBe(fullscreenRoot);
 
-    const cancelButton = Array.from(
-      overlay?.querySelectorAll("button") || [],
-    ).find((el) => el.textContent === "Cancel") as HTMLButtonElement | undefined;
+    const cancelButton = Array.from(overlay?.querySelectorAll("button") || []).find(
+      (el) => el.textContent === "Cancel",
+    ) as HTMLButtonElement | undefined;
     expect(cancelButton).toBeTruthy();
     cancelButton?.click();
 

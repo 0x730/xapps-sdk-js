@@ -22,7 +22,7 @@ function ensureStyles() {
   style.id = STYLE_ID;
   style.textContent = `
     :root {
-      --xapps-overlay-primary: var(--cx-primary, #1d4ed8);
+      --xapps-overlay-primary: var(--cx-primary, #46566c);
       --xapps-overlay-primary-dark: var(--cx-primary-dark, #1e40af);
       --xapps-overlay-card: var(--cx-card, #ffffff);
       --xapps-overlay-bg-subtle: var(--cx-bg-subtle, var(--mx-bg-subtle, #eff6ff));
@@ -95,7 +95,7 @@ function ensureStyles() {
       border: 0 !important;
       display: block;
       flex: 1;
-      background: #fff;
+      background: var(--xapps-overlay-card);
     }
     .xapps-expand-controls {
       position: absolute;
@@ -534,9 +534,9 @@ export function createHostExpandOverlayController(): HostExpandOverlayController
     const focus = stage !== "fullscreen";
     targetEl.style.position = "fixed";
     targetEl.style.zIndex = "2147482001";
-    targetEl.style.background = "#fff";
-    targetEl.style.border = "1px solid rgba(148, 163, 184, 0.35)";
-    targetEl.style.boxShadow = "0 28px 70px rgba(15, 23, 42, 0.28)";
+    targetEl.style.background = "var(--xapps-overlay-card)";
+    targetEl.style.border = "1px solid var(--xapps-overlay-border)";
+    targetEl.style.boxShadow = "var(--xapps-overlay-shadow)";
     targetEl.style.overflow = "hidden";
     if (focus) {
       targetEl.style.inset = "auto";
