@@ -1,6 +1,6 @@
 # `@xapps-platform/server-sdk`
 
-Node.js helper SDK for publisher server/executor integrations.
+Node.js backend SDK for tenant, publisher, and host-proxy integrations.
 
 If you only need manifest schema/types/parsing, install `@xapps-platform/xapp-manifest` directly.
 `@xapps-platform/server-sdk` re-exports that manifest surface for backend consumers that already depend on the SDK.
@@ -117,6 +117,18 @@ Practical rule:
 
 - stay at `@xapps-platform/server-sdk` level for managed/delegated lanes
 - only drop to `@xapps/payment-providers` when you are implementing provider execution yourself
+
+## Browser + backend SDK split
+
+For the full embed contract:
+
+- browser SDK: `@xapps-platform/browser-host`
+- low-level browser engine: `@xapps-platform/embed-sdk`
+- Node backend SDK: `@xapps-platform/server-sdk`
+
+Use this package when the browser already runs `@xapps-platform/browser-host`
+or `@xapps-platform/embed-sdk` and the backend needs to proxy the host/session
+contract to the gateway or tenant backend.
 
 ## Enterprise host contract
 
