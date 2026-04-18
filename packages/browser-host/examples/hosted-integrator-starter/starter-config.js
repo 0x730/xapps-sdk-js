@@ -1,0 +1,9 @@
+export const STARTER_NAME = "Hosted Integrator Starter";
+export const BACKEND_BASE_URL = "https://tenant.example.com";
+export const HOST_BOOTSTRAP_URL = "/api/host-bootstrap";
+export const ENTRY_HREF = "/launcher.html";
+export const IDENTITY_STORAGE_KEY = "xapps_integrator_host_identity_v1";
+export const DEFAULT_SINGLE_XAPP_ID = "replace-with-xapp-id";
+export const DEFAULT_MODE = "single-panel";
+export const DEFAULT_LOCALE = "en";
+export const DEFAULT_THEME_KEY = "";

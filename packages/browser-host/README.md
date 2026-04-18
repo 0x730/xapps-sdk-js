@@ -1,6 +1,6 @@
 # `@xapps-platform/browser-host`
 
-Browser-side host/runtime helpers for marketplace and single-xapp reference surfaces.
+Browser SDK for catalog and single-xapp embedding.
 
 ## Install
 
@@ -10,15 +10,17 @@ npm install @xapps-platform/browser-host
 
 ## When to use it
 
-Use `@xapps-platform/browser-host` when you want the standard browser host/runtime shape:
+Use `@xapps-platform/browser-host` when you want the standard browser SDK path:
 
-- marketplace bootstrap
-- single-xapp bootstrap
-- host shell and status helpers
-- standard backend-base and bridge endpoint resolution
-- shared browser-side XMS/paywall helpers for host apps
+- bootstrap a browser embed session
+- mount the full catalog
+- mount a single xapp directly
+- propagate locale, theme, payment resume, and host return behavior
+- use shared browser-side XMS and subject-profile helpers
 
-Use `@xapps-platform/embed-sdk` instead when you want lower-level iframe/bridge/payment-resume primitives and intend to build a more custom browser host.
+Use `@xapps-platform/embed-sdk` instead only when you need lower-level iframe,
+bridge, or payment-resume primitives and are intentionally building a more
+custom browser runtime.
 
 For the current XMS reader path, including plans, balances, paywalls, history, and virtual currencies, read:
 
@@ -26,54 +28,42 @@ For the current XMS reader path, including plans, balances, paywalls, history, a
 
 ## Purpose
 
-This package owns the shared browser host logic that should not live in tenant or publisher apps:
+This package owns the browser SDK logic that should not live in tenant or
+integrator apps:
 
-- marketplace bootstrap
-- single-xapp bootstrap
-- host shell helpers
-- marketplace runtime wiring
-- reference-theme/runtime helpers
-- host proof/status panel rendering
-- browser-side XMS catalog flattening, scope defaults, and feature-paywall helpers
-- browser-side XMS snapshot summarization for shared access/subscription/wallet presentation
-- browser-side XMS offering/package presentation helpers for local paywalls and catalog UIs
-- browser-side XMS paywall selection/presentation helpers over manifest-defined paywall objects
-- browser-side XMS paywall render-model helpers for shared or local renderer components
-- browser-side XMS feature-paywall copy helpers for local app wrappers
+- session bootstrap and browser identity state
+- catalog and single-xapp mounting
+- backend base-path and bridge endpoint resolution
+- locale, theme, payment resume, and host return plumbing
+- browser-side XMS and subject-profile helpers
 
 Local apps should keep:
 
 - branding and copy
 - page HTML/CSS
-- identity bootstrap storage keys
-- actor-specific config and small callbacks
+- small configuration objects and callbacks
+- optional custom shell UI
 
-## Current role
+## Public SDK surface
 
-`xconect`, `xconectb`, and the local launcher/host surfaces inside `xconectc`
-now serve these package build outputs through `/host/*`.
-
-The package is intended to become the shared host layer for later publisher
-consumers too, with actor differences handled by config, rights, accessible
-data, and local UI.
-
-Current package shape:
-
-- TypeScript source in `src/*`
-- ESM browser outputs in `dist/*`
-- local tenant/publisher apps keep only thin wrappers and page assets
-
-Entry points:
+Supported package entrypoints:
 
 - `@xapps-platform/browser-host`
 - `@xapps-platform/browser-host/backend-base`
-- `@xapps-platform/browser-host/host-shell`
-- `@xapps-platform/browser-host/marketplace-runtime`
-- `@xapps-platform/browser-host/reference-runtime`
-- `@xapps-platform/browser-host/marketplace-host`
-- `@xapps-platform/browser-host/single-xapp-host`
-- `@xapps-platform/browser-host/host-status`
+- `@xapps-platform/browser-host/launcher-core`
+- `@xapps-platform/browser-host/embed-surface`
+- `@xapps-platform/browser-host/standard-runtime`
+- `@xapps-platform/browser-host/subject-profile`
+- `@xapps-platform/browser-host/modal-shell`
 - `@xapps-platform/browser-host/xms`
+- `@xapps-platform/browser-host/xms-copy`
+
+The root entrypoint is the browser SDK. Use it first.
+
+The package root now intentionally excludes repo-owned reference host files
+such as launcher pages, sample shell rendering helpers, proof/status panels,
+and page-specific controllers. Those still exist for repo tenants and examples,
+but they are not the SDK contract.
 
 ## Backend Location
 
@@ -129,6 +119,23 @@ The package is intentionally actor-agnostic:
 
 Those concerns stay in local config, backend APIs, and later actor adapters.
 
+## SDK modules
+
+- `embed-surface`
+  - high-level browser SDK entrypoint for complete embedding
+- `launcher-core`
+  - host bootstrap, browser identity storage, silent re-bootstrap helpers
+- `backend-base`
+  - backend base URL, host-config URL, and bridge endpoint resolution
+- `standard-runtime`
+  - generic catalog runtime/theme helpers for tenants building on the shared host flow
+- `subject-profile`
+  - browser-side subject-profile selection and remediation helpers
+- `modal-shell`
+  - generic modal shell primitive used by browser-host and embed flows
+- `xms`
+  - browser-side monetization/read helpers for plans, paywalls, balances, and history
+
 ## Minimal usage
 
 ```ts
@@ -174,9 +181,81 @@ const snapshotSummary = summarizeXappMonetizationSnapshot({
 });
 ```
 
+## Unified Embed Surface
+
+Use `bootstrapXappsEmbedSession(...)` plus `mountCatalogEmbed(...)` or
+`mountSingleXappEmbed(...)` as the canonical browser-side entrypoint for
+complete embedding.
+
+This is the intended public surface above the older page-wrapper helpers. The
+older wrappers remain useful for reference hosts, but the unified surface is
+the path new integrators should start from.
+
+This surface works the same way for:
+
+- hosted mode, where the tenant backend stays on the platform
+- self-owned tenant mode, where the tenant owns the backend but keeps the same
+  `/api/*` host contract
+
+Minimal pattern:
+
+```ts
+import { bootstrapXappsEmbedSession, mountCatalogEmbed } from "@xapps-platform/browser-host";
+
+await bootstrapXappsEmbedSession(
+  {
+    identifier: {
+      idType: "tenant_member_id",
+      value: "acct-company-a-user-42",
+    },
+  },
+  {
+    hostBootstrapUrl: "/api/host-bootstrap",
+    identityStorageKey: "xapps_host_identity_v1",
+  },
+);
+
+const controller = await mountCatalogEmbed({
+  backendBaseUrl: "https://tenant.example.test",
+  container: document.getElementById("catalog"),
+  widgetContainer: document.getElementById("widget"),
+  mode: "single-panel",
+  identityStorageKey: "xapps_host_identity_v1",
+});
+```
+
+Use:
+
+- `mountCatalogEmbed(...)` for `single-panel` or `split-panel`
+- `mountSingleXappEmbed(...)` plus `xappId` for direct xapp mount
+
+This layer sits above `launcher-core` and `@xapps-platform/embed-sdk`, and it
+is the default integration path for both hosted and self-owned tenant embeds.
+
+## Reference hosts in this repo
+
+This repository still ships reference host pages and shell helpers used by:
+
+- `xconect`
+- `xconecta`
+- `xconectb`
+- `xconectc`
+- hosted proof/reference variants
+
+Those files are repo implementation details. They exist so our local tenants
+can serve working host pages through `/host/*`, but they are not the browser
+SDK contract and should not be the starting point for integrators.
+
 ## Verify locally
 
 ```bash
 npm run build --workspace packages/browser-host
 npm run smoke --workspace packages/browser-host
 ```
+
+## Hosted Integrator Starter
+
+For the thin browser starter that pairs with a local `POST /api/host-bootstrap`
+route and a platform-hosted tenant backend, use:
+
+- [packages/browser-host/examples/hosted-integrator-starter/README.md](/home/dacrise/x/xapps/packages/browser-host/examples/hosted-integrator-starter/README.md)

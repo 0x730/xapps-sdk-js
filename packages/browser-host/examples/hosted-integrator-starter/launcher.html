@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>Hosted Integrator Starter</title>
+    <link rel="stylesheet" href="./starter.css" />
+  </head>
+  <body>
+    <main class="page">
+      <header class="topbar">
+        <div class="brand">
+          <strong id="starter-name">Hosted Integrator Starter</strong>
+          <span>Local shell + local bootstrap route + hosted tenant backend</span>
+        </div>
+      </header>
+
+      <section class="panel intro">
+        <h1>Resolve identity, bootstrap once, then mount the hosted runtime.</h1>
+        <p>
+          The local app chooses the user identity. The local backend calls remote
+          <code>POST /api/host-bootstrap</code>. The browser stores the short-lived bootstrap token
+          and opens marketplace or single-xapp mode.
+        </p>
+      </section>
+
+      <section class="panel">
+        <h2>Current bootstrap state</h2>
+        <div id="stored-session" class="session-card" hidden>
+          <div id="stored-session-copy"></div>
+          <div class="button-row">
+            <a id="continue-marketplace" class="button-link secondary" href="./marketplace.html"
+              >Continue marketplace</a
+            >
+            <a id="continue-single-xapp" class="button-link secondary" href="./single-xapp.html"
+              >Continue single xapp</a
+            >
+            <button id="clear-session" class="danger" type="button">Clear stored session</button>
+          </div>
+        </div>
+        <p id="stored-session-empty" class="helper">No active bootstrap token is stored yet.</p>
+      </section>
+
+      <section class="panel">
+        <h2>Identity bootstrap</h2>
+        <p class="helper">
+          Use the simplest identity the tenant can resolve reliably. Best path:
+          <code>identifier type + identifier value</code>. Email is fallback only.
+        </p>
+        <form id="identity-form" class="grid">
+          <section class="form-section">
+            <div class="form-section-header">
+              <h3>1. Preferred identity</h3>
+              <p>
+                Use a stable external identifier whenever the same email can map to multiple
+                identities.
+              </p>
+            </div>
+            <div class="grid two">
+              <div class="field">
+                <label for="identifierType">Identifier type</label>
+                <input
+                  id="identifierType"
+                  name="identifierType"
+                  type="text"
+                  placeholder="tenant_member_id"
+                />
+              </div>
+              <div class="field">
+                <label for="identifierValue">Identifier value</label>
+                <input
+                  id="identifierValue"
+                  name="identifierValue"
+                  type="text"
+                  placeholder="acct-company-a-user-42"
+                />
+              </div>
+            </div>
+            <div class="grid two">
+              <div class="field">
+                <label for="identifierHint">Identifier hint optional</label>
+                <input
+                  id="identifierHint"
+                  name="identifierHint"
+                  type="text"
+                  placeholder="Company A"
+                />
+              </div>
+              <div class="field">
+                <label for="email">Email fallback</label>
+                <input id="email" name="email" type="email" placeholder="user@example.com" />
+              </div>
+            </div>
+            <div class="grid two">
+              <div class="field">
+                <label for="name">Display name</label>
+                <input id="name" name="name" type="text" placeholder="Alex Example" />
+              </div>
+            </div>
+          </section>
+
+          <details class="form-section advanced-section">
+            <summary>Advanced identity fields</summary>
+            <p class="helper">
+              Use these only if you already know the platform <code>subjectId</code> or need to send
+              explicit subject typing and metadata.
+            </p>
+            <div class="grid two">
+              <div class="field">
+                <label for="subjectId">Existing subject id optional</label>
+                <input
+                  id="subjectId"
+                  name="subjectId"
+                  type="text"
+                  placeholder="Previously returned by tenant"
+                />
+              </div>
+              <div class="field">
+                <label for="subjectType">Subject type optional</label>
+                <input
+                  id="subjectType"
+                  name="subjectType"
+                  type="text"
+                  placeholder="business_member"
+                />
+              </div>
+            </div>
+            <div class="field">
+              <label for="metadata">Metadata JSON optional</label>
+              <textarea
+                id="metadata"
+                name="metadata"
+                placeholder='{"companyId":"company-a","role":"member"}'
+              ></textarea>
+            </div>
+          </details>
+
+          <section class="form-section">
+            <div class="form-section-header">
+              <h3>2. Launch options</h3>
+              <p>Choose where to open the session after bootstrap.</p>
+            </div>
+            <div class="grid two">
+              <div class="field">
+                <label for="xappId">Single-xapp id</label>
+                <input id="xappId" name="xappId" type="text" placeholder="01..." />
+              </div>
+              <div class="field">
+                <label for="mode">Marketplace mode</label>
+                <select id="mode" name="mode">
+                  <option value="single-panel">Single panel</option>
+                  <option value="split-panel">Split panel</option>
+                </select>
+              </div>
+            </div>
+            <div class="grid two">
+              <div class="field">
+                <label for="locale">Locale</label>
+                <select id="locale" name="locale">
+                  <option value="en">English</option>
+                  <option value="ro">Română</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="theme">Theme optional</label>
+                <select id="theme" name="theme">
+                  <option value="">Default</option>
+                  <option value="harbor">Harbor</option>
+                  <option value="atlas">Atlas</option>
+                  <option value="portal-blue">Portal Blue</option>
+                  <option value="copper">Copper</option>
+                  <option value="emerald">Emerald</option>
+                  <option value="iris">Iris</option>
+                </select>
+              </div>
+            </div>
+          </section>
+
+          <div id="status" class="status"></div>
+
+          <div class="button-row">
+            <button type="submit" data-surface="marketplace">Open marketplace</button>
+            <button type="submit" data-surface="single-xapp">Open single xapp</button>
+          </div>
+        </form>
+      </section>
+    </main>
+
+    <script type="module" src="./launcher.js"></script>
+  </body>
+</html>

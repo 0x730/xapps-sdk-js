@@ -1,16 +1,16 @@
 import {
   createMarketplaceRuntime,
   resolveTheme,
-  type ReferenceTheme,
+  type CatalogEmbedTheme,
 } from "./marketplace-runtime.js";
 
-export const REFERENCE_THEME_ALIASES: Record<string, string> = {
+export const STANDARD_HOST_THEME_ALIASES: Record<string, string> = {
   slate: "harbor",
   graphite: "atlas",
   portal: "portal-blue",
 };
 
-export const REFERENCE_THEMES: Record<string, ReferenceTheme> = {
+export const STANDARD_HOST_THEMES: Record<string, CatalogEmbedTheme> = {
   harbor: {
     primary: "#0f7284",
     primaryDark: "#0a5663",
@@ -373,13 +373,13 @@ export const REFERENCE_THEMES: Record<string, ReferenceTheme> = {
   },
 };
 
-export const REFERENCE_THEME_KEYS = Object.keys(REFERENCE_THEMES);
+export const STANDARD_HOST_THEME_KEYS = Object.keys(STANDARD_HOST_THEMES);
 
-type ResolveReferenceThemeOptions = {
+type ResolveStandardThemeOptions = {
   defaultThemeKey?: string | null;
 };
 
-type CreateReferenceMarketplaceRuntimeOptions = {
+type CreateStandardHostMarketplaceRuntimeOptions = {
   createStandardMarketplaceRuntime: (input: {
     baseUrl: string;
     subjectId: string;
@@ -390,7 +390,7 @@ type CreateReferenceMarketplaceRuntimeOptions = {
     } | null;
     paymentResumeState: unknown;
     hostUi: unknown;
-    theme: ReferenceTheme;
+    theme: CatalogEmbedTheme;
     apiBasePath: string;
     apiClient?: unknown;
     hostApiHeadersProvider?: (() => Record<string, string> | null | undefined) | undefined;
@@ -430,19 +430,19 @@ type CreateReferenceMarketplaceRuntimeOptions = {
   onExpandError?: unknown;
 };
 
-export function resolveReferenceTheme(
+export function resolveStandardTheme(
   themeKey: string | null | undefined,
-  options: ResolveReferenceThemeOptions = {},
-): ReferenceTheme | undefined {
+  options: ResolveStandardThemeOptions = {},
+): CatalogEmbedTheme | undefined {
   return resolveTheme(themeKey, {
-    aliases: REFERENCE_THEME_ALIASES,
-    themes: REFERENCE_THEMES,
+    aliases: STANDARD_HOST_THEME_ALIASES,
+    themes: STANDARD_HOST_THEMES,
     defaultThemeKey: String(options.defaultThemeKey || "harbor").trim() || "harbor",
   });
 }
 
-export function createReferenceMarketplaceRuntime(
-  options: CreateReferenceMarketplaceRuntimeOptions,
+export function createStandardHostMarketplaceRuntime(
+  options: CreateStandardHostMarketplaceRuntimeOptions,
 ): unknown {
   return createMarketplaceRuntime({
     createStandardMarketplaceRuntime: options.createStandardMarketplaceRuntime,
@@ -454,9 +454,9 @@ export function createReferenceMarketplaceRuntime(
     paymentResumeState: options.paymentResumeState,
     hostDomUi: options.hostDomUi,
     theme:
-      resolveReferenceTheme(options.themeKey, {
+      resolveStandardTheme(options.themeKey, {
         defaultThemeKey: options.defaultThemeKey,
-      }) || REFERENCE_THEMES.harbor,
+      }) || STANDARD_HOST_THEMES.harbor,
     apiBasePath: options.apiBasePath || "/api",
     apiClient: options.apiClient,
     hostApiHeadersProvider: options.hostApiHeadersProvider || undefined,

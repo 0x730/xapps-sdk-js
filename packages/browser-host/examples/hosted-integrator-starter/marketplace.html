@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>Hosted Integrator Marketplace</title>
+    <link rel="stylesheet" href="./starter.css" />
+  </head>
+  <body data-mode="single-panel">
+    <main id="starter-root" class="page">
+      <div class="launcher-return-row">
+        <a class="launcher-return" href="./launcher.html">Back to launcher</a>
+      </div>
+      <section class="panel intro">
+        <h1><span id="starter-name">Hosted Integrator Starter</span> marketplace</h1>
+        <p>
+          This page only calls <code>mountCatalogEmbed(...)</code>. Mode, locale, and theme come
+          from the query string or starter config.
+        </p>
+        <div class="pill-row">
+          <div class="pill">mode <strong id="mode-value">single-panel</strong></div>
+          <div class="pill">locale <strong id="locale-value">en</strong></div>
+          <div class="pill">theme <strong id="theme-value">default</strong></div>
+        </div>
+      </section>
+
+      <section class="workspace minimal-workspace">
+        <section class="panel">
+          <h2>Catalog</h2>
+          <div id="catalog"></div>
+        </section>
+        <section id="widget-panel" class="panel">
+          <h2>Widget</h2>
+          <div id="widget"></div>
+        </section>
+      </section>
+    </main>
+
+    <script type="module" src="./marketplace.js"></script>
+  </body>
+</html>

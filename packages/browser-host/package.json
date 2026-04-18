@@ -1,6 +1,6 @@
 {
   "name": "@xapps-platform/browser-host",
-  "version": "0.1.17",
+  "version": "0.1.18",
   "license": "MIT",
   "author": "Daniel Vladescu <daniel.vladescu@gmail.com>",
   "type": "module",
@@ -12,12 +12,18 @@
       "default": "./dist/index.js"
     },
     "./backend-base": "./dist/backend-base.js",
-    "./host-shell": "./dist/host-shell.js",
-    "./marketplace-runtime": "./dist/marketplace-runtime.js",
-    "./reference-runtime": "./dist/reference-runtime.js",
-    "./marketplace-host": "./dist/marketplace-host.js",
-    "./single-xapp-host": "./dist/single-xapp-host.js",
-    "./host-status": "./dist/host-status.js",
+    "./launcher-core": {
+      "types": "./dist/launcher-core.d.ts",
+      "default": "./dist/launcher-core.js"
+    },
+    "./embed-surface": {
+      "types": "./dist/embed-surface.d.ts",
+      "default": "./dist/embed-surface.js"
+    },
+    "./standard-runtime": {
+      "types": "./dist/standard-runtime.d.ts",
+      "default": "./dist/standard-runtime.js"
+    },
     "./subject-profile": {
       "types": "./subject-profile.d.ts",
       "default": "./dist/subjectProfile.js"

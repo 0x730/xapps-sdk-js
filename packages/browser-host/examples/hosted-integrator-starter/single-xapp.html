@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>Hosted Integrator Single Xapp</title>
+    <link rel="stylesheet" href="./starter.css" />
+  </head>
+  <body data-mode="single-panel">
+    <main id="starter-root" class="page">
+      <div class="launcher-return-row">
+        <a class="launcher-return" href="./launcher.html">Back to launcher</a>
+      </div>
+      <section class="panel intro">
+        <h1><span id="starter-name">Hosted Integrator Starter</span> single xapp</h1>
+        <p>
+          This page only calls <code>mountSingleXappEmbed(...)</code>. Supply the xapp id in the
+          form or query string.
+        </p>
+        <div class="pill-row">
+          <div class="pill">locale <strong id="locale-value">en</strong></div>
+          <div class="pill">theme <strong id="theme-value">default</strong></div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <form id="single-xapp-form" class="grid two">
+          <div class="field">
+            <label for="xappId">Xapp id</label>
+            <input id="xappId" type="text" />
+          </div>
+          <div class="field form-actions">
+            <label>&nbsp;</label>
+            <button type="submit">Open xapp</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="workspace minimal-workspace">
+        <section class="panel">
+          <h2>Xapp</h2>
+          <div id="catalog"></div>
+        </section>
+      </section>
+    </main>
+
+    <script type="module" src="./single-xapp.js"></script>
+  </body>
+</html>

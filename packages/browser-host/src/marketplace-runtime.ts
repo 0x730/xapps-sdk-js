@@ -1,4 +1,4 @@
-export type ReferenceTheme = {
+export type CatalogEmbedTheme = {
   primary: string;
   primaryDark: string;
   bg: string;
@@ -18,7 +18,7 @@ export type ReferenceTheme = {
 
 type ResolveThemeOptions = {
   aliases?: Record<string, string> | null;
-  themes?: Record<string, ReferenceTheme> | null;
+  themes?: Record<string, CatalogEmbedTheme> | null;
   defaultThemeKey?: string | null;
 };
 
@@ -63,7 +63,7 @@ type MarketplaceRuntimeOptions = {
   } | null;
   paymentResumeState: unknown;
   hostDomUi: unknown;
-  theme: ReferenceTheme;
+  theme: CatalogEmbedTheme;
   apiBasePath?: string | null;
   apiClient?: unknown;
   hostApiHeadersProvider?: (() => Record<string, string> | null | undefined) | null;
@@ -80,7 +80,7 @@ type MarketplaceRuntimeOptions = {
 export function resolveTheme(
   themeKey: string | null | undefined,
   options: ResolveThemeOptions,
-): ReferenceTheme | undefined {
+): CatalogEmbedTheme | undefined {
   const aliases = options?.aliases && typeof options.aliases === "object" ? options.aliases : {};
   const themes = options?.themes && typeof options.themes === "object" ? options.themes : {};
   const defaultThemeKey = String(options?.defaultThemeKey || "").trim();
@@ -121,3 +121,5 @@ export function createMarketplaceRuntime(options: MarketplaceRuntimeOptions): un
     },
   });
 }
+
+export type ReferenceTheme = CatalogEmbedTheme;
