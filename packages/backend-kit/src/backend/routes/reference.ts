@@ -72,7 +72,7 @@ const BASE_ENDPOINT_GROUPS = [
       {
         method: "GET",
         path: "/host/host-shell.js",
-        purpose: "Shared host-shell rendering helpers for marketplace and single-xapp surfaces.",
+        purpose: "Repo reference host-shell helpers for marketplace and single-xapp surfaces.",
       },
       {
         method: "GET",
@@ -82,12 +82,12 @@ const BASE_ENDPOINT_GROUPS = [
       {
         method: "GET",
         path: "/host/reference-runtime.js",
-        purpose: "Reference theme/runtime helpers for the standard marketplace host flow.",
+        purpose: "Repo reference theme/runtime helpers for the standard marketplace host flow.",
       },
       {
         method: "GET",
         path: "/host/host-status.js",
-        purpose: "Shared host proof/status renderer used by tenant host surfaces.",
+        purpose: "Repo reference host proof/status renderer used by tenant host surfaces.",
       },
     ],
   },
