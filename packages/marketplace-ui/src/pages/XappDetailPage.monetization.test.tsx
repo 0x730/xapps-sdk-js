@@ -1422,7 +1422,6 @@ describe("XappDetailPage monetization", () => {
       pageUrl: "http://localhost:3000/v1/gateway-payment.html",
       returnUrl: expect.stringContaining("xapps_monetization_intent_id=intent_7"),
       cancelUrl: expect.stringContaining("xapps_monetization_intent_id=intent_7"),
-      xappsResume: expect.stringContaining("xapps_monetization_intent_id=intent_7"),
       locale: "en",
     });
     const paymentSessionCalls = createMyXappPurchasePaymentSession.mock.calls as Array<
