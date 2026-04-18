@@ -263,10 +263,14 @@ const runtime = createStandardMarketplaceRuntime({
 await runtime.mount("single-panel");
 ```
 
-This helper is the current best-fit contract for Node/PHP tenant hosts that want marketplace embedding without rebuilding the orchestration layer.
+This helper is the low-level contract for hosts that want marketplace embedding
+without rebuilding the orchestration layer but still need more control than the
+unified `browser-host` surface.
 
 Starter/reference:
 
+- preferred high-level starter:
+  - `packages/browser-host/examples/hosted-integrator-starter/README.md`
 - `packages/xapps-embed-sdk/examples/runtime-minimal/index.html`
 - `packages/xapps-embed-sdk/examples/marketplace-host-starter/index.html`
   - split starter shape:
@@ -278,12 +282,14 @@ Starter/reference:
 
 Recommended starter interpretation:
 
+- `browser-host` starter
+  - preferred starting point for standard hosted or self-owned embedding
 - `runtime-minimal`
   - smallest possible runtime smoke
   - use it to understand the API surface
 - `marketplace-host-starter`
-  - recommended third-party starting point
-  - use it when you want a real host page shape
+  - low-level custom-host starting point
+  - use it when the higher-level browser-host starter is too opinionated
 
 Inside `marketplace-host-starter`:
 

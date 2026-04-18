@@ -820,6 +820,20 @@ export class XappsHost {
     packageSlug?: string | null;
   }): string {
     const url = new URL(this.resolveHostReturnUrl(), window.location.origin);
+    const keysToDelete: string[] = [];
+    for (const key of url.searchParams.keys()) {
+      if (key.startsWith("xapps_payment_")) keysToDelete.push(key);
+    }
+    keysToDelete.push(
+      "xapps_resume",
+      "xapps_theme",
+      "xapps_monetization_intent_id",
+      "paywall",
+      "paywallPackage",
+    );
+    for (const key of keysToDelete) {
+      url.searchParams.delete(key);
+    }
     url.searchParams.set("xapps_monetization_intent_id", input.intentId);
     url.searchParams.set("xapp_id", input.xappId);
     if (input.installationId) {
@@ -1746,7 +1760,6 @@ export class XappsHost {
                                 page_url: this.buildHostedPaymentPageUrl(),
                                 return_url: returnUrl,
                                 cancel_url: returnUrl,
-                                xapps_resume: returnUrl,
                                 locale: String(this.options.locale || "").trim() || null,
                               },
                             },

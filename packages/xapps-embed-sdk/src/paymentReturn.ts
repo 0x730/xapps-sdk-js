@@ -257,6 +257,10 @@ export function resolvePaymentReturnContext(urlLike: string): XappsPaymentReturn
         ? baseUrl
         : new URL(baseUrl, base).toString();
       const out = new URL(normalizedBase);
+      for (const key of Array.from(out.searchParams.keys())) {
+        if (key.startsWith("xapps_payment_")) out.searchParams.delete(key);
+        if (key === "xapps_resume" || key === "xapps_theme") out.searchParams.delete(key);
+      }
       const params =
         input?.paymentParams instanceof URLSearchParams ? input.paymentParams : paymentParams;
       for (const [k, v] of params.entries()) {

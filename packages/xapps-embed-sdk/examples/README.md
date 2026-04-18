@@ -1,10 +1,18 @@
 # `xapps-embed-sdk` examples
 
-Use these examples by intent.
+These are low-level examples.
+
+For the standard integrator path, start from the higher-level browser-host
+starter instead:
+
+- [../../browser-host/examples/hosted-integrator-starter/README.md](/home/dacrise/x/xapps/packages/browser-host/examples/hosted-integrator-starter/README.md)
+
+Use the examples in this folder only when you need to work directly with
+`embed-sdk` primitives.
 
 ## Marketplace host starter
 
-Recommended integrator starter for marketplace embedding:
+Low-level marketplace host starter for marketplace embedding:
 
 - [marketplace-host-starter/index.html](/home/dacrise/x/xapps/packages/xapps-embed-sdk/examples/marketplace-host-starter/index.html)
 
@@ -23,7 +31,8 @@ Use this when you want:
 - single-panel or split-panel mode
 - a structure similar to `xconect`, but generic
 
-This is the recommended browser-side pair for:
+Use this when the higher-level browser-host starter is too opinionated and you
+need direct control over the lower-level host runtime. It pairs with:
 
 - `packages/server-sdk/examples/host-proxy/minimal.mjs`
 - `packages/xapps-php/examples/host-proxy/minimal.php`
