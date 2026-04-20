@@ -7,6 +7,7 @@ import {
   executeHostBootstrap,
   normalizeHostIdentityInput,
   readActiveHostIdentity,
+  readRecoverableHostIdentity,
   refreshStoredHostIdentity,
   writeStoredHostIdentity,
 } from "./src/launcher-core.js";
@@ -89,14 +90,30 @@ describe("@xapps-platform/browser-host launcher core", () => {
     expect(readActiveHostIdentity("host_identity")).toBeNull();
   });
 
+  it("recovers host identity from storage or current url subject id", () => {
+    globalThis.window = {
+      localStorage: createStorage(),
+      location: { href: "http://localhost/marketplace.html?subjectId=sub_url" },
+    } as any;
+
+    expect(readRecoverableHostIdentity("host_identity")?.subjectId).toBe("sub_url");
+
+    writeStoredHostIdentity("host_identity", {
+      subjectId: "sub_stored",
+      bootstrapToken: "token_1",
+    });
+
+    expect(readRecoverableHostIdentity("host_identity")?.subjectId).toBe("sub_stored");
+  });
+
   it("executes host bootstrap and normalizes the response", async () => {
     const fetchMock = vi.fn(async () => ({
       ok: true,
       text: async () =>
         JSON.stringify({
-          subject_id: "sub_2",
-          bootstrap_token: "token_2",
-          expires_in: 120,
+          subjectId: "sub_2",
+          bootstrapToken: "token_2",
+          expiresIn: 120,
           email: "user@example.com",
         }),
     }));
@@ -110,7 +127,7 @@ describe("@xapps-platform/browser-host launcher core", () => {
           },
           email: "USER@example.com",
         },
-        { fetchImpl: fetchMock as any, hostBootstrapUrl: "/api/host-bootstrap" },
+        { fetchImpl: fetchMock as any, hostBootstrapUrl: "/api/browser/host-bootstrap" },
       ),
     ).resolves.toEqual({
       subjectId: "sub_2",
@@ -160,7 +177,7 @@ describe("@xapps-platform/browser-host launcher core", () => {
 
     const next = await refreshStoredHostIdentity(
       "host_identity",
-      "/api/host-bootstrap",
+      "/api/browser/host-bootstrap",
       fetchMock as any,
     );
 

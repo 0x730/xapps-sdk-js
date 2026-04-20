@@ -394,6 +394,7 @@ type CreateStandardHostMarketplaceRuntimeOptions = {
     apiBasePath: string;
     apiClient?: unknown;
     hostApiHeadersProvider?: (() => Record<string, string> | null | undefined) | undefined;
+    hostApiCredentials?: RequestCredentials | undefined;
     bridgeV2: Record<string, unknown>;
     getCatalogMount: () => HTMLElement | null;
     getWidgetMount: () => HTMLElement | null;
@@ -420,6 +421,7 @@ type CreateStandardHostMarketplaceRuntimeOptions = {
   apiBasePath?: string | null;
   apiClient?: unknown;
   hostApiHeadersProvider?: (() => Record<string, string> | null | undefined) | null;
+  hostApiCredentials?: RequestCredentials | null;
   bridgeV2?: Record<string, unknown> | null;
   getCatalogMount?: (() => HTMLElement | null) | null;
   getWidgetMount?: (() => HTMLElement | null) | null;
@@ -460,6 +462,7 @@ export function createStandardHostMarketplaceRuntime(
     apiBasePath: options.apiBasePath || "/api",
     apiClient: options.apiClient,
     hostApiHeadersProvider: options.hostApiHeadersProvider || undefined,
+    hostApiCredentials: options.hostApiCredentials || undefined,
     bridgeV2: {
       ...(options.bridgeV2 || {}),
     },

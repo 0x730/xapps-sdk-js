@@ -21,7 +21,8 @@ function readPageOptions() {
   const locale = readString(currentUrl.searchParams.get("locale")) || DEFAULT_LOCALE;
   const themeKey = readString(currentUrl.searchParams.get("theme")) || DEFAULT_THEME_KEY;
   const xappId = readString(currentUrl.searchParams.get("xappId")) || DEFAULT_SINGLE_XAPP_ID;
-  return { locale, themeKey, xappId };
+  const subjectId = readString(currentUrl.searchParams.get("subjectId"));
+  return { locale, themeKey, xappId, subjectId };
 }
 
 function syncPageCopy({ locale, themeKey, xappId }) {
@@ -44,6 +45,11 @@ function updateUrl(next) {
     url.searchParams.set("theme", next.themeKey);
   } else {
     url.searchParams.delete("theme");
+  }
+  if (next.subjectId) {
+    url.searchParams.set("subjectId", next.subjectId);
+  } else {
+    url.searchParams.delete("subjectId");
   }
   window.history.replaceState({}, "", url.toString());
 }
@@ -70,6 +76,7 @@ async function mountCurrentXapp() {
     entryHref: ENTRY_HREF,
     identityStorageKey: IDENTITY_STORAGE_KEY,
     hostBootstrapUrl: HOST_BOOTSTRAP_URL,
+    ...(options.subjectId ? { identity: { subjectId: options.subjectId } } : {}),
     container: document.getElementById("catalog"),
     xappId: options.xappId,
     locale: options.locale,

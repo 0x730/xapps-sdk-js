@@ -8,7 +8,19 @@ Browser SDK for catalog and single-xapp embedding.
 npm install @xapps-platform/browser-host
 ```
 
-## When to use it
+## Fast Start
+
+If you are integrating a hosted tenant or building a tenant host shell, start
+here:
+
+1. call `bootstrapXappsEmbedSession(...)`
+2. call `mountCatalogEmbed(...)` or `mountSingleXappEmbed(...)`
+3. keep your own page HTML/CSS outside the SDK
+
+This package is runtime, not sample UI. It does not provide launcher pages,
+headers, proof dashboards, or tenant-specific page controllers.
+
+## Use It For
 
 Use `@xapps-platform/browser-host` when you want the standard browser SDK path:
 
@@ -18,17 +30,25 @@ Use `@xapps-platform/browser-host` when you want the standard browser SDK path:
 - propagate locale, theme, payment resume, and host return behavior
 - use shared browser-side XMS and subject-profile helpers
 
+Important boundary:
+
+- hosted or cross-origin host integrations should use bootstrap entry plus
+  host-session exchange
+- same-origin tenant hosts should keep the same browser contract on their own
+  origin: local browser-safe bootstrap entry, host-session exchange, then
+  session-backed host APIs
+
 Use `@xapps-platform/embed-sdk` instead only when you need lower-level iframe,
-bridge, or payment-resume primitives and are intentionally building a more
-custom browser runtime.
+bridge, or payment-resume primitives and are intentionally building a custom
+browser runtime.
 
 For the current XMS reader path, including plans, balances, paywalls, history, and virtual currencies, read:
 
 - [docs/specifications/xms/README.md](/home/dacrise/x/xapps/docs/specifications/xms/README.md)
 
-## Purpose
+## Boundary
 
-This package owns the browser SDK logic that should not live in tenant or
+This package owns browser SDK logic that should not live in tenant or
 integrator apps:
 
 - session bootstrap and browser identity state
@@ -58,12 +78,8 @@ Supported package entrypoints:
 - `@xapps-platform/browser-host/xms`
 - `@xapps-platform/browser-host/xms-copy`
 
-The root entrypoint is the browser SDK. Use it first.
-
-The package root now intentionally excludes repo-owned reference host files
-such as launcher pages, sample shell rendering helpers, proof/status panels,
-and page-specific controllers. Those still exist for repo tenants and examples,
-but they are not the SDK contract.
+The root entrypoint is the browser SDK. Use it first. Repo-owned reference host
+files are intentionally excluded from this contract.
 
 ## Backend Location
 
@@ -72,8 +88,8 @@ Default behavior stays same-origin:
 - host config from `/api/host-config`
 - host mutation/session routes under `/api`
 
-For hosted-integrator mode, consumers can point the host contract at a
-different backend origin without changing the browser-host runtime shape:
+For hosted-integrator mode, point the host contract at a different backend
+origin without changing the browser-host runtime shape:
 
 - `backendBaseUrl`
   - derives `hostConfigPath` as `${backendBaseUrl}/api/host-config`
@@ -86,32 +102,29 @@ explicitly allow the frontend origin on the host API surface. Same-origin
 consumers can leave this unset; hosted-integrator consumers should set the
 backend-kit `host.allowedOrigins` list.
 
-For secure hosted-integrator bootstrap, do not put raw platform API keys in the
+For hosted-integrator bootstrap, do not put raw platform API keys in the
 browser. Have the integrator backend obtain a short-lived bootstrap token from
-the tenant backend, then pass that token into the browser host identity state.
-When present, `@xapps-platform/browser-host` forwards it automatically in
-`X-Xapps-Host-Bootstrap` for the standard host/session routes.
+the tenant backend, then pass it into browser identity state. The SDK uses it
+in `X-Xapps-Host-Bootstrap` to exchange into host-local session.
 
-That bootstrap token is intentionally short-lived. Consumers should treat it as
-session bootstrap state, not durable identity storage, and re-bootstrap when it
-expires.
+Treat that token as short-lived bootstrap state, not durable identity storage.
+
+Same-origin tenant note:
+
+- keep the same bootstrap -> exchange -> host-session flow on the tenant origin
+- configure `hostBootstrapUrl` to the tenant's local browser-safe bootstrap
+  route when it differs from `/api/browser/host-bootstrap`
+- bootstrap is the browser entry proof; host-session remains the ongoing
+  authority for host APIs
 
 When the host should return to a launcher page instead of `/`, set `entryHref`
-in the local wrapper config. This is the supported seam for same-origin tenant
-launchers such as `xconectc /catalog`, where the launcher resolves the subject
-first and the shared host surfaces should redirect back to that launcher after
-expiry or missing identity.
+in local config.
 
-When the host owns locale selection, pass `locale` in the local wrapper config.
-The shared browser-host/embed runtime now seeds that locale into widget context
-and exposes reactive locale updates through the shared `XAPPS_LOCALE_CHANGED`
-bridge path.
+When the host owns locale selection, pass `locale` in local config. The runtime
+seeds it into widget context and exposes reactive locale updates through
+`XAPPS_LOCALE_CHANGED`.
 
-For testing, the current tenant/reference hosts now expose this through launcher
-and header language selectors, and the same local seam can also be driven with
-`?locale=en` or `?locale=ro` on the host page URL.
-
-The package is intentionally actor-agnostic:
+The package is actor-agnostic:
 
 - no tenant sample data
 - no publisher sample data
@@ -119,7 +132,7 @@ The package is intentionally actor-agnostic:
 
 Those concerns stay in local config, backend APIs, and later actor adapters.
 
-## SDK modules
+## SDK Modules
 
 - `embed-surface`
   - high-level browser SDK entrypoint for complete embedding
@@ -136,7 +149,7 @@ Those concerns stay in local config, backend APIs, and later actor adapters.
 - `xms`
   - browser-side monetization/read helpers for plans, paywalls, balances, and history
 
-## Minimal usage
+## Minimal Usage
 
 ```ts
 import {
@@ -184,14 +197,9 @@ const snapshotSummary = summarizeXappMonetizationSnapshot({
 ## Unified Embed Surface
 
 Use `bootstrapXappsEmbedSession(...)` plus `mountCatalogEmbed(...)` or
-`mountSingleXappEmbed(...)` as the canonical browser-side entrypoint for
-complete embedding.
+`mountSingleXappEmbed(...)` as the canonical browser-side entrypoint.
 
-This is the intended public surface above the older page-wrapper helpers. The
-older wrappers remain useful for reference hosts, but the unified surface is
-the path new integrators should start from.
-
-This surface works the same way for:
+It works the same way for:
 
 - hosted mode, where the tenant backend stays on the platform
 - self-owned tenant mode, where the tenant owns the backend but keeps the same
@@ -210,7 +218,7 @@ await bootstrapXappsEmbedSession(
     },
   },
   {
-    hostBootstrapUrl: "/api/host-bootstrap",
+    hostBootstrapUrl: "/api/browser/host-bootstrap",
     identityStorageKey: "xapps_host_identity_v1",
   },
 );
@@ -229,18 +237,61 @@ Use:
 - `mountCatalogEmbed(...)` for `single-panel` or `split-panel`
 - `mountSingleXappEmbed(...)` plus `xappId` for direct xapp mount
 
+Hosted-integrator expiry model:
+
+- `bootstrapToken` is short-lived bootstrap state
+- the SDK should silently re-bootstrap when possible
+- if renewal cannot succeed, control should return to the launcher
+- local app identity, not stored bootstrap state, remains the source of truth
+
+Current security posture:
+
+- bootstrap is used to enter the host flow
+- host backend verifies it and mints a local session
+- browser no longer relies on bootstrap token as the ongoing credential
+
+Host-session endpoints:
+
+- `POST /api/host-session/exchange`
+- `POST /api/host-session/logout`
+
+Hosted rollout rule:
+
+- hosted-mode browser-host requires host-session exchange
+- bootstrap-header usage should be treated as retirement cleanup only, not the
+  supported hosted authority path
+
+Current implementation note:
+
+- the shipped browser-host flow now requires host-session exchange for hosted
+  mode
+- same-origin tenant pages without hosted bootstrap can still run on local
+  subject identity without this hosted exchange path
+
+Runtime surface note:
+
+- mounted controllers expose `logout()`
+- when host-session exchange is active, `logout()` calls
+  `POST /api/host-session/logout`, clears local identity state, and returns the
+  surface to launcher-state
+
+Hosted backend rule:
+
+- cross-origin hosted API calls should authenticate through the host-session
+  cookie after exchange
+- bootstrap header should be used only for exchange and renewal entry, not as
+  ongoing hosted API authority
+
+Security posture rule:
+
+- if you need tighter replay/session guarantees, move authority into a local
+  backend session instead of extending browser token lifetime or browser storage
+
+The SDK contract should remain stable while session ownership stays with the
+backend-owned host session posture.
+
 This layer sits above `launcher-core` and `@xapps-platform/embed-sdk`, and it
-is the default integration path for both hosted and self-owned tenant embeds.
-
-## Reference hosts in this repo
-
-This repository still ships reference host pages and shell helpers used by:
-
-- `xconect`
-- `xconecta`
-- `xconectb`
-- `xconectc`
-- hosted proof/reference variants
+is the default integration path for hosted and self-owned tenant embeds.
 
 Those files are repo implementation details. They exist so our local tenants
 can serve working host pages through `/host/*`, but they are not the browser
@@ -255,7 +306,8 @@ npm run smoke --workspace packages/browser-host
 
 ## Hosted Integrator Starter
 
-For the thin browser starter that pairs with a local `POST /api/host-bootstrap`
+For the thin browser starter that pairs with a local `POST /api/browser/host-bootstrap`
 route and a platform-hosted tenant backend, use:
 
 - [packages/browser-host/examples/hosted-integrator-starter/README.md](/home/dacrise/x/xapps/packages/browser-host/examples/hosted-integrator-starter/README.md)
+- [apps/tenants/docs/tooling/first-hosted-tenant-integrator-handoff.md](/home/dacrise/x/xapps/apps/tenants/docs/tooling/first-hosted-tenant-integrator-handoff.md)

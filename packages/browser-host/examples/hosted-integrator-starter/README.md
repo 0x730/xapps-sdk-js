@@ -15,11 +15,38 @@ The canonical process still lives here:
 The starter only covers the browser slice of that process:
 
 1. the local app resolves the current external identity
-2. the local app calls local `POST /api/host-bootstrap`
+2. the local app calls local `POST /api/browser/host-bootstrap`
 3. the local backend calls the hosted tenant backend
 4. the hosted tenant returns `subjectId` + short-lived `bootstrapToken`
 5. the browser stores that bootstrap state
 6. the browser mounts `@xapps-platform/browser-host`
+
+Page handoff behavior:
+
+- the launcher redirects with the resolved `subjectId`
+- marketplace and single-xapp pages can use that `subjectId` to re-bootstrap if
+  local bootstrap state is missing or stale
+
+Expiry behavior:
+
+1. the browser treats `bootstrapToken` as short-lived bootstrap state
+2. when it expires, the SDK attempts silent re-bootstrap through local `POST /api/browser/host-bootstrap`
+3. if silent re-bootstrap fails, the app returns to the launcher
+4. the launcher reboots from the local app identity
+
+Security mode for this starter:
+
+- this starter uses the browser-host SDK path
+- hosted-mode now requires host-session exchange
+- browser-bootstrap remains the entry and renewal seam, not the ongoing browser
+  authority path
+- local `/api/browser/host-bootstrap` is the browser-safe renewal entry seam
+
+The same starter shape also supports explicit logout through the SDK controller:
+
+- `controller.logout()` calls `POST /api/host-session/logout` when host-session
+  mode is active
+- then clears local identity state and returns the operator to launcher-state
 
 Files:
 
@@ -68,6 +95,7 @@ Important:
 - first bootstrap usually sends `identifier`, not `subjectId`
 - `subjectId` is resolved by the hosted tenant
 - later, if the integrator stores that `subjectId`, they may reuse it
+- integrators must keep enough local identity context to renew bootstrap when it expires
 
 For the first real hosted-tenant lane, subject profiles are mandatory, so this
 browser starter is only one part of the integration. The integrator also needs

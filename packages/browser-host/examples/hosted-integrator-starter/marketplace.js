@@ -24,7 +24,8 @@ function readPageOptions() {
       : DEFAULT_MODE;
   const locale = readString(currentUrl.searchParams.get("locale")) || DEFAULT_LOCALE;
   const themeKey = readString(currentUrl.searchParams.get("theme")) || DEFAULT_THEME_KEY;
-  return { mode, locale, themeKey };
+  const subjectId = readString(currentUrl.searchParams.get("subjectId"));
+  return { mode, locale, themeKey, subjectId };
 }
 
 function syncPageCopy({ mode, locale, themeKey }) {
@@ -63,6 +64,7 @@ async function mountMarketplace() {
     entryHref: ENTRY_HREF,
     identityStorageKey: IDENTITY_STORAGE_KEY,
     hostBootstrapUrl: HOST_BOOTSTRAP_URL,
+    ...(options.subjectId ? { identity: { subjectId: options.subjectId } } : {}),
     container: document.getElementById("catalog"),
     widgetContainer: options.mode === "split-panel" ? document.getElementById("widget") : null,
     mode: options.mode,

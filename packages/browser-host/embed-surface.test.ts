@@ -91,7 +91,7 @@ afterEach(() => {
 describe("@xapps-platform/browser-host embed surface", () => {
   it("bootstraps and stores a host session from identity input", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
-      expect(String(input)).toBe("/api/host-bootstrap");
+      expect(String(input)).toBe("/api/browser/host-bootstrap");
       return mockJsonResponse({
         subjectId: "sub_123",
         bootstrapToken: "token_123",
@@ -109,7 +109,7 @@ describe("@xapps-platform/browser-host embed surface", () => {
         email: "alex@example.com",
       },
       {
-        hostBootstrapUrl: "/api/host-bootstrap",
+        hostBootstrapUrl: "/api/browser/host-bootstrap",
         identityStorageKey: "xapps_test_embed_surface",
         fetchImpl: fetchMock as unknown as typeof fetch,
       },
@@ -128,17 +128,28 @@ describe("@xapps-platform/browser-host embed surface", () => {
 
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
-      if (url === "/api/host-bootstrap") {
+      if (url === "/api/browser/host-bootstrap") {
         return mockJsonResponse({
           subjectId: "sub_marketplace",
           bootstrapToken: "token_marketplace",
           expiresIn: 300,
         });
       }
-      if (url === "https://tenant.example/api/host-config") {
+      if (url === "https://tenant.example/api/host-session/exchange") {
+        expect(init?.credentials).toBe("include");
         expect((init?.headers as Record<string, string>)?.["X-Xapps-Host-Bootstrap"]).toBe(
           "token_marketplace",
         );
+        return mockJsonResponse({
+          ok: true,
+          subjectId: "sub_marketplace",
+          expiresIn: 1800,
+          sessionMode: "host_session",
+        });
+      }
+      if (url === "https://tenant.example/api/host-config") {
+        expect(init?.credentials).toBe("include");
+        expect((init?.headers as Record<string, string>)?.["X-Xapps-Host-Bootstrap"]).toBeFalsy();
         return mockJsonResponse({
           gatewayUrl: "https://gateway.example",
           installationPolicy: { mode: "manual" },
@@ -163,7 +174,7 @@ describe("@xapps-platform/browser-host embed surface", () => {
       widgetContainer,
       mode: "split-panel",
       identityStorageKey: "xapps_test_embed_surface",
-      hostBootstrapUrl: "/api/host-bootstrap",
+      hostBootstrapUrl: "/api/browser/host-bootstrap",
       identity: {
         identifier: {
           idType: "tenant_member_id",
@@ -179,12 +190,164 @@ describe("@xapps-platform/browser-host embed surface", () => {
     const runtimeOptions = createMarketplaceRuntime.mock.calls[0]?.[0];
     expect(runtimeOptions.currentSubjectId).toBe("sub_marketplace");
     expect(runtimeOptions.gatewayBaseUrl).toBe("https://gateway.example");
+    expect(runtimeOptions.hostApiCredentials).toBe("include");
     expect(runtimeOptions.getCatalogMount()).toBe(container);
     expect(runtimeOptions.getWidgetMount()).toBe(widgetContainer);
     expect(runtime.mount).toHaveBeenCalledWith("split-panel");
     expect(controller.getIdentity()?.subjectId).toBe("sub_marketplace");
     controller.destroy();
     expect(runtime.destroy).toHaveBeenCalledTimes(1);
+  });
+
+  it("logs out host-session surfaces through the backend and clears local identity", async () => {
+    const container = document.createElement("div");
+    const widgetContainer = document.createElement("div");
+    document.body.appendChild(container);
+    document.body.appendChild(widgetContainer);
+
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url === "/api/browser/host-bootstrap") {
+        return mockJsonResponse({
+          subjectId: "sub_marketplace",
+          bootstrapToken: "token_marketplace",
+          expiresIn: 300,
+        });
+      }
+      if (url === "https://tenant.example/api/host-session/exchange") {
+        return mockJsonResponse({
+          ok: true,
+          subjectId: "sub_marketplace",
+          expiresIn: 1800,
+          sessionMode: "host_session",
+        });
+      }
+      if (url === "https://tenant.example/api/host-session/logout") {
+        expect(init?.credentials).toBe("include");
+        return mockJsonResponse({
+          ok: true,
+          status: "revoked",
+          sessionMode: "host_session",
+        });
+      }
+      if (url === "https://tenant.example/api/host-config") {
+        return mockJsonResponse({
+          gatewayUrl: "https://gateway.example",
+          installationPolicy: { mode: "manual" },
+        });
+      }
+      throw new Error(`unexpected fetch ${url}`);
+    });
+
+    const runtime = {
+      mount: vi.fn(async () => {}),
+      destroy: vi.fn(),
+      setLocale: vi.fn(),
+      emitLocaleChanged: vi.fn(),
+      emitSessionExpired: vi.fn(),
+    };
+    const createMarketplaceRuntime = vi.fn(() => runtime);
+
+    const controller = await mountXappsSurface({
+      surface: "marketplace",
+      backendBaseUrl: "https://tenant.example",
+      container,
+      widgetContainer,
+      mode: "single-panel",
+      identityStorageKey: "xapps_test_embed_surface",
+      hostBootstrapUrl: "/api/browser/host-bootstrap",
+      identity: {
+        identifier: {
+          idType: "tenant_member_id",
+          value: "acct-company-a-user-42",
+        },
+      },
+      fetchImpl: fetchMock as unknown as typeof fetch,
+      sdkLoader: async () => createSdkStub(),
+      createMarketplaceRuntime,
+    });
+
+    expect(controller.getIdentity()?.subjectId).toBe("sub_marketplace");
+    await controller.logout();
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://tenant.example/api/host-session/logout",
+      expect.objectContaining({
+        method: "POST",
+        credentials: "include",
+      }),
+    );
+    expect(controller.getIdentity()).toBeNull();
+    expect(readActiveHostIdentity("xapps_test_embed_surface")).toBeNull();
+    expect(runtime.emitSessionExpired).toHaveBeenCalledWith("logout");
+    expect(container.textContent).toContain("Session ended");
+  });
+
+  it("logs out through an explicit host-session logout path even without local exchange state", async () => {
+    const container = document.createElement("div");
+    const widgetContainer = document.createElement("div");
+    document.body.appendChild(container);
+    document.body.appendChild(widgetContainer);
+
+    window.localStorage.setItem(
+      "xapps_test_embed_surface",
+      JSON.stringify({
+        subjectId: "sub_same_origin",
+        email: "user@xconect-demo.test",
+        resolvedAt: new Date().toISOString(),
+      }),
+    );
+
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url === "http://localhost:3312/api/host-config") {
+        return mockJsonResponse({
+          gatewayUrl: "http://localhost:3000",
+          installationPolicy: { mode: "manual" },
+        });
+      }
+      if (url === "http://localhost:3312/api/host-session/logout") {
+        expect(init?.credentials).toBe("include");
+        return mockJsonResponse({
+          ok: true,
+          status: "revoked",
+          sessionMode: "host_session",
+        });
+      }
+      throw new Error(`unexpected fetch ${url}`);
+    });
+
+    const runtime = {
+      mount: vi.fn(async () => {}),
+      destroy: vi.fn(),
+      setLocale: vi.fn(),
+      emitLocaleChanged: vi.fn(),
+      emitSessionExpired: vi.fn(),
+    };
+    const createMarketplaceRuntime = vi.fn(() => runtime);
+
+    const controller = await mountXappsSurface({
+      surface: "marketplace",
+      backendBaseUrl: "http://localhost:3312",
+      container,
+      widgetContainer,
+      mode: "single-panel",
+      identityStorageKey: "xapps_test_embed_surface",
+      hostSessionLogoutPath: "http://localhost:3312/api/host-session/logout",
+      fetchImpl: fetchMock as unknown as typeof fetch,
+      sdkLoader: async () => createSdkStub(),
+      createMarketplaceRuntime,
+    });
+
+    await controller.logout();
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://localhost:3312/api/host-session/logout",
+      expect.objectContaining({
+        method: "POST",
+        credentials: "include",
+      }),
+    );
+    expect(controller.getIdentity()).toBeNull();
+    expect(readActiveHostIdentity("xapps_test_embed_surface")).toBeNull();
   });
 
   it("mounts single-xapp surfaces from direct bootstrap state", async () => {
@@ -293,5 +456,48 @@ describe("@xapps-platform/browser-host embed surface", () => {
     expect(controller.getIdentity()?.subjectId).toBe("sub_same_origin");
     expect(runtime.mount).toHaveBeenCalledWith("single-panel");
     controller.destroy();
+  });
+
+  it("requires host-session exchange for hosted-mode surfaces", async () => {
+    const container = document.createElement("div");
+    const widgetContainer = document.createElement("div");
+    document.body.appendChild(container);
+    document.body.appendChild(widgetContainer);
+
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url === "/api/browser/host-bootstrap") {
+        return mockJsonResponse({
+          subjectId: "sub_marketplace",
+          bootstrapToken: "token_marketplace",
+          expiresIn: 300,
+        });
+      }
+      if (url === "https://tenant.example/api/host-session/exchange") {
+        return mockJsonResponse({ message: "not found" }, { status: 404, ok: false });
+      }
+      throw new Error(`unexpected fetch ${url}`);
+    });
+
+    await expect(
+      mountXappsSurface({
+        surface: "marketplace",
+        backendBaseUrl: "https://tenant.example",
+        container,
+        widgetContainer,
+        mode: "single-panel",
+        identityStorageKey: "xapps_test_embed_surface",
+        hostBootstrapUrl: "/api/browser/host-bootstrap",
+        identity: {
+          identifier: {
+            idType: "tenant_member_id",
+            value: "acct-company-a-user-42",
+          },
+        },
+        fetchImpl: fetchMock as unknown as typeof fetch,
+        sdkLoader: async () => createSdkStub(),
+        createMarketplaceRuntime: vi.fn(),
+      }),
+    ).rejects.toThrow("host session exchange is required but not available");
   });
 });

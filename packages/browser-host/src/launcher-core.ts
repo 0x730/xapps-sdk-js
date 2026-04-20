@@ -1,4 +1,4 @@
-export const DEFAULT_HOST_BOOTSTRAP_URL = "/api/host-bootstrap";
+export const DEFAULT_HOST_BOOTSTRAP_URL = "/api/browser/host-bootstrap";
 export const DEFAULT_IDENTITY_STORAGE_KEY = "xapps_host_identity_v1";
 
 export type HostIdentifierInput = {
@@ -107,6 +107,29 @@ export function readStoredHostIdentity(storageKey = DEFAULT_IDENTITY_STORAGE_KEY
   return identity && typeof identity === "object" ? identity : null;
 }
 
+export function readRecoverableHostIdentity(
+  storageKey = DEFAULT_IDENTITY_STORAGE_KEY,
+  currentUrl: string | URL | null | undefined = typeof window !== "undefined"
+    ? window.location?.href
+    : "",
+) {
+  const storedIdentity = readStoredHostIdentity(storageKey);
+  if (storedIdentity) return storedIdentity;
+  const urlValue =
+    currentUrl instanceof URL
+      ? currentUrl
+      : typeof currentUrl === "string" && currentUrl.trim()
+        ? new URL(
+            currentUrl,
+            typeof window !== "undefined" && typeof window.location?.href === "string"
+              ? window.location.href
+              : "http://localhost",
+          )
+        : null;
+  const subjectId = normalizeString(urlValue?.searchParams.get("subjectId"));
+  return subjectId ? { subjectId } : null;
+}
+
 export function clearStoredHostIdentity(storageKey = DEFAULT_IDENTITY_STORAGE_KEY) {
   const storage = getLocalStorage();
   if (!storage) return;
@@ -159,18 +182,10 @@ export function normalizeHostBootstrapResult(
 ): HostBootstrapResult {
   const normalized = data && typeof data === "object" ? data : {};
   const subjectId = normalizeString(
-    (normalized as Record<string, unknown>).subjectId ||
-      (normalized as Record<string, unknown>).subject_id ||
-      fallbackSubjectId,
+    (normalized as Record<string, unknown>).subjectId || fallbackSubjectId,
   );
-  const bootstrapToken = normalizeString(
-    (normalized as Record<string, unknown>).bootstrapToken ||
-      (normalized as Record<string, unknown>).bootstrap_token,
-  );
-  const expiresIn =
-    Number((normalized as Record<string, unknown>).expiresIn) ||
-    Number((normalized as Record<string, unknown>).expires_in) ||
-    300;
+  const bootstrapToken = normalizeString((normalized as Record<string, unknown>).bootstrapToken);
+  const expiresIn = Number((normalized as Record<string, unknown>).expiresIn) || 300;
   if (!subjectId) {
     throw new Error("resolve-subject response missing subjectId");
   }

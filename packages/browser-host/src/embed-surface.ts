@@ -8,6 +8,7 @@ import {
   DEFAULT_HOST_BOOTSTRAP_URL,
   DEFAULT_IDENTITY_STORAGE_KEY,
   buildStoredHostIdentity,
+  clearStoredHostIdentity,
   executeHostBootstrap,
   normalizeHostIdentityInput,
   readActiveHostIdentity,
@@ -105,6 +106,8 @@ export type MountXappsSurfaceOptions = BrowserHostBackendBaseInput & {
     widgetContainer?: HTMLElement | null;
     entryHref?: string | null;
   }) => void;
+  hostSessionExchangePath?: string;
+  hostSessionLogoutPath?: string;
 };
 
 export type XappsSurfaceController = {
@@ -114,6 +117,7 @@ export type XappsSurfaceController = {
   getHostConfig: () => Record<string, unknown> | null;
   setLocale: (locale: string) => void;
   emitSessionExpired: (reason?: string) => void;
+  logout: () => Promise<void>;
   remount: (next?: { mode?: MarketplaceMode; xappId?: string | null }) => Promise<void>;
   destroy: () => void;
 };
@@ -171,6 +175,14 @@ function isBootstrapRetryableMessage(message: string) {
 
 function normalizeMarketplaceMode(mode: unknown): MarketplaceMode {
   return readString(mode) === "split-panel" ? "split-panel" : "single-panel";
+}
+
+function stripBootstrapState(identity: StoredHostIdentity | null) {
+  if (!identity || typeof identity !== "object") return null;
+  const nextIdentity = { ...(identity as Record<string, unknown>) };
+  delete nextIdentity.bootstrapToken;
+  delete nextIdentity.bootstrapExpiresAt;
+  return nextIdentity as StoredHostIdentity;
 }
 
 function ensureHostUiNodes(container: HTMLElement) {
@@ -392,6 +404,8 @@ export async function mountXappsSurface(
   let hostConfig: Record<string, unknown> | null = null;
   let destroyed = false;
   let currentMode = normalizeMarketplaceMode(options.mode);
+  let useHostSession = false;
+  let sessionEnded = false;
 
   const tryRefreshIdentity = async () => {
     if (!refreshInFlight) {
@@ -421,14 +435,27 @@ export async function mountXappsSurface(
   };
 
   const getHostApiHeaders = () => {
+    if (useHostSession) return undefined;
     const bootstrapToken = readString(currentIdentity?.bootstrapToken);
     return bootstrapToken ? { "X-Xapps-Host-Bootstrap": bootstrapToken } : undefined;
+  };
+
+  const isHostSessionRetryableMessage = (message: string) => {
+    const normalized = readString(message).toLowerCase();
+    return (
+      normalized.includes("host session token expired") ||
+      normalized.includes("host session token is invalid") ||
+      normalized.includes("host session token is malformed") ||
+      normalized.includes("missing host session") ||
+      normalized.includes("invalid or expired host session")
+    );
   };
 
   const fetchWithBootstrap: FetchLike = async (input, init) => {
     const exec = () =>
       (options.fetchImpl || fetch)(input, {
         ...(init || {}),
+        credentials: init?.credentials || "include",
         headers: {
           ...(getHostApiHeaders() || {}),
           ...(((init && init.headers) || {}) as Record<string, string>),
@@ -449,9 +476,88 @@ export async function mountXappsSurface(
         if (refreshed) {
           response = await exec();
         }
+      } else if (useHostSession && isHostSessionRetryableMessage(message)) {
+        const refreshed = await tryRefreshIdentity();
+        if (refreshed) {
+          useHostSession = false;
+          const exchanged = await exchangeHostSession().catch(() => false);
+          if (exchanged) {
+            response = await exec();
+          }
+        }
       }
     }
     return response;
+  };
+
+  const exchangeHostSession = async () => {
+    if (!readString(currentIdentity?.bootstrapToken)) return false;
+    const exchangePath =
+      readString(options.hostSessionExchangePath) ||
+      `${resolveHostApiBasePath(backendInput)}/host-session/exchange`;
+    const exec = async () =>
+      (options.fetchImpl || fetch)(exchangePath, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          ...(useHostSession ? {} : getHostApiHeaders() || {}),
+        },
+      });
+    let response = await exec();
+    if (!response.ok && response.status === 401) {
+      const message = String(
+        await response
+          .clone()
+          .json()
+          .then((value: any) => value?.message || "")
+          .catch(() => ""),
+      );
+      if (isBootstrapRetryableMessage(message)) {
+        const refreshed = await tryRefreshIdentity();
+        if (refreshed) {
+          response = await exec();
+        }
+      }
+    }
+    if ([404, 405, 501].includes(response.status)) {
+      throw new Error("host session exchange is required but not available");
+    }
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(String((data as any)?.message || "host session exchange failed"));
+    }
+    useHostSession = true;
+    currentIdentity = stripBootstrapState(currentIdentity);
+    if (currentIdentity) {
+      writeStoredHostIdentity(storageKey, currentIdentity);
+    }
+    return true;
+  };
+
+  const logoutHostSession = async () => {
+    if (sessionEnded) return;
+    const logoutPath =
+      readString(options.hostSessionLogoutPath) ||
+      `${resolveHostApiBasePath(backendInput)}/host-session/logout`;
+    const shouldAttemptHostSessionLogout = Boolean(
+      useHostSession ||
+      readString(options.hostSessionLogoutPath) ||
+      readString(options.hostBootstrapUrl),
+    );
+    if (shouldAttemptHostSessionLogout) {
+      const response = await (options.fetchImpl || fetch)(logoutPath, {
+        method: "POST",
+        credentials: "include",
+      });
+      if (![200, 204, 404, 405, 501].includes(response.status)) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(String((data as any)?.message || "host session logout failed"));
+      }
+    }
+    sessionEnded = true;
+    useHostSession = false;
+    currentIdentity = null;
+    clearStoredHostIdentity(storageKey);
   };
 
   const hostApiClient =
@@ -483,6 +589,10 @@ export async function mountXappsSurface(
           }
           return data;
         };
+
+  if (readString(options.hostBootstrapUrl) && readString(currentIdentity?.bootstrapToken)) {
+    await exchangeHostSession();
+  }
 
   const showSessionExpired = (reason?: string) => {
     options.onSessionExpired?.({
@@ -520,6 +630,9 @@ export async function mountXappsSurface(
   const paymentResumeState = sdk.createHostPaymentResumeState(readCurrentHref(), {
     autoCleanUrl: true,
   });
+  const hostApiCredentials: RequestCredentials | undefined = options.hostBootstrapUrl
+    ? "include"
+    : undefined;
 
   const resolveCatalogCustomerProfile = async (input: { xappId?: string | null } = {}) => {
     const xappId = readString(input?.xappId);
@@ -553,6 +666,7 @@ export async function mountXappsSurface(
             apiBasePath,
             apiClient: hostApiClient,
             hostApiHeadersProvider: getHostApiHeaders,
+            hostApiCredentials,
             bridgeV2: {
               clearSession: ({ reason }: { reason?: string } = {}) => showSessionExpired(reason),
               endpoints: bridgeEndpoints,
@@ -574,6 +688,7 @@ export async function mountXappsSurface(
             apiBasePath,
             apiClient: hostApiClient,
             hostApiHeadersProvider: getHostApiHeaders,
+            hostApiCredentials,
             bridgeV2: {
               clearSession: ({ reason }: { reason?: string } = {}) => showSessionExpired(reason),
               endpoints: bridgeEndpoints,
@@ -596,6 +711,11 @@ export async function mountXappsSurface(
       emitSessionExpired: (reason?: string) => {
         runtime?.emitSessionExpired?.(reason);
         showSessionExpired(reason);
+      },
+      logout: async () => {
+        await logoutHostSession();
+        runtime?.emitSessionExpired?.("logout");
+        showSessionExpired("logout");
       },
       remount: async (next = {}) => {
         currentMode = normalizeMarketplaceMode(next.mode || currentMode);
@@ -647,6 +767,7 @@ export async function mountXappsSurface(
     apiClient: hostApiClient,
     hostApiHeaders: getHostApiHeaders(),
     hostApiHeadersProvider: getHostApiHeaders,
+    hostApiCredentials,
     paymentResume: false,
     embedContext: {
       getHostReturnUrl: () =>
@@ -712,6 +833,11 @@ export async function mountXappsSurface(
     emitSessionExpired: (reason?: string) => {
       controller?.emitSessionExpired?.(reason);
       showSessionExpired(reason);
+    },
+    logout: async () => {
+      await logoutHostSession();
+      controller?.emitSessionExpired?.("logout");
+      showSessionExpired("logout");
     },
     remount: async (next = {}) => {
       const nextXappId = readString(next.xappId || safeXappId);
