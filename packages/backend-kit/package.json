@@ -37,6 +37,6 @@
     "smoke": "npm run build && node examples/smoke/smoke.mjs"
   },
   "dependencies": {
-    "@xapps-platform/server-sdk": "^0.2.9"
+    "@xapps-platform/server-sdk": "^0.2.10"
   }
 }
