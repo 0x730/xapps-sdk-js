@@ -17,9 +17,9 @@ export const paymentSessionModel = {
   tenant_session_reference: "tenant page proxies gateway session through /api/tenant-payment/*",
 };
 export const requiredSettings = [
-  "XCONECT_GUARD_INGEST_API_KEY",
-  "XCONECT_TENANT_PAYMENT_URL",
-  "XCONECT_TENANT_PAYMENT_RETURN_SECRET or XCONECT_TENANT_PAYMENT_RETURN_SECRET_REF",
+  "GUARD_INGEST_API_KEY",
+  "TENANT_PAYMENT_URL",
+  "TENANT_PAYMENT_RETURN_SECRET or TENANT_PAYMENT_RETURN_SECRET_REF",
 ];
 export const paymentResponsibilities = [
   "serve the tenant payment page",

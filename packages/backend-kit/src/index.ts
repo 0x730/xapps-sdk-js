@@ -40,8 +40,15 @@ import {
   normalizeBackendKitOptions,
   resolvePlatformSecretRefFromEnv,
   type BackendKitNormalizedOptions,
+  type HostSessionStore,
   type StringRecord,
 } from "./backend/options.js";
+import {
+  createFileHostBootstrapReplayConsumer,
+  createFileHostSessionStore,
+  type FileHostBootstrapReplayConsumerConfig,
+  type FileHostSessionStoreConfig,
+} from "./backend/fileHostStore.js";
 
 type ReplyLike = {
   code: (statusCode: number) => {
@@ -79,6 +86,7 @@ type BackendKitDeps = {
     enableBridge: boolean;
     allowedOrigins: string[];
     bootstrap: BackendKitNormalizedOptions["host"]["bootstrap"];
+    session: BackendKitNormalizedOptions["host"]["session"];
     hostProxyService: unknown;
   }) => RouteModule;
   createGatewayExecutionModule?: (input: {
@@ -97,6 +105,9 @@ export type BackendKit = {
 export type {
   ActivateXappPurchaseReferenceInput,
   ConsumeXappWalletCreditsInput,
+  FileHostBootstrapReplayConsumerConfig,
+  FileHostSessionStoreConfig,
+  HostSessionStore,
   FinalizeXappHostedPurchaseInput,
   ListXappHostedPaymentPresetsInput,
   ReadXappMonetizationSnapshotInput,
@@ -106,6 +117,8 @@ export type {
   XappMonetizationReferencePackageSummary,
   XappMonetizationReferenceSummary,
 };
+
+export { createFileHostBootstrapReplayConsumer, createFileHostSessionStore };
 
 export type VerifyBrowserWidgetContextInput = {
   hostOrigin: string;
@@ -244,6 +257,7 @@ export async function createBackendKit(
     enableBridge: options.host.enableBridge,
     allowedOrigins: options.host.allowedOrigins,
     bootstrap: options.host.bootstrap,
+    session: options.host.session,
     hostProxyService: options.overrides.hostProxyService,
   });
   const gatewayExecutionModule = createGatewayExecutionModuleDep({

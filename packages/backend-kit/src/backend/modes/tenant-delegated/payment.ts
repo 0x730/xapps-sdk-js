@@ -13,9 +13,9 @@ export const paymentSessionModel = {
   tenant_session_reference: "gateway-hosted delegated session only",
 };
 export const requiredSettings = [
-  "XCONECT_GUARD_INGEST_API_KEY",
+  "GUARD_INGEST_API_KEY",
   "delegated payment credential refs in the manifest/guard config",
-  "XCONECT_TENANT_PAYMENT_RETURN_SECRET or XCONECT_TENANT_PAYMENT_RETURN_SECRET_REF",
+  "TENANT_PAYMENT_RETURN_SECRET or TENANT_PAYMENT_RETURN_SECRET_REF",
 ];
 export const paymentResponsibilities = [
   "keep tenant-delegated payment lane configured",

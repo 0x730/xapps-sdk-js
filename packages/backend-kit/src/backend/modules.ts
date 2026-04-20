@@ -16,6 +16,7 @@ type HostReferenceModuleInput = {
   enableBridge?: boolean;
   allowedOrigins?: string[];
   bootstrap?: BackendKitNormalizedOptions["host"]["bootstrap"];
+  session?: BackendKitNormalizedOptions["host"]["session"];
   hostProxyService?: unknown;
 };
 
@@ -32,6 +33,7 @@ type HostReferenceModuleDeps = {
       enableBridge: boolean;
       allowedOrigins: string[];
       bootstrap: BackendKitNormalizedOptions["host"]["bootstrap"];
+      session: BackendKitNormalizedOptions["host"]["session"];
       branding: StringRecord;
       subjectProfiles: StringRecord;
       hostProxyService: unknown;
@@ -99,7 +101,35 @@ export function createHostReferenceModule(
     enableLifecycle = true,
     enableBridge = true,
     allowedOrigins = [],
-    bootstrap = { apiKeys: [], signingSecret: "", ttlSeconds: 300 },
+    bootstrap = {
+      apiKeys: [],
+      signingSecret: "",
+      signingKeyId: "",
+      verifierKeys: {},
+      ttlSeconds: 300,
+      consumeJti: null,
+    },
+    session = {
+      signingSecret: "",
+      signingKeyId: "",
+      verifierKeys: {},
+      cookieName: "xapps_host_session",
+      absoluteTtlSeconds: 1800,
+      idleTtlSeconds: 0,
+      cookiePath: "/",
+      cookieDomain: "",
+      cookieSameSite: "auto",
+      cookieSecure: "auto",
+      store: {
+        activate: null,
+        touch: null,
+        isRevoked: null,
+        revoke: null,
+      },
+      resolveSameOriginSubjectId: null,
+      rateLimitExchange: null,
+      auditExchange: null,
+    },
     hostProxyService = null,
   }: HostReferenceModuleInput = {},
   deps: HostReferenceModuleDeps = {},
@@ -124,6 +154,7 @@ export function createHostReferenceModule(
     enableBridge,
     allowedOrigins,
     bootstrap,
+    session,
     branding,
     subjectProfiles,
     hostProxyService: resolvedHostProxyService,

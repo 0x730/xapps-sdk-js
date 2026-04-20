@@ -12,11 +12,14 @@ export default async function hostGatewayApiRoutes(
     hostProxyService = null,
     allowedOrigins = [],
     bootstrap = {},
+    session = {},
     subjectProfiles = {},
   } = {},
 ) {
   const preflightPaths = [
     "/api/host-config",
+    "/api/host-session/exchange",
+    "/api/host-session/logout",
     "/api/resolve-subject",
     "/api/create-catalog-session",
     "/api/catalog-customer-profile",
@@ -56,14 +59,25 @@ export default async function hostGatewayApiRoutes(
     hostProxyService,
     allowedOrigins,
     bootstrap,
+    session,
     subjectProfiles,
   });
 
   if (enableLifecycle) {
-    await fastify.register(hostApiLifecycleRoutes, { hostProxyService, allowedOrigins, bootstrap });
+    await fastify.register(hostApiLifecycleRoutes, {
+      hostProxyService,
+      allowedOrigins,
+      bootstrap,
+      session,
+    });
   }
 
   if (enableBridge) {
-    await fastify.register(hostApiBridgeRoutes, { hostProxyService, allowedOrigins, bootstrap });
+    await fastify.register(hostApiBridgeRoutes, {
+      hostProxyService,
+      allowedOrigins,
+      bootstrap,
+      session,
+    });
   }
 }

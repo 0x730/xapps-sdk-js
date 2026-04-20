@@ -7,8 +7,6 @@ function readString(...values) {
   return "";
 }
 
-// Keep backward-compat aliases at the HTTP boundary only.
-// Tenant implementations should treat the camelCase shape below as canonical.
 export function normalizeWidgetSessionInput(body, request) {
   return {
     installationId: body.installationId,
@@ -17,10 +15,9 @@ export function normalizeWidgetSessionInput(body, request) {
     subjectId: body.subjectId,
     xappId: body.xappId,
     requestId: body.requestId,
-    hostReturnUrl:
-      readString(body.hostReturnUrl, body.host_return_url, request.headers.referer) || undefined,
-    resultPresentation: body.resultPresentation || body.result_presentation,
-    guardUi: body.guardUi || body.guard_ui,
+    hostReturnUrl: readString(body.hostReturnUrl, request.headers.referer) || undefined,
+    resultPresentation: body.resultPresentation,
+    guardUi: body.guardUi,
   };
 }
 
@@ -30,16 +27,15 @@ export function normalizeBridgeRefreshInput(body, request) {
     widgetId: body.widgetId,
     origin: body.origin,
     subjectId: body.subjectId,
-    hostReturnUrl:
-      readString(body.hostReturnUrl, body.host_return_url, request.headers.referer) || undefined,
+    hostReturnUrl: readString(body.hostReturnUrl, request.headers.referer) || undefined,
   };
 }
 
 export function normalizeBridgeVendorAssertionInput(body) {
   return {
-    vendorId: body.vendorId || body.vendor_id,
-    subjectId: body.subjectId || body.subject_id,
-    installationId: body.installationId || body.installation_id,
+    vendorId: body.vendorId,
+    subjectId: body.subjectId,
+    installationId: body.installationId,
     data: body,
   };
 }

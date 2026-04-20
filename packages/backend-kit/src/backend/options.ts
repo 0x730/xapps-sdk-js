@@ -5,6 +5,73 @@ export type HostSurface = {
   label: string;
 };
 
+export type HostBootstrapConsumeJti = (input: {
+  jti: string;
+  subjectId: string | null;
+  origin: string | null;
+  iat: number | null;
+  exp: number | null;
+  token: string;
+  type: "host_bootstrap";
+}) => boolean | Promise<boolean>;
+
+export type HostSessionActivate = (input: {
+  jti: string;
+  subjectId: string | null;
+  iat: number | null;
+  exp: number | null;
+  idleTtlSeconds: number;
+  token: string;
+  type: "host_session";
+}) => boolean | Promise<boolean>;
+
+export type HostSessionTouch = (input: {
+  jti: string;
+  subjectId: string | null;
+  iat: number | null;
+  exp: number | null;
+  idleTtlSeconds: number;
+  token: string;
+  type: "host_session";
+}) => boolean | { active?: boolean } | Promise<boolean | { active?: boolean }>;
+
+export type HostSessionIsRevokedJti = (input: {
+  jti: string;
+  subjectId: string | null;
+  iat: number | null;
+  exp: number | null;
+  token: string;
+  type: "host_session";
+}) => boolean | Promise<boolean>;
+
+export type HostSessionRevokeJti = (input: {
+  jti: string;
+  subjectId: string | null;
+  iat: number | null;
+  exp: number | null;
+  token: string;
+  type: "host_session";
+}) => boolean | Promise<boolean>;
+
+export type HostSessionStore = {
+  activate?: HostSessionActivate | null;
+  touch?: HostSessionTouch | null;
+  isRevoked?: HostSessionIsRevokedJti | null;
+  revoke?: HostSessionRevokeJti | null;
+};
+
+export type HostSessionResolveSameOriginSubjectId = NonNullable<
+  BackendKitNormalizedOptions["host"]["session"]["resolveSameOriginSubjectId"]
+>;
+
+export type HostSessionRateLimitExchange = NonNullable<
+  BackendKitNormalizedOptions["host"]["session"]["rateLimitExchange"]
+>;
+
+export type HostSessionAuditExchange = NonNullable<
+  BackendKitNormalizedOptions["host"]["session"]["auditExchange"]
+>;
+
 export type BackendKitNormalizedOptions = {
   host: {
     enableReference: boolean;
@@ -14,7 +81,72 @@ export type BackendKitNormalizedOptions = {
     bootstrap: {
       apiKeys: string[];
       signingSecret: string;
+      signingKeyId: string;
+      verifierKeys: Record<string, string>;
       ttlSeconds: number;
+      consumeJti:
+        | ((input: {
+            jti: string;
+            subjectId: string | null;
+            origin: string | null;
+            iat: number | null;
+            exp: number | null;
+            token: string;
+            type: "host_bootstrap";
+          }) => boolean | Promise<boolean>)
+        | null;
+    };
+    session: {
+      signingSecret: string;
+      signingKeyId: string;
+      verifierKeys: Record<string, string>;
+      cookieName: string;
+      absoluteTtlSeconds: number;
+      idleTtlSeconds: number;
+      cookiePath: string;
+      cookieDomain: string;
+      cookieSameSite: "auto" | "Lax" | "Strict" | "None";
+      cookieSecure: "auto" | boolean;
+      store: {
+        activate: HostSessionActivate | null;
+        touch: HostSessionTouch | null;
+        isRevoked: HostSessionIsRevokedJti | null;
+        revoke: HostSessionRevokeJti | null;
+      };
+      resolveSameOriginSubjectId:
+        | ((input: {
+            request: unknown;
+            subjectId: string | null;
+          }) => string | null | Promise<string | null>)
+        | null;
+      rateLimitExchange:
+        | ((input: {
+            request: unknown;
+            subjectId: string | null;
+            origin: string | null;
+            jti: string | null;
+            iat: number | null;
+            exp: number | null;
+            token: string;
+            type: "host_bootstrap";
+          }) => boolean | { allowed?: boolean } | Promise<boolean | { allowed?: boolean }>)
+        | null;
+      auditExchange:
+        | ((input: {
+            request: unknown;
+            ok: boolean;
+            subjectId: string | null;
+            origin: string | null;
+            jti: string | null;
+            iat: number | null;
+            exp: number | null;
+            token: string;
+            type: "host_bootstrap";
+            reason?: string | null;
+            sessionJti?: string | null;
+            sessionExp?: number | null;
+          }) => void | Promise<void>)
+        | null;
     };
   };
   payments: {
@@ -74,12 +206,21 @@ export type BackendKitNormalizedOptions = {
 };
 
 type NormalizeOptionsDeps = {
-  defaults?: StringRecord;
   normalizeEnabledModes?: (value: unknown) => string[];
 };
 
 export function readRecord(value: unknown): StringRecord {
   return value && typeof value === "object" ? (value as StringRecord) : {};
+}
+
+function readFirstNonEmptyString(...values: unknown[]): string {
+  for (const value of values) {
+    const normalized = readString(value).trim();
+    if (normalized) {
+      return normalized;
+    }
+  }
+  return "";
 }
 
 export function readString(value: unknown, fallback = ""): string {
@@ -114,12 +255,49 @@ export function normalizeApiKeys(value: unknown): string[] {
     .filter(Boolean);
 }
 
+export function normalizeSigningVerifierKeys(value: unknown): Record<string, string> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {};
+  }
+  return Object.entries(value as StringRecord).reduce<Record<string, string>>((acc, [key, raw]) => {
+    const normalizedKey = readString(key).trim();
+    const normalizedValue = readString(raw).trim();
+    if (!normalizedKey || !normalizedValue) {
+      return acc;
+    }
+    acc[normalizedKey] = normalizedValue;
+    return acc;
+  }, {});
+}
+
 export function normalizeOwnerIssuer(
   value: unknown,
   fallback: "tenant" | "publisher" = "tenant",
 ): "tenant" | "publisher" {
   const normalized = readString(value, fallback).trim().toLowerCase();
   return normalized === "publisher" ? "publisher" : "tenant";
+}
+
+export function normalizeCookieSameSite(
+  value: unknown,
+  fallback: "auto" | "Lax" | "Strict" | "None" = "auto",
+): "auto" | "Lax" | "Strict" | "None" {
+  const normalized = readString(value, fallback).trim().toLowerCase();
+  if (normalized === "lax") return "Lax";
+  if (normalized === "strict") return "Strict";
+  if (normalized === "none") return "None";
+  return "auto";
+}
+
+export function normalizeCookieSecure(
+  value: unknown,
+  fallback: "auto" | boolean = "auto",
+): "auto" | boolean {
+  if (typeof value === "boolean") return value;
+  const normalized = readString(value, String(fallback)).trim().toLowerCase();
+  if (normalized === "true") return true;
+  if (normalized === "false") return false;
+  return "auto";
 }
 
 export function normalizeHostModes(hostSurfaces: unknown): HostSurface[] {
@@ -133,6 +311,55 @@ export function normalizeHostModes(hostSurfaces: unknown): HostSurface[] {
         : null,
     )
     .filter((entry): entry is HostSurface => Boolean(entry && entry.key && entry.label));
+}
+
+function pickTypedFunction<T>(...values: unknown[]): T | null {
+  for (const value of values) {
+    if (typeof value === "function") {
+      return value as T;
+    }
+  }
+  return null;
+}
+
+function resolveSessionAbsoluteTtl(sessionInput: StringRecord): number {
+  const rawTtl = sessionInput.absoluteTtlSeconds;
+  return Number(rawTtl) > 0 ? Math.floor(Number(rawTtl)) : 1800;
+}
+
+function validateHostedSecurityOptions(host: BackendKitNormalizedOptions["host"]) {
+  if (host.bootstrap.apiKeys.length > 0 && !readString(host.bootstrap.signingSecret).trim()) {
+    throw new TypeError(
+      "host.bootstrap.signingSecret is required when host.bootstrap.apiKeys is configured",
+    );
+  }
+  if (host.bootstrap.apiKeys.length > 0 && !readString(host.session.signingSecret).trim()) {
+    throw new TypeError(
+      "host.session.signingSecret is required when host.bootstrap.apiKeys is configured",
+    );
+  }
+  if (host.bootstrap.apiKeys.length > 0 && typeof host.session.store.isRevoked !== "function") {
+    throw new TypeError(
+      "host.session.store.isRevoked is required when host.bootstrap.apiKeys is configured",
+    );
+  }
+  if (host.bootstrap.apiKeys.length > 0 && typeof host.session.store.revoke !== "function") {
+    throw new TypeError(
+      "host.session.store.revoke is required when host.bootstrap.apiKeys is configured",
+    );
+  }
+  if (host.bootstrap.apiKeys.length > 0 && host.session.idleTtlSeconds > 0) {
+    if (typeof host.session.store.activate !== "function") {
+      throw new TypeError(
+        "host.session.store.activate is required when host.session.idleTtlSeconds is configured",
+      );
+    }
+    if (typeof host.session.store.touch !== "function") {
+      throw new TypeError(
+        "host.session.store.touch is required when host.session.idleTtlSeconds is configured",
+      );
+    }
+  }
 }
 
 export function resolvePlatformSecretRefFromEnv(
@@ -166,7 +393,6 @@ export function normalizeBackendKitOptions(
   input: StringRecord = {},
   deps: NormalizeOptionsDeps = {},
 ): BackendKitNormalizedOptions {
-  const defaults = readRecord(deps.defaults);
   const normalizeEnabledModes =
     typeof deps.normalizeEnabledModes === "function" ? deps.normalizeEnabledModes : null;
   if (!normalizeEnabledModes) {
@@ -174,57 +400,70 @@ export function normalizeBackendKitOptions(
   }
 
   const host = readRecord(input.host);
+  const bootstrap = readRecord(host.bootstrap);
+  const session = readRecord(host.session);
+  const store = readRecord(session.store);
   const payments = readRecord(input.payments);
+  const gateway = readRecord(input.gateway);
   const assets = readRecord(input.assets);
   const seedLogo = readRecord(assets.seedLogo);
   const paymentPage = readRecord(assets.paymentPage);
-  const gateway = readRecord(input.gateway);
   const branding = readRecord(input.branding);
   const reference = readRecord(input.reference);
   const subjectProfiles = readRecord(input.subjectProfiles);
   const overrides = readRecord(input.overrides);
-  const defaultHost = readRecord(defaults.host);
-  const defaultPayments = readRecord(defaults.payments);
-  const defaultGateway = readRecord(defaults.gateway);
-  const hostBootstrap = readRecord(host.bootstrap);
-  const defaultHostBootstrap = readRecord(defaultHost.bootstrap);
+  const sessionTtl = resolveSessionAbsoluteTtl(session);
 
-  return {
+  const normalized: BackendKitNormalizedOptions = {
     host: {
-      enableReference: host.enableReference !== false && defaultHost.enableReference !== false,
-      enableLifecycle: host.enableLifecycle !== false && defaultHost.enableLifecycle !== false,
-      enableBridge: host.enableBridge !== false && defaultHost.enableBridge !== false,
-      allowedOrigins: normalizeAllowedOrigins(host.allowedOrigins ?? defaultHost.allowedOrigins),
+      enableReference: host.enableReference !== false,
+      enableLifecycle: host.enableLifecycle !== false,
+      enableBridge: host.enableBridge !== false,
+      allowedOrigins: normalizeAllowedOrigins(host.allowedOrigins),
       bootstrap: {
-        apiKeys: normalizeApiKeys(hostBootstrap.apiKeys ?? defaultHostBootstrap.apiKeys),
-        signingSecret:
-          readString(hostBootstrap.signingSecret).trim() ||
-          readString(defaultHostBootstrap.signingSecret).trim(),
+        apiKeys: normalizeApiKeys(bootstrap.apiKeys),
+        signingSecret: readString(bootstrap.signingSecret).trim(),
+        signingKeyId: readString(bootstrap.signingKeyId).trim(),
+        verifierKeys: normalizeSigningVerifierKeys(bootstrap.verifierKeys),
         ttlSeconds:
-          Number(hostBootstrap.ttlSeconds ?? defaultHostBootstrap.ttlSeconds) > 0
-            ? Math.floor(Number(hostBootstrap.ttlSeconds ?? defaultHostBootstrap.ttlSeconds))
-            : 300,
+          Number(bootstrap.ttlSeconds) > 0 ? Math.floor(Number(bootstrap.ttlSeconds)) : 300,
+        consumeJti: pickTypedFunction<HostBootstrapConsumeJti>(bootstrap.consumeJti),
+      },
+      session: {
+        signingSecret: readString(session.signingSecret).trim(),
+        signingKeyId: readString(session.signingKeyId).trim(),
+        verifierKeys: normalizeSigningVerifierKeys(session.verifierKeys),
+        cookieName:
+          readString(session.cookieName, "xapps_host_session").trim() || "xapps_host_session",
+        absoluteTtlSeconds: sessionTtl,
+        idleTtlSeconds:
+          Number(session.idleTtlSeconds) > 0 ? Math.floor(Number(session.idleTtlSeconds)) : 0,
+        cookiePath: readString(session.cookiePath, "/").trim() || "/",
+        cookieDomain: readString(session.cookieDomain).trim(),
+        cookieSameSite: normalizeCookieSameSite(session.cookieSameSite, "auto"),
+        cookieSecure: normalizeCookieSecure(session.cookieSecure, "auto"),
+        store: {
+          activate: pickTypedFunction<HostSessionActivate>(store.activate),
+          touch: pickTypedFunction<HostSessionTouch>(store.touch),
+          isRevoked: pickTypedFunction<HostSessionIsRevokedJti>(store.isRevoked),
+          revoke: pickTypedFunction<HostSessionRevokeJti>(store.revoke),
+        },
+        resolveSameOriginSubjectId: pickTypedFunction<HostSessionResolveSameOriginSubjectId>(
+          session.resolveSameOriginSubjectId,
+        ),
+        rateLimitExchange: pickTypedFunction<HostSessionRateLimitExchange>(
+          session.rateLimitExchange,
+        ),
+        auditExchange: pickTypedFunction<HostSessionAuditExchange>(session.auditExchange),
       },
     },
     payments: {
       enabledModes: normalizeEnabledModes(payments.enabledModes),
-      ownerIssuer: normalizeOwnerIssuer(
-        payments.ownerIssuer,
-        normalizeOwnerIssuer(defaultPayments.ownerIssuer),
-      ),
-      paymentUrl: readString(payments.paymentUrl).trim() || readString(defaultPayments.paymentUrl),
-      returnSecret:
-        typeof payments.returnSecret === "string"
-          ? payments.returnSecret
-          : readString(defaultPayments.returnSecret),
-      returnSecretRef:
-        typeof payments.returnSecretRef === "string"
-          ? payments.returnSecretRef
-          : readString(defaultPayments.returnSecretRef),
-      returnUrlAllowlist:
-        typeof payments.returnUrlAllowlist === "string"
-          ? payments.returnUrlAllowlist
-          : readString(defaultPayments.returnUrlAllowlist),
+      ownerIssuer: normalizeOwnerIssuer(payments.ownerIssuer),
+      paymentUrl: readFirstNonEmptyString(payments.paymentUrl, payments.tenantPaymentUrl),
+      returnSecret: readString(payments.returnSecret),
+      returnSecretRef: readString(payments.returnSecretRef),
+      returnUrlAllowlist: readString(payments.returnUrlAllowlist),
     },
     assets: {
       seedLogo: {
@@ -237,8 +476,8 @@ export function normalizeBackendKitOptions(
       },
     },
     gateway: {
-      baseUrl: readString(gateway.baseUrl).trim() || readString(defaultGateway.baseUrl),
-      apiKey: readString(gateway.apiKey).trim() || readString(defaultGateway.apiKey),
+      baseUrl: readString(gateway.baseUrl).trim(),
+      apiKey: readString(gateway.apiKey).trim(),
     },
     branding: {
       tenantName: readString(branding.tenantName),
@@ -296,4 +535,6 @@ export function normalizeBackendKitOptions(
           : null,
     },
   };
+  validateHostedSecurityOptions(normalized.host);
+  return normalized;
 }

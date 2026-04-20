@@ -24,9 +24,7 @@ function buildPaymentGuardFailClosedResult(upstreamStatus) {
 }
 
 function requireGuardApiKey(request, reply, guardApiKey) {
-  const key = String(
-    request.headers["x-api-key"] || request.headers["x-xconect-guard-api-key"] || "",
-  ).trim();
+  const key = String(request.headers["x-api-key"] || "").trim();
   if (!key || key !== String(guardApiKey || "").trim()) {
     reply.code(401).send({ status: "error", result: { message: "Invalid API key" } });
     return false;

@@ -3,25 +3,33 @@ import {
   applyHostApiCorsHeaders,
   ensureHostApiOriginAllowed,
   readBodyRecord,
-  readHostBootstrapContext,
+  readExecutionPlaneToken,
+  readHostAuthContext,
+  resolveTrustedHostSubjectId,
   requireHostProxyService,
   sendServiceError,
 } from "./shared.js";
 
 export default async function hostApiLifecycleRoutes(
   fastify,
-  { hostProxyService, allowedOrigins = [], bootstrap = {} } = {},
+  { hostProxyService, allowedOrigins = [], session = {} } = {},
 ) {
   const service = requireHostProxyService(hostProxyService);
   fastify.get("/api/installations", async (request, reply) => {
     if (!ensureHostApiOriginAllowed(request, reply, allowedOrigins)) return;
     try {
       const query = readBodyRecord(request.query);
-      const bootstrapContext = readHostBootstrapContext(request, bootstrap);
+      const bootstrapContext = await readHostAuthContext(request, session);
+      const subjectId = await resolveTrustedHostSubjectId(
+        request,
+        bootstrapContext,
+        query.subjectId,
+        session,
+      );
       applyHostApiCorsHeaders(reply, request, allowedOrigins);
       return reply.send(
         await service.listInstallations({
-          subjectId: bootstrapContext?.subjectId || query.subjectId,
+          subjectId,
         }),
       );
     } catch (err) {
@@ -33,12 +41,18 @@ export default async function hostApiLifecycleRoutes(
     if (!ensureHostApiOriginAllowed(request, reply, allowedOrigins)) return;
     try {
       const body = readBodyRecord(request.body);
-      const bootstrapContext = readHostBootstrapContext(request, bootstrap);
+      const bootstrapContext = await readHostAuthContext(request, session);
+      const subjectId = await resolveTrustedHostSubjectId(
+        request,
+        bootstrapContext,
+        body.subjectId,
+        session,
+      );
       applyHostApiCorsHeaders(reply, request, allowedOrigins);
       return reply.send(
         await service.installXapp({
           xappId: body.xappId,
-          subjectId: bootstrapContext?.subjectId || body.subjectId,
+          subjectId,
           termsAccepted: body.termsAccepted,
         }),
       );
@@ -51,12 +65,18 @@ export default async function hostApiLifecycleRoutes(
     if (!ensureHostApiOriginAllowed(request, reply, allowedOrigins)) return;
     try {
       const body = readBodyRecord(request.body);
-      const bootstrapContext = readHostBootstrapContext(request, bootstrap);
+      const bootstrapContext = await readHostAuthContext(request, session);
+      const subjectId = await resolveTrustedHostSubjectId(
+        request,
+        bootstrapContext,
+        body.subjectId,
+        session,
+      );
       applyHostApiCorsHeaders(reply, request, allowedOrigins);
       return reply.send(
         await service.updateInstallation({
           installationId: body.installationId,
-          subjectId: bootstrapContext?.subjectId || body.subjectId,
+          subjectId,
           termsAccepted: body.termsAccepted,
         }),
       );
@@ -69,12 +89,18 @@ export default async function hostApiLifecycleRoutes(
     if (!ensureHostApiOriginAllowed(request, reply, allowedOrigins)) return;
     try {
       const body = readBodyRecord(request.body);
-      const bootstrapContext = readHostBootstrapContext(request, bootstrap);
+      const bootstrapContext = await readHostAuthContext(request, session);
+      const subjectId = await resolveTrustedHostSubjectId(
+        request,
+        bootstrapContext,
+        body.subjectId,
+        session,
+      );
       applyHostApiCorsHeaders(reply, request, allowedOrigins);
       return reply.send(
         await service.uninstallInstallation({
           installationId: body.installationId,
-          subjectId: bootstrapContext?.subjectId || body.subjectId,
+          subjectId,
         }),
       );
     } catch (err) {
@@ -91,7 +117,7 @@ export default async function hostApiLifecycleRoutes(
       return reply.send(
         await service.getMyXappMonetization({
           xappId,
-          token: query.token,
+          token: readExecutionPlaneToken(request, query.token),
           installationId: query.installationId,
           locale: query.locale,
           country: query.country,
@@ -112,7 +138,7 @@ export default async function hostApiLifecycleRoutes(
       return reply.send(
         await service.getMyXappMonetizationHistory({
           xappId,
-          token: query.token,
+          token: readExecutionPlaneToken(request, query.token),
           limit:
             typeof query.limit === "number"
               ? query.limit
@@ -139,7 +165,7 @@ export default async function hostApiLifecycleRoutes(
           await service.refreshMyXappSubscriptionContractState({
             xappId,
             contractId,
-            token: query.token ?? body.token,
+            token: readExecutionPlaneToken(request, query.token, body.token),
           }),
         );
       } catch (err) {
@@ -166,7 +192,7 @@ export default async function hostApiLifecycleRoutes(
           await service.cancelMyXappSubscriptionContract({
             xappId,
             contractId,
-            token: query.token ?? body.token,
+            token: readExecutionPlaneToken(request, query.token, body.token),
           }),
         );
       } catch (err) {
@@ -182,7 +208,7 @@ export default async function hostApiLifecycleRoutes(
       applyHostApiCorsHeaders(reply, request, allowedOrigins);
       return reply.send(
         await service.runWidgetToolRequest({
-          token: body.token,
+          token: readExecutionPlaneToken(request, body.token),
           installationId: body.installationId ?? body.installation_id,
           toolName: body.toolName ?? body.tool_name,
           payload:
@@ -208,7 +234,7 @@ export default async function hostApiLifecycleRoutes(
         return reply.send(
           await service.prepareMyXappPurchaseIntent({
             xappId,
-            token: query.token ?? body.token,
+            token: readExecutionPlaneToken(request, query.token, body.token),
             offeringId: body.offeringId ?? body.offering_id,
             packageId: body.packageId ?? body.package_id,
             priceId: body.priceId ?? body.price_id,
@@ -236,7 +262,7 @@ export default async function hostApiLifecycleRoutes(
           await service.createMyXappPurchasePaymentSession({
             xappId,
             intentId,
-            token: query.token ?? body.token,
+            token: readExecutionPlaneToken(request, query.token, body.token),
             returnUrl: body.returnUrl ?? body.return_url,
             cancelUrl: body.cancelUrl ?? body.cancel_url,
             xappsResume: body.xappsResume ?? body.xapps_resume,
@@ -273,7 +299,7 @@ export default async function hostApiLifecycleRoutes(
           await service.finalizeMyXappPurchasePaymentSession({
             xappId,
             intentId,
-            token: query.token ?? body.token,
+            token: readExecutionPlaneToken(request, query.token, body.token),
           }),
         );
       } catch (err) {

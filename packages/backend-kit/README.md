@@ -228,11 +228,14 @@ the browser-facing host API surface, including:
 For the secure long-term hosted-integrator path, use a short-lived bootstrap
 token instead of trusting browser subject input:
 
-- integrator backend calls `POST /api/host-bootstrap`
+- browser calls local `POST /api/browser/host-bootstrap`
+- local backend forwards to tenant `POST /api/host-bootstrap`
 - tenant backend authenticates with `X-API-Key`
 - tenant backend resolves the subject through the gateway/host proxy
 - tenant backend returns a short-lived `bootstrapToken`
-- browser host sends that token in `X-Xapps-Host-Bootstrap`
+- browser host uses that token only for `POST /api/host-session/exchange`
+- backend-kit mints the host session cookie
+- ongoing hosted API calls use the host session cookie
 
 In the current design, the tenant backend signs that bootstrap token locally.
 The gateway participates in subject resolution, but does not issue the browser
@@ -247,7 +250,104 @@ Recommended host config for that mode:
 - `host.allowedOrigins`
 - `host.bootstrap.apiKeys`
 - `host.bootstrap.signingSecret`
+- optional `host.bootstrap.signingKeyId`
+- optional `host.bootstrap.verifierKeys`
 - optional `host.bootstrap.ttlSeconds`
+
+For the stronger host-session exchange posture, also configure:
+
+- `host.session.signingSecret`
+- optional `host.session.signingKeyId`
+- optional `host.session.verifierKeys`
+- `host.session.absoluteTtlSeconds`
+- optional `host.session.idleTtlSeconds`
+- `host.session.cookiePath`
+- optional `host.session.cookieDomain`
+- `host.session.cookieSameSite`
+- `host.session.cookieSecure`
+- required when `host.session.idleTtlSeconds > 0`: `host.session.store.activate`
+- required when `host.session.idleTtlSeconds > 0`: `host.session.store.touch`
+- required `host.session.store.isRevoked`
+- required `host.session.store.revoke`
+
+Minimal preferred session-store shape:
+
+```ts
+host: {
+  bootstrap: {
+    apiKeys: ["bootstrap_key_123"],
+    signingSecret: "bootstrap_secret_123",
+  },
+  session: {
+    signingSecret: "session_secret_123",
+    absoluteTtlSeconds: 1800,
+    idleTtlSeconds: 900,
+    store: {
+      activate: ({ jti, subjectId, exp, idleTtlSeconds }) => true,
+      touch: ({ jti, subjectId, exp, idleTtlSeconds }) => ({ active: true }),
+      isRevoked: ({ jti }) => false,
+      revoke: ({ jti }) => true,
+    },
+  },
+}
+```
+
+Generic file-backed helpers are also available when you want backend-owned
+state without reimplementing the file locking and JSON persistence:
+
+```ts
+import {
+  createFileHostBootstrapReplayConsumer,
+  createFileHostSessionStore,
+} from "@xapps-platform/backend-kit";
+
+const consumeJti = createFileHostBootstrapReplayConsumer({
+  replayFile: "/tmp/xapps/host-bootstrap-replay.json",
+});
+
+const store = createFileHostSessionStore({
+  stateFile: "/tmp/xapps/host-session-state.json",
+  revocationsFile: "/tmp/xapps/host-session-revocations.json",
+});
+```
+
+Important rule:
+
+- `absoluteTtlSeconds` is the real cookie/session lifetime baseline
+- `host.session.signingSecret` should be distinct from `host.bootstrap.signingSecret`
+- `signingKeyId` + `verifierKeys` enable additive key rotation; the current
+  `signingSecret` remains the active signer, and `verifierKeys` can carry older
+  verification keys by `kid`
+- `idleTtlSeconds` is only meaningful when both `host.session.store.activate`
+  and `host.session.store.touch` are configured against backend-owned session state
+- cross-origin hosted API routes should rely on the host session cookie, not
+  bootstrap proof, after exchange
+
+Host auth classes:
+
+1. browser bootstrap entry
+   - `POST /api/browser/host-bootstrap`
+   - browser-safe local renewal/bootstrap route
+2. tenant bootstrap operation
+   - `POST /api/host-bootstrap`
+   - server-side `X-API-Key`
+3. host control-plane
+   - host session cookie
+   - catalog/session/lifecycle/advanced bridge routes
+4. token-scoped execution-plane
+   - gateway-issued widget/access token
+   - widget tool execution and current-user monetization routes
+
+Execution-plane rule:
+
+- prefer `Authorization: Bearer <token>` on host execution-plane routes
+- query/body token input should be treated as compatibility input, not the
+  preferred contract
+
+This split is intentional. Backend kit should not turn the tenant backend into
+a generic gateway proxy. Host session protects the hosted control-plane.
+Scoped widget/access tokens protect execution-plane flows that already run on
+gateway-issued runtime tokens.
 
 Current default mode tree includes:
 

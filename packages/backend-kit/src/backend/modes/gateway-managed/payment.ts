@@ -13,8 +13,8 @@ export const paymentSessionModel = {
   tenant_session_reference: "gateway-hosted session only",
 };
 export const requiredSettings = [
-  "XCONECT_GUARD_INGEST_API_KEY",
-  "XCONECT_TENANT_PAYMENT_RETURN_SECRET or XCONECT_TENANT_PAYMENT_RETURN_SECRET_REF",
+  "GUARD_INGEST_API_KEY",
+  "TENANT_PAYMENT_RETURN_SECRET or TENANT_PAYMENT_RETURN_SECRET_REF",
 ];
 export const paymentResponsibilities = [
   "keep gateway-managed payment lane configured",
