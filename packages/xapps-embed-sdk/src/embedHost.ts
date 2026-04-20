@@ -51,6 +51,7 @@ export type CreateEmbedHostOptions = Omit<CatalogOptions, "bridgeV2" | "onEvent"
   apiClientOptions?: HostApiClientOptions;
   hostApiHeaders?: Record<string, string>;
   hostApiHeadersProvider?: () => Record<string, string> | null | undefined;
+  hostApiCredentials?: RequestCredentials;
   paymentResume?: EmbedHostPaymentResumeOptions;
   bridgeV2?: false | EmbedHostBridgeOptions;
   mutationHandler?: false | EmbedHostMutationOptions;
@@ -165,6 +166,7 @@ export type CreateStandardMarketplaceRuntimeOptions = {
   hostApiClientOptions?: HostApiClientOptions;
   hostApiHeaders?: Record<string, string>;
   hostApiHeadersProvider?: () => Record<string, string> | null | undefined;
+  hostApiCredentials?: RequestCredentials;
   bridgeV2?:
     | false
     | Partial<
@@ -249,6 +251,12 @@ function buildDefaultHostApi(basePath: string | null, input?: CatalogOptions["ho
       ? input.headers
       : undefined;
   const getHeaders = typeof input?.getHeaders === "function" ? input.getHeaders : undefined;
+  const credentials =
+    input?.credentials === "include" ||
+    input?.credentials === "omit" ||
+    input?.credentials === "same-origin"
+      ? input.credentials
+      : undefined;
   return {
     createCatalogSessionUrl: `${basePath}/create-catalog-session`,
     createWidgetSessionUrl: `${basePath}/create-widget-session`,
@@ -257,6 +265,7 @@ function buildDefaultHostApi(basePath: string | null, input?: CatalogOptions["ho
     myXappsUrl: `${basePath}/my-xapps`,
     ...(headers ? { headers } : {}),
     ...(getHeaders ? { getHeaders } : {}),
+    ...(credentials ? { credentials } : {}),
     ...(input || {}),
   };
 }
@@ -524,11 +533,13 @@ export function createStandardMarketplaceRuntime(
           ...(options.hostApiHeaders || {}),
           ...((options.hostApiClientOptions && options.hostApiClientOptions.defaultHeaders) || {}),
         },
+        ...(options.hostApiCredentials ? { credentials: options.hostApiCredentials } : {}),
         ...(options.hostApiClientOptions || {}),
       },
       hostApi: {
         headers: options.hostApiHeaders || {},
         getHeaders: options.hostApiHeadersProvider,
+        ...(options.hostApiCredentials ? { credentials: options.hostApiCredentials } : {}),
       },
       paymentResume: false,
       bridgeV2:
@@ -1004,6 +1015,7 @@ export function createEmbedHost(options: CreateEmbedHostOptions): EmbedHostContr
     ...(catalogOptions.hostApi || {}),
     ...(options.hostApiHeaders ? { headers: options.hostApiHeaders } : {}),
     ...(options.hostApiHeadersProvider ? { getHeaders: options.hostApiHeadersProvider } : {}),
+    ...(options.hostApiCredentials ? { credentials: options.hostApiCredentials } : {}),
   });
 
   const handleEvent = async (evt: CatalogEvent) => {

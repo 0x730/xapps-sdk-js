@@ -105,6 +105,7 @@ export type CatalogOptions = {
     myXappsUrl?: string;
     headers?: Record<string, string>;
     getHeaders?: () => Record<string, string> | null | undefined;
+    credentials?: RequestCredentials;
   };
   publishers?: string[];
   tags?: string[];
@@ -356,6 +357,27 @@ function resolveHostApiHeaders(
         ? hostApi.headers
         : {};
   return { ...headers };
+}
+
+function resolveExecutionPlaneHostApiHeaders(
+  hostApi: CatalogOptions["hostApi"] | null | undefined,
+  token?: string | null,
+): Record<string, string> {
+  const headers = resolveHostApiHeaders(hostApi);
+  const runtimeToken = String(token || "").trim();
+  if (runtimeToken) {
+    headers.Authorization = `Bearer ${runtimeToken}`;
+  }
+  return headers;
+}
+
+function resolveHostApiCredentials(
+  hostApi: CatalogOptions["hostApi"] | null | undefined,
+): RequestCredentials | undefined {
+  const credentials = hostApi?.credentials;
+  return credentials === "include" || credentials === "omit" || credentials === "same-origin"
+    ? credentials
+    : undefined;
 }
 
 export function createMarketplaceMutationEventHandler(options: MarketplaceMutationHelperOptions) {
@@ -673,6 +695,9 @@ export class XappsHost {
     xappId: string,
     suffix = "",
     query?: Record<string, unknown>,
+    input?: {
+      includeCatalogToken?: boolean;
+    },
   ): string | null {
     const base = String(this.options.hostApi?.myXappsUrl || "").trim();
     if (!base) return null;
@@ -686,10 +711,16 @@ export class XappsHost {
           : `?${encodeURIComponent(key)}=${encodeURIComponent(resolved)}`;
       }
     }
-    return this.withCatalogToken(url);
+    return input?.includeCatalogToken === false ? url : this.withCatalogToken(url);
   }
 
-  private buildHostApiUrl(pathname: string, query?: Record<string, unknown>): string {
+  private buildHostApiUrl(
+    pathname: string,
+    query?: Record<string, unknown>,
+    input?: {
+      includeCatalogToken?: boolean;
+    },
+  ): string {
     let url = String(pathname || "").trim();
     for (const [key, value] of Object.entries(query || {})) {
       const resolved = String(value ?? "").trim();
@@ -698,7 +729,7 @@ export class XappsHost {
         ? `&${encodeURIComponent(key)}=${encodeURIComponent(resolved)}`
         : `?${encodeURIComponent(key)}=${encodeURIComponent(resolved)}`;
     }
-    return this.withCatalogToken(url);
+    return input?.includeCatalogToken === false ? url : this.withCatalogToken(url);
   }
 
   private async fetchMyXappHostApiJson<T>(
@@ -710,16 +741,18 @@ export class XappsHost {
       query?: Record<string, unknown>;
     },
   ): Promise<T> {
-    const url = this.buildMyXappHostApiUrl(xappId, suffix, input?.query);
+    const url = this.buildMyXappHostApiUrl(xappId, suffix, input?.query, {
+      includeCatalogToken: false,
+    });
     if (!url) {
       throw new Error("Host API 'myXappsUrl' is not configured");
     }
     const response = await fetch(url, {
       method: input?.method || "GET",
-      credentials: "same-origin",
+      credentials: resolveHostApiCredentials(this.options.hostApi),
       headers: {
         ...(input?.body ? { "Content-Type": "application/json" } : {}),
-        ...resolveHostApiHeaders(this.options.hostApi),
+        ...resolveExecutionPlaneHostApiHeaders(this.options.hostApi, this.currentCatalogToken),
       },
       body: input?.body ? JSON.stringify(input.body) : undefined,
     });
@@ -750,7 +783,7 @@ export class XappsHost {
     const url = this.buildHostApiUrl(pathname, input?.query);
     const response = await fetch(url, {
       method: input?.method || "GET",
-      credentials: "same-origin",
+      credentials: resolveHostApiCredentials(this.options.hostApi),
       headers: {
         ...(input?.body ? { "Content-Type": "application/json" } : {}),
         ...resolveHostApiHeaders(this.options.hostApi),
@@ -2162,6 +2195,7 @@ export class XappsHost {
     }
     const res = await fetch(url, {
       method: "POST",
+      credentials: resolveHostApiCredentials(this.options.hostApi),
       headers: {
         "Content-Type": "application/json",
         ...resolveHostApiHeaders(this.options.hostApi),
@@ -2190,6 +2224,7 @@ export class XappsHost {
     if (!url) throw new Error("Host API 'createWidgetSessionUrl' is not configured");
     const res = await fetch(url, {
       method: "POST",
+      credentials: resolveHostApiCredentials(this.options.hostApi),
       headers: {
         "Content-Type": "application/json",
         ...resolveHostApiHeaders(this.options.hostApi),
@@ -2227,20 +2262,22 @@ export class XappsHost {
   }): Promise<Record<string, unknown> | null> {
     const url = String(this.options.hostApi?.widgetToolRequestUrl || "").trim();
     if (!url) throw new Error("Host API 'widgetToolRequestUrl' is not configured");
-    const response = await fetch(this.buildHostApiUrl(url), {
-      method: "POST",
-      credentials: "same-origin",
-      headers: {
-        "Content-Type": "application/json",
-        ...resolveHostApiHeaders(this.options.hostApi),
+    const response = await fetch(
+      this.buildHostApiUrl(url, undefined, { includeCatalogToken: false }),
+      {
+        method: "POST",
+        credentials: resolveHostApiCredentials(this.options.hostApi),
+        headers: {
+          "Content-Type": "application/json",
+          ...resolveExecutionPlaneHostApiHeaders(this.options.hostApi, input.token),
+        },
+        body: JSON.stringify({
+          installationId: input.installationId,
+          toolName: input.toolName,
+          payload: input.payload && typeof input.payload === "object" ? input.payload : {},
+        }),
       },
-      body: JSON.stringify({
-        token: input.token,
-        installationId: input.installationId,
-        toolName: input.toolName,
-        payload: input.payload && typeof input.payload === "object" ? input.payload : {},
-      }),
-    });
+    );
     const contentType = String(response.headers.get("content-type") || "");
     const data = contentType.includes("application/json")
       ? await response.json().catch(() => null)
@@ -2317,6 +2354,7 @@ export class XappsHost {
 
         const resp = await fetch(urlWithSubject, {
           method: "GET",
+          credentials: resolveHostApiCredentials(this.options.hostApi),
           headers: resolveHostApiHeaders(this.options.hostApi),
         });
         const data = await resp.json().catch(() => ({}));

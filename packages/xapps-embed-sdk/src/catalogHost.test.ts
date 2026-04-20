@@ -111,6 +111,7 @@ import { XappsHost } from "./catalogHost";
 describe("XappsHost fullscreen overlays", () => {
   let container: HTMLDivElement;
   let fullscreenRoot: HTMLDivElement;
+  let fetchMock: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     document.body.innerHTML = "";
@@ -119,6 +120,8 @@ describe("XappsHost fullscreen overlays", () => {
     document.body.appendChild(container);
     document.body.appendChild(fullscreenRoot);
     createSubjectProfileOverlayMock.mockClear();
+    fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
     Object.defineProperty(document, "fullscreenElement", {
       configurable: true,
       value: fullscreenRoot,
@@ -130,6 +133,7 @@ describe("XappsHost fullscreen overlays", () => {
       configurable: true,
       value: null,
     });
+    vi.unstubAllGlobals();
     document.body.innerHTML = "";
   });
 
@@ -204,5 +208,97 @@ describe("XappsHost fullscreen overlays", () => {
     cancelButton?.click();
 
     await expect(confirmPromise).resolves.toBe(false);
+  });
+
+  it("uses bearer auth instead of query token for my-xapp execution-plane host requests", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      headers: { get: () => "application/json" },
+      json: async () => ({ ok: true }),
+      text: async () => "",
+    });
+
+    const host = new XappsHost({
+      container,
+      baseUrl: "https://example.test",
+      hostApi: {
+        myXappsUrl: "/api/my-xapps",
+      },
+    });
+
+    (host as any).currentCatalogToken = "catalog-runtime-token";
+
+    await (host as any).fetchMyXappHostApiJson("xapp_123", "/monetization/history", {
+      query: { limit: 8 },
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("/api/my-xapps/xapp_123/monetization/history?limit=8");
+    expect(String((init.headers as Record<string, string>).Authorization || "")).toBe(
+      "Bearer catalog-runtime-token",
+    );
+    expect(url).not.toContain("token=");
+  });
+
+  it("uses bearer auth instead of body token for widget tool execution-plane requests", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      headers: { get: () => "application/json" },
+      json: async () => ({ ok: true }),
+      text: async () => "",
+    });
+
+    const host = new XappsHost({
+      container,
+      baseUrl: "https://example.test",
+      hostApi: {
+        widgetToolRequestUrl: "/api/widget-tool-request",
+      },
+    });
+
+    await (host as any).runWidgetToolRequest({
+      token: "widget-runtime-token",
+      installationId: "inst_123",
+      toolName: "lookup_weather_now",
+      payload: { q: "Bucharest" },
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("/api/widget-tool-request");
+    expect(String((init.headers as Record<string, string>).Authorization || "")).toBe(
+      "Bearer widget-runtime-token",
+    );
+    expect(String(init.body || "")).not.toContain('"token"');
+  });
+
+  it("includes configured host API credentials for catalog-session control-plane requests", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      headers: { get: () => "application/json" },
+      json: async () => ({ token: "catalog-session-token" }),
+      text: async () => "",
+    });
+
+    const host = new XappsHost({
+      container,
+      baseUrl: "https://example.test",
+      subjectId: "sub_123",
+      hostApi: {
+        createCatalogSessionUrl: "/api/create-catalog-session",
+        credentials: "include",
+      },
+    });
+
+    await (host as any).createCatalogSession({
+      origin: "https://host.example",
+      subjectId: "sub_123",
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("/api/create-catalog-session");
+    expect(init.credentials).toBe("include");
   });
 });
