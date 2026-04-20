@@ -15,6 +15,27 @@ For the current XMS system reader path, including hosted purchase flow, lifecycl
 npm install @xapps-platform/server-sdk
 ```
 
+## Fast Start For Hosted Integrators
+
+If your browser already uses `@xapps-platform/browser-host`, the minimum Node
+backend job is one local route:
+
+- `POST /api/browser/host-bootstrap`
+
+That local browser-safe route forwards identity input to the remote tenant backend and returns
+resolved `subjectId` + short-lived `bootstrapToken`.
+
+Start here:
+
+- [packages/server-sdk/examples/host-proxy/hosted-integrator-bootstrap.mjs](/home/dacrise/x/xapps/packages/server-sdk/examples/host-proxy/hosted-integrator-bootstrap.mjs)
+- [apps/tenants/docs/tooling/first-hosted-tenant-integrator-handoff.md](/home/dacrise/x/xapps/apps/tenants/docs/tooling/first-hosted-tenant-integrator-handoff.md)
+
+## Use It For
+
+Use this package when you need Node backend helpers for gateway, tenant,
+publisher, or host-proxy work. For hosted-integrator mode, start with the
+bootstrap proxy example above.
+
 ## Exports
 
 - `parseDispatchRequest`
@@ -105,7 +126,7 @@ Current enforced subset:
 - `trial_policy` wins over `intro_policy` when both qualify
 - zero-cost qualified lanes can finalize without an external payment session
 
-## Recommended lane / package split
+## Lane / Package Split
 
 For tenant/publisher integrators, the safe default path is:
 
@@ -118,7 +139,7 @@ Practical rule:
 - stay at `@xapps-platform/server-sdk` level for managed/delegated lanes
 - only drop to `@xapps/payment-providers` when you are implementing provider execution yourself
 
-## Browser + backend SDK split
+## Browser + Backend SDK Split
 
 For the full embed contract:
 
@@ -130,7 +151,7 @@ Use this package when the browser already runs `@xapps-platform/browser-host`
 or `@xapps-platform/embed-sdk` and the backend needs to proxy the host/session
 contract to the gateway or tenant backend.
 
-## Enterprise host contract
+## Host Contract
 
 `@xapps-platform/server-sdk` supports host-style integrations through the gateway client and
 the framework-neutral embed host proxy service:
@@ -167,12 +188,12 @@ the framework-neutral embed host proxy service:
     - optional bridge sign / vendor assertion hooks
 
 Higher-level tenant/publisher backend kits are intentionally not part of the
-current supported SDK surface. The next redesign for that layer will start from
-backend `lib/` and `modes/`, not from route-wrapper aliases.
+supported SDK surface.
 
-## Host profiles
+## Host Profiles
 
-The secure backend surface should be presented as explicit profiles, not one giant route list.
+Present the secure backend surface as explicit profiles, not one giant route
+list.
 
 ### Minimal embed profile
 

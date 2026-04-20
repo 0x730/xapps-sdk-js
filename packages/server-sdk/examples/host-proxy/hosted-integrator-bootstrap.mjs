@@ -99,7 +99,7 @@ runDemo().catch((error) => {
 /*
 Framework mapping sketch:
 
-  app.post("/api/host-bootstrap", async (req, reply) => {
+  app.post("/api/browser/host-bootstrap", async (req, reply) => {
     reply.send(await forwardHostBootstrap(req.body));
   });
 
@@ -117,6 +117,10 @@ First bootstrap usually sends `identifier`, not `subjectId`.
 If the integrator later stores the returned platform `subjectId`, it may include it too.
 
 The local route forwards the same identity payload to:
+
+  POST {XAPPS_HOST_PUBLIC_URL}/api/browser/host-bootstrap
+
+The local browser-safe route forwards to:
 
   POST {XAPPS_TENANT_BASE_URL}/api/host-bootstrap
 

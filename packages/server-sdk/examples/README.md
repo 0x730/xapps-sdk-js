@@ -17,7 +17,7 @@ Use this when you want:
 - catalog/widget session minting
 - current-user installed-app plans / XMS host monetization wiring
 - a framework-neutral example to map into Fastify, Express, Laravel, or PHP
-- the local `POST /api/host-bootstrap` bridge for hosted-integrator mode
+- the local `POST /api/browser/host-bootstrap` bridge for hosted-integrator mode
 
 This maps to the `minimal embed` backend profile:
 
