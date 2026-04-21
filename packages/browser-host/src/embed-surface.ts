@@ -401,6 +401,7 @@ export async function mountXappsSurface(
 
   let currentIdentity = await resolveIdentityForMount(options);
   let refreshInFlight: Promise<StoredHostIdentity | null> | null = null;
+  let exchangeHostSessionInFlight: Promise<boolean> | null = null;
   let hostConfig: Record<string, unknown> | null = null;
   let destroyed = false;
   let currentMode = normalizeMarketplaceMode(options.mode);
@@ -491,47 +492,53 @@ export async function mountXappsSurface(
   };
 
   const exchangeHostSession = async () => {
-    if (!readString(currentIdentity?.bootstrapToken)) return false;
-    const exchangePath =
-      readString(options.hostSessionExchangePath) ||
-      `${resolveHostApiBasePath(backendInput)}/host-session/exchange`;
-    const exec = async () =>
-      (options.fetchImpl || fetch)(exchangePath, {
-        method: "POST",
-        credentials: "include",
-        headers: {
-          ...(useHostSession ? {} : getHostApiHeaders() || {}),
-        },
-      });
-    let response = await exec();
-    if (!response.ok && response.status === 401) {
-      const message = String(
-        await response
-          .clone()
-          .json()
-          .then((value: any) => value?.message || "")
-          .catch(() => ""),
-      );
-      if (isBootstrapRetryableMessage(message)) {
-        const refreshed = await tryRefreshIdentity();
-        if (refreshed) {
-          response = await exec();
+    if (exchangeHostSessionInFlight) return exchangeHostSessionInFlight;
+    exchangeHostSessionInFlight = (async () => {
+      if (!readString(currentIdentity?.bootstrapToken)) return false;
+      const exchangePath =
+        readString(options.hostSessionExchangePath) ||
+        `${resolveHostApiBasePath(backendInput)}/host-session/exchange`;
+      const exec = async () =>
+        (options.fetchImpl || fetch)(exchangePath, {
+          method: "POST",
+          credentials: "include",
+          headers: {
+            ...(useHostSession ? {} : getHostApiHeaders() || {}),
+          },
+        });
+      let response = await exec();
+      if (!response.ok && response.status === 401) {
+        const message = String(
+          await response
+            .clone()
+            .json()
+            .then((value: any) => value?.message || "")
+            .catch(() => ""),
+        );
+        if (isBootstrapRetryableMessage(message)) {
+          const refreshed = await tryRefreshIdentity();
+          if (refreshed) {
+            response = await exec();
+          }
         }
       }
-    }
-    if ([404, 405, 501].includes(response.status)) {
-      throw new Error("host session exchange is required but not available");
-    }
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      throw new Error(String((data as any)?.message || "host session exchange failed"));
-    }
-    useHostSession = true;
-    currentIdentity = stripBootstrapState(currentIdentity);
-    if (currentIdentity) {
-      writeStoredHostIdentity(storageKey, currentIdentity);
-    }
-    return true;
+      if ([404, 405, 501].includes(response.status)) {
+        throw new Error("host session exchange is required but not available");
+      }
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(String((data as any)?.message || "host session exchange failed"));
+      }
+      useHostSession = true;
+      currentIdentity = stripBootstrapState(currentIdentity);
+      if (currentIdentity) {
+        writeStoredHostIdentity(storageKey, currentIdentity);
+      }
+      return true;
+    })().finally(() => {
+      exchangeHostSessionInFlight = null;
+    });
+    return exchangeHostSessionInFlight;
   };
 
   const logoutHostSession = async () => {
