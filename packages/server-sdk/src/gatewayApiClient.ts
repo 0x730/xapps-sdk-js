@@ -60,6 +60,7 @@ export type GatewaySubjectResolveResult = {
 export type CatalogSessionInput = {
   origin: string;
   subjectId?: string | null;
+  hostSessionJti?: string | null;
   xappId?: string | null;
   publishers?: string[] | null;
   tags?: string[] | null;
@@ -69,6 +70,19 @@ export type CatalogSessionInput = {
 export type CatalogSessionResult = {
   token: string;
   embedUrl: string;
+};
+
+export type HostSessionRevocationInput = {
+  hostSessionJti: string;
+  exp: number;
+  revokedAt?: number | null;
+  source?: string | null;
+};
+
+export type HostSessionRevocationResult = {
+  ok: boolean;
+  status: string;
+  ttlSeconds: number;
 };
 
 export type ClientInstallationPolicyResult = {
@@ -304,6 +318,7 @@ export type WidgetSessionInput = {
   locale?: string | null;
   xappId?: string | null;
   subjectId?: string | null;
+  hostSessionJti?: string | null;
   requestId?: string | null;
   hostReturnUrl?: string | null;
   resultPresentation?: WidgetResultPresentation | null;
@@ -1101,6 +1116,7 @@ export function createGatewayApiClient(options: GatewayApiClientOptions) {
       const payload = await requestJson("POST", "/v1/catalog-sessions", {
         origin: input.origin,
         ...(input.subjectId ? { subjectId: input.subjectId } : {}),
+        ...(input.hostSessionJti ? { host_session_jti: input.hostSessionJti } : {}),
         ...(input.xappId ? { xappId: input.xappId } : {}),
         ...(publishers ? { publishers } : {}),
         ...(tags ? { tags } : {}),
@@ -1117,6 +1133,35 @@ export function createGatewayApiClient(options: GatewayApiClientOptions) {
         });
       }
       return { token, embedUrl };
+    },
+
+    async reportHostSessionRevocation(
+      input: HostSessionRevocationInput,
+    ): Promise<HostSessionRevocationResult> {
+      const hostSessionJti = String(input.hostSessionJti || "").trim();
+      const exp = Number(input.exp || 0);
+      if (!hostSessionJti || !Number.isFinite(exp) || exp <= 0) {
+        throw new GatewayApiClientError({
+          code: "GATEWAY_API_INVALID_RESPONSE",
+          message: "hostSessionJti and exp are required",
+        });
+      }
+      const payload = await requestJson("POST", "/v1/host-sessions/revocations", {
+        host_session_jti: hostSessionJti,
+        exp: Math.floor(exp),
+        ...(Number.isFinite(Number(input.revokedAt)) && Number(input.revokedAt) > 0
+          ? { revoked_at: Math.floor(Number(input.revokedAt)) }
+          : {}),
+        ...(typeof input.source === "string" && input.source.trim()
+          ? { source: input.source.trim() }
+          : {}),
+      });
+      const result = extractResultObject<any>(payload);
+      return {
+        ok: result.ok === true,
+        status: String(result.status || "").trim() || "revoked",
+        ttlSeconds: Math.max(0, Math.floor(Number(result.ttl_seconds) || 0)),
+      };
     },
 
     async getClientSelf(): Promise<ClientSelfResult> {
@@ -1167,6 +1212,7 @@ export function createGatewayApiClient(options: GatewayApiClientOptions) {
           ...(input.locale ? { locale: input.locale } : {}),
           ...(input.xappId ? { xappId: input.xappId } : {}),
           ...(input.subjectId ? { subjectId: input.subjectId } : {}),
+          ...(input.hostSessionJti ? { host_session_jti: input.hostSessionJti } : {}),
           ...(input.requestId ? { requestId: input.requestId } : {}),
           ...(input.hostReturnUrl ? { hostReturnUrl: input.hostReturnUrl } : {}),
           ...(input.resultPresentation ? { resultPresentation: input.resultPresentation } : {}),

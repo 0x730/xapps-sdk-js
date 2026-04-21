@@ -15,6 +15,8 @@ import type {
   InstallXappResult,
   ListInstallationsInput,
   ListInstallationsResult,
+  HostSessionRevocationInput,
+  HostSessionRevocationResult,
   UninstallInstallationInput,
   UninstallInstallationResult,
   UpdateInstallationInput,
@@ -86,7 +88,7 @@ export type EmbedHostMyXappSubscriptionContractInput = EmbedMyXappSubscriptionCo
 
 export type EmbedHostBridgeTokenRefreshInput = Pick<
   EmbedHostCreateWidgetSessionInput,
-  "installationId" | "widgetId" | "origin" | "subjectId" | "hostReturnUrl"
+  "installationId" | "widgetId" | "origin" | "subjectId" | "hostReturnUrl" | "hostSessionJti"
 >;
 
 export type EmbedHostBridgeTokenRefreshResult = {
@@ -167,6 +169,9 @@ export type EmbedHostProxyServiceOptions = {
         input: EmbedMyXappSubscriptionContractInput,
       ) => Promise<XappSubscriptionContractLifecycleResult>;
       runWidgetToolRequest: (input: RunWidgetToolRequestInput) => Promise<Record<string, unknown>>;
+      reportHostSessionRevocation?: (
+        input: HostSessionRevocationInput,
+      ) => Promise<HostSessionRevocationResult>;
     },
     | "resolveSubject"
     | "createCatalogSession"
@@ -183,6 +188,7 @@ export type EmbedHostProxyServiceOptions = {
     | "cancelEmbedMyXappSubscriptionContract"
     | "refreshEmbedMyXappSubscriptionContractState"
     | "runWidgetToolRequest"
+    | "reportHostSessionRevocation"
   >;
   gatewayUrl?: string;
   hostModes?: EmbedHostMode[];
@@ -416,9 +422,11 @@ export function createEmbedHostProxyService(options: EmbedHostProxyServiceOption
     async createCatalogSession(
       input: EmbedHostCreateCatalogSessionInput,
     ): Promise<CatalogSessionResult> {
+      const hostSessionJti = readOptionalString(input.hostSessionJti);
       return options.gatewayClient.createCatalogSession({
         origin: requireTrimmedString(input.origin, "origin"),
         subjectId: readOptionalString(input.subjectId),
+        ...(hostSessionJti ? { hostSessionJti } : {}),
         xappId: readOptionalString(input.xappId),
         publishers: Array.isArray(input.publishers) ? input.publishers : undefined,
         tags: Array.isArray(input.tags) ? input.tags : undefined,
@@ -433,12 +441,14 @@ export function createEmbedHostProxyService(options: EmbedHostProxyServiceOption
       input: EmbedHostCreateWidgetSessionInput,
     ): Promise<WidgetSessionResult> {
       const origin = requireTrimmedString(input.origin, "origin");
+      const hostSessionJti = readOptionalString(input.hostSessionJti);
       const result = await options.gatewayClient.createWidgetSession({
         installationId: requireTrimmedString(input.installationId, "installationId"),
         widgetId: requireTrimmedString(input.widgetId, "widgetId"),
         origin,
         xappId: readOptionalString(input.xappId),
         subjectId: readOptionalString(input.subjectId),
+        ...(hostSessionJti ? { hostSessionJti } : {}),
         requestId: readOptionalString(input.requestId),
         hostReturnUrl: readOptionalString(input.hostReturnUrl),
         resultPresentation: input.resultPresentation ?? undefined,
@@ -556,15 +566,42 @@ export function createEmbedHostProxyService(options: EmbedHostProxyServiceOption
       input: EmbedHostBridgeTokenRefreshInput,
     ): Promise<EmbedHostBridgeTokenRefreshResult> {
       const origin = requireTrimmedString(input.origin, "origin");
+      const hostSessionJti = readOptionalString(input.hostSessionJti);
       const result = await options.gatewayClient.createWidgetSession({
         installationId: requireTrimmedString(input.installationId, "installationId"),
         widgetId: requireTrimmedString(input.widgetId, "widgetId"),
         origin,
         subjectId: readOptionalString(input.subjectId),
+        ...(hostSessionJti ? { hostSessionJti } : {}),
         hostReturnUrl: readOptionalString(input.hostReturnUrl),
       });
       const token = requireTrimmedString(result.token, "token");
       return { token, expires_in: tokenRefreshTtlSeconds };
+    },
+
+    async reportHostSessionRevocation(input: {
+      hostSessionJti?: string | null;
+      exp?: number | null;
+      revokedAt?: number | null;
+      source?: string | null;
+    }): Promise<HostSessionRevocationResult> {
+      const hostSessionJti = requireTrimmedString(input.hostSessionJti, "hostSessionJti");
+      const exp = Number(input.exp || 0);
+      if (!Number.isFinite(exp) || exp <= 0) {
+        throw new EmbedHostProxyInputError("exp is required");
+      }
+      if (typeof options.gatewayClient.reportHostSessionRevocation !== "function") {
+        return { ok: false, status: "not_configured", ttlSeconds: 0 };
+      }
+      return options.gatewayClient.reportHostSessionRevocation({
+        hostSessionJti,
+        exp: Math.floor(exp),
+        revokedAt:
+          Number.isFinite(Number(input.revokedAt)) && Number(input.revokedAt) > 0
+            ? Math.floor(Number(input.revokedAt))
+            : undefined,
+        source: readOptionalString(input.source) || undefined,
+      });
     },
 
     async bridgeSign(input: EmbedHostBridgeSignInput): Promise<EmbedHostBridgeSignResult> {
