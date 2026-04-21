@@ -285,6 +285,7 @@ export function WidgetView() {
   const isEmbedded = window.location.pathname.startsWith("/embed");
   const tokenSearch = buildTokenSearch(token, loc.search);
   const navigate = useNavigate();
+  const showWorkspaceNav = Boolean(xappId) && hostNestedExpandStage === "inline";
 
   const marketplaceTo = buildMarketplaceHref(loc.pathname, "", { token });
 
@@ -1129,7 +1130,7 @@ export function WidgetView() {
         </div>
       )}
 
-      {xappId ? (
+      {showWorkspaceNav ? (
         <XappWorkspaceNav
           xappId={xappId}
           xappTitle={xappTitle || xappId}
