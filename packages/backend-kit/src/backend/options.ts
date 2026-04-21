@@ -72,6 +72,30 @@ export type HostSessionAuditExchange = NonNullable<
   BackendKitNormalizedOptions["host"]["session"]["auditExchange"]
 >;
 
+export type HostBootstrapRateLimit = NonNullable<
+  BackendKitNormalizedOptions["host"]["bootstrap"]["rateLimitBootstrap"]
+>;
+
+export type HostBootstrapAudit = NonNullable<
+  BackendKitNormalizedOptions["host"]["bootstrap"]["auditBootstrap"]
+>;
+
+export type HostBootstrapDeprecatedWarn = NonNullable<
+  BackendKitNormalizedOptions["host"]["bootstrap"]["deprecatedWarn"]
+>;
+
+export type HostSessionRateLimitLogout = NonNullable<
+  BackendKitNormalizedOptions["host"]["session"]["rateLimitLogout"]
+>;
+
+export type HostSessionAuditLogout = NonNullable<
+  BackendKitNormalizedOptions["host"]["session"]["auditLogout"]
+>;
+
+export type HostSessionAuditRevocation = NonNullable<
+  BackendKitNormalizedOptions["host"]["session"]["auditRevocation"]
+>;
+
 export type BackendKitNormalizedOptions = {
   host: {
     enableReference: boolean;
@@ -95,6 +119,43 @@ export type BackendKitNormalizedOptions = {
             type: "host_bootstrap";
           }) => boolean | Promise<boolean>)
         | null;
+      rateLimitBootstrap:
+        | ((input: {
+            request: unknown;
+            apiKey: string | null;
+            origin: string | null;
+            subjectId: string | null;
+            type: string | null;
+            identifier: unknown;
+            email: string | null;
+            name: string | null;
+            linkId: string | null;
+          }) => boolean | { allowed?: boolean } | Promise<boolean | { allowed?: boolean }>)
+        | null;
+      auditBootstrap:
+        | ((input: {
+            request: unknown;
+            ok: boolean;
+            apiKey: string | null;
+            origin: string | null;
+            subjectId: string | null;
+            type: string | null;
+            identifier: unknown;
+            email: string | null;
+            name: string | null;
+            linkId: string | null;
+            token?: string | null;
+            reason?: string | null;
+          }) => void | Promise<void>)
+        | null;
+      deprecatedWarn:
+        | boolean
+        | ((input: {
+            request: unknown;
+            route: string;
+            headerName: string;
+            message: string;
+          }) => void | Promise<void>);
     };
     session: {
       signingSecret: string;
@@ -131,6 +192,17 @@ export type BackendKitNormalizedOptions = {
             type: "host_bootstrap";
           }) => boolean | { allowed?: boolean } | Promise<boolean | { allowed?: boolean }>)
         | null;
+      rateLimitLogout:
+        | ((input: {
+            request: unknown;
+            subjectId: string | null;
+            jti: string | null;
+            iat: number | null;
+            exp: number | null;
+            token: string | null;
+            type: "host_session";
+          }) => boolean | { allowed?: boolean } | Promise<boolean | { allowed?: boolean }>)
+        | null;
       auditExchange:
         | ((input: {
             request: unknown;
@@ -145,6 +217,32 @@ export type BackendKitNormalizedOptions = {
             reason?: string | null;
             sessionJti?: string | null;
             sessionExp?: number | null;
+          }) => void | Promise<void>)
+        | null;
+      auditLogout:
+        | ((input: {
+            request: unknown;
+            ok: boolean;
+            subjectId: string | null;
+            jti: string | null;
+            iat: number | null;
+            exp: number | null;
+            token: string | null;
+            reason?: string | null;
+          }) => void | Promise<void>)
+        | null;
+      auditRevocation:
+        | ((input: {
+            request: unknown;
+            ok: boolean;
+            phase: "local_revoke" | "gateway_report";
+            subjectId: string | null;
+            jti: string | null;
+            iat: number | null;
+            exp: number | null;
+            token: string | null;
+            source?: string | null;
+            reason?: string | null;
           }) => void | Promise<void>)
         | null;
     };
@@ -360,6 +458,11 @@ function validateHostedSecurityOptions(host: BackendKitNormalizedOptions["host"]
       );
     }
   }
+  if (host.bootstrap.apiKeys.length > 0 && typeof host.bootstrap.consumeJti !== "function") {
+    throw new TypeError(
+      "host.bootstrap.consumeJti is required when host.bootstrap.apiKeys is configured",
+    );
+  }
 }
 
 export function resolvePlatformSecretRefFromEnv(
@@ -428,6 +531,12 @@ export function normalizeBackendKitOptions(
         ttlSeconds:
           Number(bootstrap.ttlSeconds) > 0 ? Math.floor(Number(bootstrap.ttlSeconds)) : 300,
         consumeJti: pickTypedFunction<HostBootstrapConsumeJti>(bootstrap.consumeJti),
+        rateLimitBootstrap: pickTypedFunction<HostBootstrapRateLimit>(bootstrap.rateLimitBootstrap),
+        auditBootstrap: pickTypedFunction<HostBootstrapAudit>(bootstrap.auditBootstrap),
+        deprecatedWarn:
+          bootstrap.deprecatedWarn === true
+            ? true
+            : pickTypedFunction<HostBootstrapDeprecatedWarn>(bootstrap.deprecatedWarn) || false,
       },
       session: {
         signingSecret: readString(session.signingSecret).trim(),
@@ -438,7 +547,7 @@ export function normalizeBackendKitOptions(
         absoluteTtlSeconds: sessionTtl,
         idleTtlSeconds:
           Number(session.idleTtlSeconds) > 0 ? Math.floor(Number(session.idleTtlSeconds)) : 0,
-        cookiePath: readString(session.cookiePath, "/").trim() || "/",
+        cookiePath: readString(session.cookiePath, "/api").trim() || "/api",
         cookieDomain: readString(session.cookieDomain).trim(),
         cookieSameSite: normalizeCookieSameSite(session.cookieSameSite, "auto"),
         cookieSecure: normalizeCookieSecure(session.cookieSecure, "auto"),
@@ -454,7 +563,10 @@ export function normalizeBackendKitOptions(
         rateLimitExchange: pickTypedFunction<HostSessionRateLimitExchange>(
           session.rateLimitExchange,
         ),
+        rateLimitLogout: pickTypedFunction<HostSessionRateLimitLogout>(session.rateLimitLogout),
         auditExchange: pickTypedFunction<HostSessionAuditExchange>(session.auditExchange),
+        auditLogout: pickTypedFunction<HostSessionAuditLogout>(session.auditLogout),
+        auditRevocation: pickTypedFunction<HostSessionAuditRevocation>(session.auditRevocation),
       },
     },
     payments: {

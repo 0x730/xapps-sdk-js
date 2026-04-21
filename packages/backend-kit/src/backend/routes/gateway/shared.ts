@@ -9,11 +9,11 @@ import crypto from "node:crypto";
 const HOST_BOOTSTRAP_HEADER = "x-xapps-host-bootstrap";
 const HOST_SESSION_COOKIE_NAME = "xapps_host_session";
 const HOST_BOOTSTRAP_TYPE = "host_bootstrap";
-const HOST_BOOTSTRAP_VERSION = 1;
+const HOST_BOOTSTRAP_VERSION = 2;
 const HOST_BOOTSTRAP_ISSUER = "xapps_host_bootstrap";
 const HOST_BOOTSTRAP_AUDIENCE = "xapps_host_api";
 const HOST_SESSION_TYPE = "host_session";
-const HOST_SESSION_VERSION = 1;
+const HOST_SESSION_VERSION = 2;
 const HOST_SESSION_ISSUER = "xapps_host_session";
 const HOST_SESSION_AUDIENCE = "xapps_host_api";
 const HOST_SESSION_TTL_SECONDS = 1800;
@@ -55,6 +55,50 @@ export function readRequestOrigin(request) {
 
 function readHostBootstrapToken(request) {
   return String(request?.headers?.[HOST_BOOTSTRAP_HEADER] || "").trim();
+}
+
+export function readDeprecatedHostBootstrapHeaderWarning(
+  request,
+  bootstrap = {},
+  route = "",
+): boolean {
+  const token = readHostBootstrapToken(request);
+  if (!token) return false;
+  const message =
+    "host bootstrap header is deprecated outside /api/host-session/exchange and will be removed";
+  const deprecatedWarn = bootstrap?.deprecatedWarn;
+  if (typeof deprecatedWarn === "function") {
+    void Promise.resolve(
+      deprecatedWarn({
+        request,
+        route,
+        headerName: HOST_BOOTSTRAP_HEADER,
+        message,
+      }),
+    ).catch((error) => {
+      if (typeof request?.log?.warn === "function") {
+        request.log.warn({ err: error }, "host-bootstrap deprecated warning hook failed");
+      } else {
+        console.warn("host-bootstrap deprecated warning hook failed", error);
+      }
+    });
+    return true;
+  }
+  if (deprecatedWarn === true) {
+    if (typeof request?.log?.warn === "function") {
+      request.log.warn(
+        {
+          route,
+          headerName: HOST_BOOTSTRAP_HEADER,
+        },
+        message,
+      );
+    } else {
+      console.warn(message, { route, headerName: HOST_BOOTSTRAP_HEADER });
+    }
+    return true;
+  }
+  return false;
 }
 
 function readRequestBearerToken(request) {
@@ -148,7 +192,7 @@ function resolveHostSessionIdleTtlSeconds(session = {}) {
 }
 
 function resolveHostSessionCookiePath(session = {}) {
-  return String(session?.cookiePath || "/").trim() || "/";
+  return String(session?.cookiePath || "/api").trim() || "/api";
 }
 
 function resolveHostSessionCookieDomain(session = {}) {
@@ -318,8 +362,6 @@ export function readHostBootstrapContext(request, bootstrap = {}) {
   }
   return {
     subjectId: String(payload.subjectId || "").trim() || null,
-    email: String(payload.email || "").trim() || null,
-    name: String(payload.name || "").trim() || null,
     origin: tokenOrigin || null,
     jti: String(payload.jti || "").trim() || null,
     iat: Number.isFinite(Number(payload.iat)) ? Math.floor(Number(payload.iat)) : null,
@@ -471,8 +513,6 @@ export async function readHostSessionContext(request, session = {}) {
   }
   return {
     subjectId: String(payload.subjectId || "").trim() || null,
-    email: String(payload.email || "").trim() || null,
-    name: String(payload.name || "").trim() || null,
     sessionMode: "host_session",
     jti: String(payload.jti || "").trim() || null,
     iat: Number.isFinite(Number(payload.iat)) ? Math.floor(Number(payload.iat)) : null,
@@ -603,8 +643,6 @@ export function buildHostBootstrapResult({
       ...(String(signingKeyId || "").trim() ? { kid: String(signingKeyId).trim() } : {}),
       jti: crypto.randomUUID(),
       subjectId: String(subjectId || "").trim(),
-      email: String(email || "").trim(),
-      name: String(name || "").trim(),
       origin: normalizeOrigin(origin),
       iat: now,
       exp: now + expiresIn,
@@ -622,8 +660,6 @@ export function buildHostBootstrapResult({
 
 export function buildHostSessionExchangeResult({
   subjectId,
-  email,
-  name,
   signingSecret,
   signingKeyId,
   request,
@@ -648,8 +684,6 @@ export function buildHostSessionExchangeResult({
     ...(String(signingKeyId || "").trim() ? { kid: String(signingKeyId).trim() } : {}),
     jti: crypto.randomUUID(),
     subjectId: resolvedSubjectId,
-    email: String(email || "").trim(),
-    name: String(name || "").trim(),
     iat: now,
     exp: now + expiresIn,
   };
@@ -716,6 +750,19 @@ export function ensureHostApiOriginAllowed(request, reply, allowedOrigins = []) 
   }
   applyHostApiCorsHeaders(reply, request, effectiveAllowedOrigins);
   return true;
+}
+
+export function ensureHostApiBrowserUnsafeOriginAllowed(request, reply, allowedOrigins = []) {
+  const origin = readRequestOrigin(request);
+  if (!origin) {
+    reply.code(403).send({ message: "Origin is required" });
+    return false;
+  }
+  return ensureHostApiOriginAllowed(request, reply, allowedOrigins);
+}
+
+export function ensureHostApiCookieUnsafeOriginAllowed(request, reply, allowedOrigins = []) {
+  return ensureHostApiBrowserUnsafeOriginAllowed(request, reply, allowedOrigins);
 }
 
 export function sendHostApiPreflight(request, reply, allowedOrigins = []) {

@@ -16,6 +16,7 @@ export function normalizeWidgetSessionInput(body, request) {
     xappId: body.xappId,
     requestId: body.requestId,
     hostReturnUrl: readString(body.hostReturnUrl, request.headers.referer) || undefined,
+    hostSessionJti: readString(body.host_session_jti) || undefined,
     resultPresentation: body.resultPresentation,
     guardUi: body.guardUi,
   };
@@ -28,6 +29,7 @@ export function normalizeBridgeRefreshInput(body, request) {
     origin: body.origin,
     subjectId: body.subjectId,
     hostReturnUrl: readString(body.hostReturnUrl, request.headers.referer) || undefined,
+    hostSessionJti: readString(body.host_session_jti) || undefined,
   };
 }
 

@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import type { HostBootstrapConsumeJti, HostSessionStore } from "./options.js";
@@ -15,27 +16,156 @@ export type FileHostSessionStoreConfig = {
 };
 
 type JsonRecord = Record<string, unknown>;
+type FileLockMetadata = {
+  ownerId: string;
+  pid: number;
+  bootId: string;
+  acquiredAt: number;
+  updatedAt: number;
+};
 
 const fileStateQueues = new Map<string, Promise<void>>();
+const processLockOwnerNonce =
+  typeof crypto.randomUUID === "function"
+    ? crypto.randomUUID()
+    : crypto.randomBytes(16).toString("hex");
+let bootIdPromise: Promise<string> | null = null;
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function isProcessAlive(pid: unknown) {
+  const normalizedPid = Number(pid);
+  if (!Number.isInteger(normalizedPid) || normalizedPid <= 0) return false;
+  try {
+    process.kill(normalizedPid, 0);
+    return true;
+  } catch (error) {
+    return (error as NodeJS.ErrnoException | null)?.code === "EPERM";
+  }
+}
+
+async function resolveCurrentBootId() {
+  if (!bootIdPromise) {
+    bootIdPromise = fs
+      .readFile("/proc/sys/kernel/random/boot_id", "utf8")
+      .then((raw) => String(raw || "").trim())
+      .catch(() => "");
+  }
+  return bootIdPromise;
+}
+
+async function readFileLockMetadata(lockPath: string) {
+  const [raw, stats] = await Promise.all([
+    fs.readFile(lockPath, "utf8").catch(() => ""),
+    fs.stat(lockPath).catch(() => null),
+  ]);
+  if (!raw.trim()) {
+    return {
+      ownerId: "",
+      pid: 0,
+      bootId: "",
+      acquiredAt: 0,
+      updatedAt: 0,
+      fileMtimeMs: Number(stats?.mtimeMs || 0),
+    };
+  }
+  try {
+    const parsed = JSON.parse(raw);
+    const metadata =
+      parsed && typeof parsed === "object" && !Array.isArray(parsed)
+        ? (parsed as Record<string, unknown>)
+        : {};
+    return {
+      ownerId: String(metadata.ownerId || "").trim(),
+      pid: Number.isFinite(Number(metadata.pid)) ? Math.floor(Number(metadata.pid)) : 0,
+      bootId: String(metadata.bootId || "").trim(),
+      acquiredAt: Number.isFinite(Number(metadata.acquiredAt))
+        ? Math.floor(Number(metadata.acquiredAt))
+        : 0,
+      updatedAt: Number.isFinite(Number(metadata.updatedAt))
+        ? Math.floor(Number(metadata.updatedAt))
+        : 0,
+      fileMtimeMs: Number(stats?.mtimeMs || 0),
+    };
+  } catch {
+    return {
+      ownerId: "",
+      pid: 0,
+      bootId: "",
+      acquiredAt: 0,
+      updatedAt: 0,
+      fileMtimeMs: Number(stats?.mtimeMs || 0),
+    };
+  }
+}
+
+async function canStealFileLock(lockPath: string, staleLockAgeMs: number, currentBootId: string) {
+  const metadata = await readFileLockMetadata(lockPath);
+  const now = Date.now();
+  const lastUpdatedMs =
+    metadata.updatedAt > 0
+      ? metadata.updatedAt
+      : metadata.acquiredAt > 0
+        ? metadata.acquiredAt
+        : metadata.fileMtimeMs;
+  if (!lastUpdatedMs) return true;
+  if (now - lastUpdatedMs < staleLockAgeMs) return false;
+  const sameBoot = Boolean(currentBootId && metadata.bootId && currentBootId === metadata.bootId);
+  if (sameBoot && isProcessAlive(metadata.pid)) {
+    return false;
+  }
+  return true;
+}
+
 async function acquireFileStateLock(resolvedFilePath: string, timeoutMs = 5000) {
   const lockPath = `${resolvedFilePath}.lock`;
-  await fs.mkdir(path.dirname(lockPath), { recursive: true });
+  await fs.mkdir(path.dirname(lockPath), { recursive: true, mode: 0o700 });
   const startedAt = Date.now();
+  const staleLockAgeMs = Math.max(timeoutMs * 2, 5000);
+  const bootId = await resolveCurrentBootId();
+  const ownerId = `${process.pid}:${bootId || "unknown"}:${processLockOwnerNonce}`;
   while (true) {
     try {
-      const handle = await fs.open(lockPath, "wx");
+      const handle = await fs.open(lockPath, "wx", 0o600);
+      const now = Date.now();
+      const metadata: FileLockMetadata = {
+        ownerId,
+        pid: process.pid,
+        bootId,
+        acquiredAt: now,
+        updatedAt: now,
+      };
+      await handle.writeFile(JSON.stringify(metadata, null, 2));
+      await handle.sync().catch(() => {});
+      let released = false;
+      const heartbeatMs = Math.max(250, Math.floor(timeoutMs / 2));
+      const heartbeatTimer = setInterval(async () => {
+        if (released) return;
+        metadata.updatedAt = Date.now();
+        try {
+          await handle.truncate(0);
+          await handle.writeFile(JSON.stringify(metadata, null, 2));
+          await handle.sync();
+        } catch {
+          // Best-effort heartbeat only.
+        }
+      }, heartbeatMs);
+      heartbeatTimer.unref?.();
       return async () => {
+        released = true;
+        clearInterval(heartbeatTimer);
         await handle.close().catch(() => {});
         await fs.unlink(lockPath).catch(() => {});
       };
     } catch (error) {
       if ((error as NodeJS.ErrnoException | null)?.code !== "EEXIST") {
         throw error;
+      }
+      if (await canStealFileLock(lockPath, staleLockAgeMs, bootId)) {
+        await fs.unlink(lockPath).catch(() => {});
+        continue;
       }
       if (Date.now() - startedAt >= timeoutMs) {
         throw new Error(`Unable to lock host state file: ${resolvedFilePath}`);
@@ -82,7 +212,7 @@ async function runWithFileStateQueue<T>(
 async function readJsonRecord(filePath: string) {
   const resolvedFilePath = String(filePath || "").trim();
   if (!resolvedFilePath) return {};
-  await fs.mkdir(path.dirname(resolvedFilePath), { recursive: true });
+  await fs.mkdir(path.dirname(resolvedFilePath), { recursive: true, mode: 0o700 });
   try {
     const raw = await fs.readFile(resolvedFilePath, "utf8");
     if (!raw.trim()) return {};
@@ -104,10 +234,11 @@ async function readJsonRecord(filePath: string) {
 async function writeJsonRecord(filePath: string, state: JsonRecord) {
   const resolvedFilePath = String(filePath || "").trim();
   if (!resolvedFilePath) return;
-  await fs.mkdir(path.dirname(resolvedFilePath), { recursive: true });
+  await fs.mkdir(path.dirname(resolvedFilePath), { recursive: true, mode: 0o700 });
   const tempFilePath = `${resolvedFilePath}.tmp`;
-  await fs.writeFile(tempFilePath, JSON.stringify(state, null, 2));
+  await fs.writeFile(tempFilePath, JSON.stringify(state, null, 2), { mode: 0o600 });
   await fs.rename(tempFilePath, resolvedFilePath);
+  await fs.chmod(resolvedFilePath, 0o600).catch(() => {});
 }
 
 function pruneRevokedJtiState(current: JsonRecord, now: number) {
@@ -229,7 +360,7 @@ export function createFileHostSessionStore(
     async revoke(input: Parameters<NonNullable<HostSessionStore["revoke"]>>[0]) {
       const jti = String(input?.jti || "").trim();
       if (!revocationsFile || !jti) return false;
-      return await runWithFileStateQueue(revocationsFile, lockTimeoutMs, async () => {
+      const revoked = await runWithFileStateQueue(revocationsFile, lockTimeoutMs, async () => {
         const now = Math.floor(Date.now() / 1000);
         const current = await readJsonRecord(revocationsFile);
         const next = pruneRevokedJtiState(current, now);
@@ -238,6 +369,20 @@ export function createFileHostSessionStore(
         await writeJsonRecord(revocationsFile, next);
         return true;
       });
+      if (revoked && stateFile) {
+        await runWithFileStateQueue(stateFile, lockTimeoutMs, async () => {
+          const now = Math.floor(Date.now() / 1000);
+          const current = await readJsonRecord(stateFile);
+          const next = pruneSessionStateByAbsoluteTtl(current, now);
+          if (Object.prototype.hasOwnProperty.call(next, jti)) {
+            delete next[jti];
+            await writeJsonRecord(stateFile, next);
+          } else if (Object.keys(next).length !== Object.keys(current).length) {
+            await writeJsonRecord(stateFile, next);
+          }
+        });
+      }
+      return revoked;
     },
   };
 }

@@ -468,12 +468,10 @@ function readDelegatedReturnSecret(
 ): { secret?: string; secret_ref?: string } {
   if (issuerMode === "tenant_delegated") {
     const secret_ref = readString(
-      env.TENANT_DELEGATED_PAYMENT_RETURN_SECRET_REF ??
-        env.TENANT_PAYMENT_RETURN_SECRET_REF,
+      env.TENANT_DELEGATED_PAYMENT_RETURN_SECRET_REF ?? env.TENANT_PAYMENT_RETURN_SECRET_REF,
     );
     const secret = readString(
-      env.TENANT_DELEGATED_PAYMENT_RETURN_SECRET ??
-        env.TENANT_PAYMENT_RETURN_SECRET,
+      env.TENANT_DELEGATED_PAYMENT_RETURN_SECRET ?? env.TENANT_PAYMENT_RETURN_SECRET,
     );
     return {
       ...(secret_ref ? { secret_ref } : {}),

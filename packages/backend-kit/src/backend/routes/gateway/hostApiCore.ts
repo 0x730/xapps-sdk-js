@@ -8,6 +8,7 @@ import {
   buildClearedHostSessionCookieHeader,
   buildHostSessionExchangeResult,
   consumeHostBootstrapReplay,
+  ensureHostApiBrowserUnsafeOriginAllowed,
   ensureHostApiOriginAllowed,
   requireRequestedHostBootstrapOrigin,
   readBodyRecord,
@@ -30,10 +31,95 @@ function readString(...values) {
   return "";
 }
 
+function isAcceptedRateLimitResult(allowed) {
+  return (
+    allowed === true ||
+    (allowed && typeof allowed === "object" && !Array.isArray(allowed) && allowed.allowed !== false)
+  );
+}
+
+async function runHookSafely(request, hook, input, label) {
+  if (typeof hook !== "function") return;
+  try {
+    await hook(input);
+  } catch (error) {
+    if (typeof request?.log?.warn === "function") {
+      request.log.warn({ err: error }, label);
+    } else {
+      console.warn(label, error);
+    }
+  }
+}
+
+async function auditHostBootstrap(bootstrap, request, input) {
+  await runHookSafely(
+    request,
+    bootstrap?.auditBootstrap,
+    input,
+    "host-bootstrap audit hook failed",
+  );
+}
+
 async function auditHostSessionExchange(session, input) {
-  const auditExchange = typeof session?.auditExchange === "function" ? session.auditExchange : null;
-  if (!auditExchange) return;
-  await auditExchange(input);
+  await runHookSafely(
+    input?.request,
+    session?.auditExchange,
+    input,
+    "host-session exchange audit hook failed",
+  );
+}
+
+async function auditHostSessionLogout(session, request, input) {
+  await runHookSafely(
+    request,
+    session?.auditLogout,
+    input,
+    "host-session logout audit hook failed",
+  );
+}
+
+async function auditHostSessionRevocation(session, request, input) {
+  await runHookSafely(
+    request,
+    session?.auditRevocation,
+    input,
+    "host-session revocation audit hook failed",
+  );
+}
+
+async function warnDeprecatedBootstrapHeaderUsage(bootstrap, request, route) {
+  const bootstrapToken = readString(request?.headers?.["x-xapps-host-bootstrap"]);
+  if (!bootstrapToken) return;
+  const message =
+    "host bootstrap header is deprecated outside /api/host-session/exchange and will be removed";
+  const warnHook = bootstrap?.deprecatedWarn;
+  if (typeof warnHook === "function") {
+    await runHookSafely(
+      request,
+      warnHook,
+      {
+        request,
+        route,
+        headerName: "x-xapps-host-bootstrap",
+        message,
+      },
+      "host-bootstrap deprecated warning hook failed",
+    );
+    return;
+  }
+  if (warnHook === true) {
+    if (typeof request?.log?.warn === "function") {
+      request.log.warn(
+        {
+          route,
+          headerName: "x-xapps-host-bootstrap",
+        },
+        message,
+      );
+    } else {
+      console.warn(message, { route, headerName: "x-xapps-host-bootstrap" });
+    }
+  }
 }
 
 export default async function hostApiCoreRoutes(
@@ -63,12 +149,38 @@ export default async function hostApiCoreRoutes(
   });
 
   fastify.post("/api/host-bootstrap", async (request, reply) => {
+    const body = readBodyRecord(request.body);
+    const requestedOrigin = readString(body.origin) || null;
+    const requestedSubjectId = readString(body.subjectId) || null;
+    const requestedType = readString(body.type) || null;
+    const requestedEmail = readString(body.email) || null;
+    const requestedName = readString(body.name) || null;
+    const requestedLinkId = readString(body.linkId, body.link_id) || null;
+    let validatedApiKey = null;
     try {
-      const body = readBodyRecord(request.body);
-      const { signingSecret, signingKeyId, ttlSeconds } = requireHostBootstrapRequest(
+      const { apiKey, signingSecret, signingKeyId, ttlSeconds } = requireHostBootstrapRequest(
         request,
         bootstrap,
       );
+      validatedApiKey = apiKey;
+      const rateLimitBootstrap =
+        typeof bootstrap?.rateLimitBootstrap === "function" ? bootstrap.rateLimitBootstrap : null;
+      if (rateLimitBootstrap) {
+        const allowed = await rateLimitBootstrap({
+          request,
+          apiKey,
+          origin: requestedOrigin,
+          subjectId: requestedSubjectId,
+          type: requestedType,
+          identifier: body.identifier ?? null,
+          email: requestedEmail,
+          name: requestedName,
+          linkId: requestedLinkId,
+        });
+        if (!isAcceptedRateLimitResult(allowed)) {
+          throw new Error("Host bootstrap rate limit exceeded");
+        }
+      }
       const origin = requireRequestedHostBootstrapOrigin(
         body.origin,
         resolveHostApiAllowedOrigins(request, allowedOrigins),
@@ -82,18 +194,43 @@ export default async function hostApiCoreRoutes(
         metadata: body.metadata,
         linkId: body.linkId ?? body.link_id,
       });
-      return reply.send(
-        buildHostBootstrapResult({
-          subjectId: resolved.subjectId,
-          email: resolved.email ?? body.email,
-          name: resolved.name ?? body.name,
-          origin,
-          signingSecret,
-          signingKeyId,
-          ttlSeconds,
-        }),
-      );
+      const result = buildHostBootstrapResult({
+        subjectId: resolved.subjectId,
+        email: resolved.email ?? body.email,
+        name: resolved.name ?? body.name,
+        origin,
+        signingSecret,
+        signingKeyId,
+        ttlSeconds,
+      });
+      await auditHostBootstrap(bootstrap, request, {
+        request,
+        ok: true,
+        apiKey,
+        origin,
+        subjectId: readString(resolved.subjectId) || requestedSubjectId,
+        type: requestedType,
+        identifier: body.identifier ?? null,
+        email: readString(resolved.email, body.email) || null,
+        name: readString(resolved.name, body.name) || null,
+        linkId: requestedLinkId,
+        token: readString(result.bootstrapToken) || null,
+      });
+      return reply.send(result);
     } catch (err) {
+      await auditHostBootstrap(bootstrap, request, {
+        request,
+        ok: false,
+        apiKey: validatedApiKey,
+        origin: requestedOrigin,
+        subjectId: requestedSubjectId,
+        type: requestedType,
+        identifier: body.identifier ?? null,
+        email: requestedEmail,
+        name: requestedName,
+        linkId: requestedLinkId,
+        reason: String(err?.message || "host bootstrap failed"),
+      });
       return sendServiceError(request, reply, err, "host bootstrap failed");
     }
   });
@@ -118,13 +255,7 @@ export default async function hostApiCoreRoutes(
           token: bootstrapContext.token,
           type: "host_bootstrap",
         });
-        const accepted =
-          allowed === true ||
-          (allowed &&
-            typeof allowed === "object" &&
-            !Array.isArray(allowed) &&
-            allowed.allowed !== false);
-        if (!accepted) {
+        if (!isAcceptedRateLimitResult(allowed)) {
           throw new Error("Host session exchange rate limit exceeded");
         }
       }
@@ -189,22 +320,133 @@ export default async function hostApiCoreRoutes(
   });
 
   fastify.post("/api/host-session/logout", async (request, reply) => {
-    if (!ensureHostApiOriginAllowed(request, reply, allowedOrigins)) return;
+    if (!ensureHostApiBrowserUnsafeOriginAllowed(request, reply, allowedOrigins)) return;
+    await warnDeprecatedBootstrapHeaderUsage(bootstrap, request, "/api/host-session/logout");
     try {
       const sessionContext = await readHostSessionContext(request, session);
+      const rateLimitLogout =
+        typeof session?.rateLimitLogout === "function" ? session.rateLimitLogout : null;
+      if (rateLimitLogout) {
+        const allowed = await rateLimitLogout({
+          request,
+          subjectId: readString(sessionContext?.subjectId) || null,
+          jti: readString(sessionContext?.jti) || null,
+          iat: Number.isFinite(Number(sessionContext?.iat))
+            ? Math.floor(Number(sessionContext.iat))
+            : null,
+          exp: Number.isFinite(Number(sessionContext?.exp))
+            ? Math.floor(Number(sessionContext.exp))
+            : null,
+          token: readString(sessionContext?.token) || null,
+          type: "host_session",
+        });
+        if (!isAcceptedRateLimitResult(allowed)) {
+          throw new Error("Host session logout rate limit exceeded");
+        }
+      }
       if (sessionContext) {
         await revokeHostSession(sessionContext, session);
+        await auditHostSessionRevocation(session, request, {
+          request,
+          ok: true,
+          phase: "local_revoke",
+          subjectId: readString(sessionContext?.subjectId) || null,
+          jti: readString(sessionContext?.jti) || null,
+          iat: Number.isFinite(Number(sessionContext?.iat))
+            ? Math.floor(Number(sessionContext.iat))
+            : null,
+          exp: Number.isFinite(Number(sessionContext?.exp))
+            ? Math.floor(Number(sessionContext.exp))
+            : null,
+          token: readString(sessionContext?.token) || null,
+          source: "tenant_host_logout",
+        });
+        const reportHostSessionRevocation =
+          typeof service?.reportHostSessionRevocation === "function"
+            ? service.reportHostSessionRevocation
+            : null;
+        if (reportHostSessionRevocation && sessionContext?.jti && Number(sessionContext?.exp) > 0) {
+          try {
+            await reportHostSessionRevocation({
+              hostSessionJti: String(sessionContext.jti || "").trim(),
+              exp: Math.floor(Number(sessionContext.exp)),
+              revokedAt: Math.floor(Date.now() / 1000),
+              source: "tenant_host_logout",
+            });
+            await auditHostSessionRevocation(session, request, {
+              request,
+              ok: true,
+              phase: "gateway_report",
+              subjectId: readString(sessionContext?.subjectId) || null,
+              jti: readString(sessionContext?.jti) || null,
+              iat: Number.isFinite(Number(sessionContext?.iat))
+                ? Math.floor(Number(sessionContext.iat))
+                : null,
+              exp: Number.isFinite(Number(sessionContext?.exp))
+                ? Math.floor(Number(sessionContext.exp))
+                : null,
+              token: readString(sessionContext?.token) || null,
+              source: "tenant_host_logout",
+            });
+          } catch (error) {
+            await auditHostSessionRevocation(session, request, {
+              request,
+              ok: false,
+              phase: "gateway_report",
+              subjectId: readString(sessionContext?.subjectId) || null,
+              jti: readString(sessionContext?.jti) || null,
+              iat: Number.isFinite(Number(sessionContext?.iat))
+                ? Math.floor(Number(sessionContext.iat))
+                : null,
+              exp: Number.isFinite(Number(sessionContext?.exp))
+                ? Math.floor(Number(sessionContext.exp))
+                : null,
+              token: readString(sessionContext?.token) || null,
+              source: "tenant_host_logout",
+              reason: String(error?.message || "host-session revocation propagation failed"),
+            });
+            if (typeof request?.log?.warn === "function") {
+              request.log.warn({ err: error }, "host-session revocation propagation failed");
+            } else {
+              console.warn("host-session revocation propagation failed", error);
+            }
+          }
+        }
       }
       applyHostApiCorsHeaders(reply, request, allowedOrigins);
       appendSetCookieHeader(reply, buildClearedHostSessionCookieHeader(request, session));
+      await auditHostSessionLogout(session, request, {
+        request,
+        ok: true,
+        subjectId: readString(sessionContext?.subjectId) || null,
+        jti: readString(sessionContext?.jti) || null,
+        iat: Number.isFinite(Number(sessionContext?.iat))
+          ? Math.floor(Number(sessionContext.iat))
+          : null,
+        exp: Number.isFinite(Number(sessionContext?.exp))
+          ? Math.floor(Number(sessionContext.exp))
+          : null,
+        token: readString(sessionContext?.token) || null,
+      });
       return reply.send({ ok: true, status: "revoked", sessionMode: "host_session" });
     } catch (err) {
+      await auditHostSessionLogout(session, request, {
+        request,
+        ok: false,
+        subjectId: null,
+        jti: null,
+        iat: null,
+        exp: null,
+        token: null,
+        reason: String(err?.message || "host session logout failed"),
+      });
       return sendServiceError(request, reply, err, "host session logout failed");
     }
   });
 
   fastify.post("/api/resolve-subject", async (request, reply) => {
-    if (!ensureHostApiOriginAllowed(request, reply, allowedOrigins)) return;
+    if (!ensureHostApiBrowserUnsafeOriginAllowed(request, reply, allowedOrigins)) return;
+    await warnDeprecatedBootstrapHeaderUsage(bootstrap, request, "/api/resolve-subject");
     try {
       const body = readBodyRecord(request.body);
       await readHostAuthContext(request, session);
@@ -226,7 +468,8 @@ export default async function hostApiCoreRoutes(
   });
 
   fastify.post("/api/create-catalog-session", async (request, reply) => {
-    if (!ensureHostApiOriginAllowed(request, reply, allowedOrigins)) return;
+    if (!ensureHostApiBrowserUnsafeOriginAllowed(request, reply, allowedOrigins)) return;
+    await warnDeprecatedBootstrapHeaderUsage(bootstrap, request, "/api/create-catalog-session");
     try {
       const body = readBodyRecord(request.body);
       const bootstrapContext = await readHostAuthContext(request, session);
@@ -241,6 +484,7 @@ export default async function hostApiCoreRoutes(
         await service.createCatalogSession({
           origin: body.origin,
           subjectId,
+          hostSessionJti: readString(bootstrapContext?.jti) || undefined,
           xappId: body.xappId,
           publishers: body.publishers,
           tags: body.tags,
@@ -256,7 +500,8 @@ export default async function hostApiCoreRoutes(
   });
 
   fastify.post("/api/catalog-customer-profile", async (request, reply) => {
-    if (!ensureHostApiOriginAllowed(request, reply, allowedOrigins)) return;
+    if (!ensureHostApiBrowserUnsafeOriginAllowed(request, reply, allowedOrigins)) return;
+    await warnDeprecatedBootstrapHeaderUsage(bootstrap, request, "/api/catalog-customer-profile");
     try {
       const body = readBodyRecord(request.body);
       const bootstrapContext = await readHostAuthContext(request, session);
@@ -294,7 +539,8 @@ export default async function hostApiCoreRoutes(
   });
 
   fastify.post("/api/create-widget-session", async (request, reply) => {
-    if (!ensureHostApiOriginAllowed(request, reply, allowedOrigins)) return;
+    if (!ensureHostApiBrowserUnsafeOriginAllowed(request, reply, allowedOrigins)) return;
+    await warnDeprecatedBootstrapHeaderUsage(bootstrap, request, "/api/create-widget-session");
     try {
       const body = readBodyRecord(request.body);
       const bootstrapContext = await readHostAuthContext(request, session);
@@ -306,6 +552,7 @@ export default async function hostApiCoreRoutes(
         input.subjectId,
         session,
       );
+      input.hostSessionJti = readString(bootstrapContext?.jti, input.hostSessionJti) || undefined;
       return reply.send(await service.createWidgetSession(input));
     } catch (err) {
       return sendServiceError(request, reply, err, "create-widget-session failed");

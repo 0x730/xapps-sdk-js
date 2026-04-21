@@ -261,7 +261,7 @@ For the stronger host-session exchange posture, also configure:
 - optional `host.session.verifierKeys`
 - `host.session.absoluteTtlSeconds`
 - optional `host.session.idleTtlSeconds`
-- `host.session.cookiePath`
+- `host.session.cookiePath` (recommended `/api`)
 - optional `host.session.cookieDomain`
 - `host.session.cookieSameSite`
 - `host.session.cookieSecure`
@@ -269,6 +269,12 @@ For the stronger host-session exchange posture, also configure:
 - required when `host.session.idleTtlSeconds > 0`: `host.session.store.touch`
 - required `host.session.store.isRevoked`
 - required `host.session.store.revoke`
+- optional `host.bootstrap.rateLimitBootstrap`
+- optional `host.bootstrap.auditBootstrap`
+- optional `host.bootstrap.deprecatedWarn`
+- optional `host.session.rateLimitLogout`
+- optional `host.session.auditLogout`
+- optional `host.session.auditRevocation`
 
 Minimal preferred session-store shape:
 
@@ -311,6 +317,34 @@ const store = createFileHostSessionStore({
 });
 ```
 
+Redis-backed helpers are available for multi-replica/shared-state deployments:
+
+```ts
+import {
+  createRedisHostBootstrapReplayConsumer,
+  createRedisHostSessionStore,
+} from "@xapps-platform/backend-kit";
+import Redis from "ioredis";
+
+const redis = new Redis(process.env.REDIS_URL || "redis://127.0.0.1:6379");
+
+const consumeJti = createRedisHostBootstrapReplayConsumer({
+  client: redis,
+  keyPrefix: "xapps:host",
+});
+
+const store = createRedisHostSessionStore({
+  client: redis,
+  keyPrefix: "xapps:host",
+});
+```
+
+Redis key layout:
+
+- `xapps:host:bootstrap:jti:{jti}`
+- `xapps:host:session:state:{jti}`
+- `xapps:host:session:revoked:{jti}`
+
 Important rule:
 
 - `absoluteTtlSeconds` is the real cookie/session lifetime baseline
@@ -343,6 +377,14 @@ Execution-plane rule:
 - prefer `Authorization: Bearer <token>` on host execution-plane routes
 - query/body token input should be treated as compatibility input, not the
   preferred contract
+- when `host_session_jti` is present, execution tokens should also carry
+  `host_session_bound: true` so verifiers can enforce host-session claims only
+  for bound tokens
+- when execution tokens carry `host_session_jti`, backend-kit performs
+  best-effort revoke propagation to `POST /v1/host-sessions/revocations`
+  during host-session logout when gateway client config is present
+- manual revoke propagation to the same endpoint remains available for
+  non-logout revocation sources
 
 This split is intentional. Backend kit should not turn the tenant backend into
 a generic gateway proxy. Host session protects the hosted control-plane.

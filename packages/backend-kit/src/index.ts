@@ -49,6 +49,13 @@ import {
   type FileHostBootstrapReplayConsumerConfig,
   type FileHostSessionStoreConfig,
 } from "./backend/fileHostStore.js";
+import {
+  createRedisHostBootstrapReplayConsumer,
+  createRedisHostSessionStore,
+  type RedisHostBootstrapReplayConsumerConfig,
+  type RedisHostSessionStoreConfig,
+  type RedisLikeClient,
+} from "./backend/redisHostStore.js";
 
 type ReplyLike = {
   code: (statusCode: number) => {
@@ -107,6 +114,9 @@ export type {
   ConsumeXappWalletCreditsInput,
   FileHostBootstrapReplayConsumerConfig,
   FileHostSessionStoreConfig,
+  RedisHostBootstrapReplayConsumerConfig,
+  RedisHostSessionStoreConfig,
+  RedisLikeClient,
   HostSessionStore,
   FinalizeXappHostedPurchaseInput,
   ListXappHostedPaymentPresetsInput,
@@ -118,7 +128,12 @@ export type {
   XappMonetizationReferenceSummary,
 };
 
-export { createFileHostBootstrapReplayConsumer, createFileHostSessionStore };
+export {
+  createFileHostBootstrapReplayConsumer,
+  createFileHostSessionStore,
+  createRedisHostBootstrapReplayConsumer,
+  createRedisHostSessionStore,
+};
 
 export type VerifyBrowserWidgetContextInput = {
   hostOrigin: string;

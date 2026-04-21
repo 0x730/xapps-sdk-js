@@ -5,7 +5,8 @@ import {
 } from "./hostContractBoundary.js";
 import {
   applyHostApiCorsHeaders,
-  ensureHostApiOriginAllowed,
+  ensureHostApiBrowserUnsafeOriginAllowed,
+  readDeprecatedHostBootstrapHeaderWarning,
   readBodyRecord,
   readHostAuthContext,
   requireHostProxyService,
@@ -14,11 +15,12 @@ import {
 
 export default async function hostApiBridgeRoutes(
   fastify,
-  { hostProxyService, allowedOrigins = [], session = {} } = {},
+  { hostProxyService, allowedOrigins = [], bootstrap = {}, session = {} } = {},
 ) {
   const service = requireHostProxyService(hostProxyService);
   fastify.post("/api/bridge/token-refresh", async (request, reply) => {
-    if (!ensureHostApiOriginAllowed(request, reply, allowedOrigins)) return;
+    if (!ensureHostApiBrowserUnsafeOriginAllowed(request, reply, allowedOrigins)) return;
+    readDeprecatedHostBootstrapHeaderWarning(request, bootstrap, "/api/bridge/token-refresh");
     try {
       const body = readBodyRecord(request.body);
       const bootstrapContext = await readHostAuthContext(request, session);
@@ -27,6 +29,9 @@ export default async function hostApiBridgeRoutes(
       if (bootstrapContext?.subjectId) {
         input.subjectId = bootstrapContext.subjectId;
       }
+      if (bootstrapContext?.jti) {
+        input.hostSessionJti = bootstrapContext.jti;
+      }
       return reply.send(await service.refreshWidgetToken(input));
     } catch (err) {
       return sendServiceError(request, reply, err, "bridge token-refresh failed");
@@ -34,7 +39,8 @@ export default async function hostApiBridgeRoutes(
   });
 
   fastify.post("/api/bridge/sign", async (request, reply) => {
-    if (!ensureHostApiOriginAllowed(request, reply, allowedOrigins)) return;
+    if (!ensureHostApiBrowserUnsafeOriginAllowed(request, reply, allowedOrigins)) return;
+    readDeprecatedHostBootstrapHeaderWarning(request, bootstrap, "/api/bridge/sign");
     try {
       const body = readBodyRecord(request.body);
       const authContext = await readHostAuthContext(request, session);
@@ -66,7 +72,8 @@ export default async function hostApiBridgeRoutes(
   });
 
   fastify.post("/api/bridge/vendor-assertion", async (request, reply) => {
-    if (!ensureHostApiOriginAllowed(request, reply, allowedOrigins)) return;
+    if (!ensureHostApiBrowserUnsafeOriginAllowed(request, reply, allowedOrigins)) return;
+    readDeprecatedHostBootstrapHeaderWarning(request, bootstrap, "/api/bridge/vendor-assertion");
     try {
       const body = readBodyRecord(request.body);
       const authContext = await readHostAuthContext(request, session);

@@ -1,8 +1,10 @@
 // @ts-nocheck
 import {
   applyHostApiCorsHeaders,
+  ensureHostApiBrowserUnsafeOriginAllowed,
   ensureHostApiOriginAllowed,
   readBodyRecord,
+  readDeprecatedHostBootstrapHeaderWarning,
   readExecutionPlaneToken,
   readHostAuthContext,
   resolveTrustedHostSubjectId,
@@ -12,11 +14,12 @@ import {
 
 export default async function hostApiLifecycleRoutes(
   fastify,
-  { hostProxyService, allowedOrigins = [], session = {} } = {},
+  { hostProxyService, allowedOrigins = [], bootstrap = {}, session = {} } = {},
 ) {
   const service = requireHostProxyService(hostProxyService);
   fastify.get("/api/installations", async (request, reply) => {
     if (!ensureHostApiOriginAllowed(request, reply, allowedOrigins)) return;
+    readDeprecatedHostBootstrapHeaderWarning(request, bootstrap, "/api/installations");
     try {
       const query = readBodyRecord(request.query);
       const bootstrapContext = await readHostAuthContext(request, session);
@@ -38,7 +41,8 @@ export default async function hostApiLifecycleRoutes(
   });
 
   fastify.post("/api/install", async (request, reply) => {
-    if (!ensureHostApiOriginAllowed(request, reply, allowedOrigins)) return;
+    if (!ensureHostApiBrowserUnsafeOriginAllowed(request, reply, allowedOrigins)) return;
+    readDeprecatedHostBootstrapHeaderWarning(request, bootstrap, "/api/install");
     try {
       const body = readBodyRecord(request.body);
       const bootstrapContext = await readHostAuthContext(request, session);
@@ -62,7 +66,8 @@ export default async function hostApiLifecycleRoutes(
   });
 
   fastify.post("/api/update", async (request, reply) => {
-    if (!ensureHostApiOriginAllowed(request, reply, allowedOrigins)) return;
+    if (!ensureHostApiBrowserUnsafeOriginAllowed(request, reply, allowedOrigins)) return;
+    readDeprecatedHostBootstrapHeaderWarning(request, bootstrap, "/api/update");
     try {
       const body = readBodyRecord(request.body);
       const bootstrapContext = await readHostAuthContext(request, session);
@@ -86,7 +91,8 @@ export default async function hostApiLifecycleRoutes(
   });
 
   fastify.post("/api/uninstall", async (request, reply) => {
-    if (!ensureHostApiOriginAllowed(request, reply, allowedOrigins)) return;
+    if (!ensureHostApiBrowserUnsafeOriginAllowed(request, reply, allowedOrigins)) return;
+    readDeprecatedHostBootstrapHeaderWarning(request, bootstrap, "/api/uninstall");
     try {
       const body = readBodyRecord(request.body);
       const bootstrapContext = await readHostAuthContext(request, session);
