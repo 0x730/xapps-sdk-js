@@ -57,6 +57,17 @@ export type HostedPaymentBillingSummary = {
   price_slug?: string | null;
   price_label?: string | null;
   payment_guard_ref?: string | null;
+  price_tax_mode?: "gross" | "net" | null;
+  catalog_amount?: string | null;
+  effective_amount?: string | null;
+  subtotal_amount?: string | null;
+  tax_amount?: string | null;
+  total_amount?: string | null;
+  tax_percentage?: string | null;
+  tax_name?: string | null;
+  is_tax_included?: boolean | null;
+  customer_country_code?: string | null;
+  issuer_country_code?: string | null;
 };
 
 export type HostedPaymentSession = {
