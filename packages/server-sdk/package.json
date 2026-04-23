@@ -32,6 +32,6 @@
   },
   "dependencies": {
     "@noble/curves": "^2.0.1",
-    "@xapps-platform/xapp-manifest": "^0.2.2"
+    "@xapps-platform/xapp-manifest": "^0.2.5"
   }
 }
