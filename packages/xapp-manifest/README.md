@@ -43,6 +43,16 @@ The package also owns additive draft manifest surfaces such as the top-level `mo
 catalog block (`products`, `offerings`, `packages`, `prices`, `paywalls`) when those surfaces are only
 being validated structurally and kept inert at runtime.
 
+For monetization authoring, `monetization.prices[]` should declare `price_tax_mode` explicitly:
+
+- use `price_tax_mode: "gross"` for normal marketplace/XMS/XPO catalog prices where the declared
+  amount is the stable buyer-facing amount and tax is decomposed later
+- use `price_tax_mode: "net"` only when the commercial base price is intentionally tax-exclusive
+  and the final payable amount is resolved later by runtime policy
+
+If `price_tax_mode` is omitted, current runtime compatibility still normalizes it to `gross`, but
+new manifests should not rely on that fallback.
+
 `monetization.paywalls[]` is the current additive paywalls `v1` contract:
 
 - presentation-only and non-authoritative

@@ -234,6 +234,7 @@ export type XappManifestMonetizationPrice = {
   package_ref: string;
   currency: string;
   amount: number;
+  price_tax_mode?: "gross" | "net";
   billing_period?: "day" | "week" | "month" | "year";
   billing_period_count?: number;
   trial_policy?: Record<string, unknown>;
@@ -1012,6 +1013,7 @@ export const xappManifestJsonSchema = {
               package_ref: { type: "string", minLength: 1, maxLength: 100 },
               currency: { type: "string", minLength: 1, maxLength: 16 },
               amount: { type: "number", minimum: 0 },
+              price_tax_mode: { type: "string", enum: ["gross", "net"] },
               billing_period: { type: "string", enum: ["day", "week", "month", "year"] },
               billing_period_count: { type: "integer", minimum: 1, maximum: 1000000 },
               trial_policy: { type: "object" },
@@ -1987,6 +1989,46 @@ export function parseXappManifest(
     manifest.invoice_definitions ?? [],
   );
   const invoiceTemplateRegistry = buildInvoiceTemplateRegistry(manifest.invoice_templates ?? []);
+  const notificationTemplateFamilyNames = new Map<string, string[]>();
+  for (const template of notificationTemplates) {
+    const family = String((template as any)?.family ?? "").trim();
+    const name = String((template as any)?.name ?? "").trim();
+    if (!family || !name) continue;
+    notificationTemplateFamilyNames.set(family, [
+      ...(notificationTemplateFamilyNames.get(family) ?? []),
+      name,
+    ]);
+  }
+  const invoiceTemplateFamilyNames = new Map<string, string[]>();
+  for (const template of invoiceTemplates) {
+    const family = String((template as any)?.family ?? "").trim();
+    const name = String((template as any)?.name ?? "").trim();
+    if (!family || !name) continue;
+    invoiceTemplateFamilyNames.set(family, [
+      ...(invoiceTemplateFamilyNames.get(family) ?? []),
+      name,
+    ]);
+  }
+  const hasNotificationTemplateRef = (ref: string) =>
+    notificationTemplateRegistry.has(ref) || notificationTemplateFamilyNames.has(ref);
+  const hasInvoiceTemplateRef = (ref: string) =>
+    invoiceTemplateRegistry.has(ref) || invoiceTemplateFamilyNames.has(ref);
+  const markNotificationTemplateRef = (ref: string) => {
+    const familyNames = notificationTemplateFamilyNames.get(ref);
+    if (familyNames?.length) {
+      for (const name of familyNames) referencedNotificationTemplateNames.add(name);
+      return;
+    }
+    referencedNotificationTemplateNames.add(ref);
+  };
+  const markInvoiceTemplateRef = (ref: string) => {
+    const familyNames = invoiceTemplateFamilyNames.get(ref);
+    if (familyNames?.length) {
+      for (const name of familyNames) referencedInvoiceTemplateNames.add(name);
+      return;
+    }
+    referencedInvoiceTemplateNames.add(ref);
+  };
   const subjectProfileDefinitionRegistry = buildSubjectProfileDefinitionRegistry(
     manifest.subject_profile_guard_definitions ?? [],
   );
@@ -1998,8 +2040,8 @@ export function parseXappManifest(
   for (const def of notificationDefinitions) {
     const templateRef = readNotificationTemplateRef(def as Record<string, unknown>);
     if (!templateRef) continue;
-    referencedNotificationTemplateNames.add(templateRef);
-    if (!notificationTemplateRegistry.has(templateRef)) {
+    markNotificationTemplateRef(templateRef);
+    if (!hasNotificationTemplateRef(templateRef)) {
       throw Object.assign(
         new Error(
           `notification_definitions entry ${String((def as any)?.name ?? "unknown")} references unknown template_ref: ${templateRef}`,
@@ -2011,8 +2053,8 @@ export function parseXappManifest(
   for (const def of invoiceDefinitions) {
     const templateRef = readInvoiceTemplateRef(def as Record<string, unknown>);
     if (!templateRef) continue;
-    referencedInvoiceTemplateNames.add(templateRef);
-    if (!invoiceTemplateRegistry.has(templateRef)) {
+    markInvoiceTemplateRef(templateRef);
+    if (!hasInvoiceTemplateRef(templateRef)) {
       throw Object.assign(
         new Error(
           `invoice_definitions entry ${String((def as any)?.name ?? "unknown")} references unknown invoice_template_ref: ${templateRef}`,
@@ -2266,8 +2308,8 @@ export function parseXappManifest(
         ? readNotificationTemplateRef(resolvedNotificationConfig)
         : "";
     if (templateRef) {
-      referencedNotificationTemplateNames.add(templateRef);
-      if (!notificationTemplateRegistry.has(templateRef)) {
+      markNotificationTemplateRef(templateRef);
+      if (!hasNotificationTemplateRef(templateRef)) {
         throw Object.assign(
           new Error(
             `Guard ${String((guard as any)?.slug || "unknown")} references unknown template_ref: ${templateRef}`,
@@ -2281,8 +2323,8 @@ export function parseXappManifest(
         ? readInvoiceTemplateRef(resolvedInvoiceConfig)
         : readInvoiceTemplateRef(guardConfig);
     if (invoiceTemplateRef) {
-      referencedInvoiceTemplateNames.add(invoiceTemplateRef);
-      if (!invoiceTemplateRegistry.has(invoiceTemplateRef)) {
+      markInvoiceTemplateRef(invoiceTemplateRef);
+      if (!hasInvoiceTemplateRef(invoiceTemplateRef)) {
         throw Object.assign(
           new Error(
             `Guard ${String((guard as any)?.slug || "unknown")} references unknown invoice_template_ref: ${invoiceTemplateRef}`,
